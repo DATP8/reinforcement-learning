@@ -1,0 +1,14 @@
+{
+  "model_type": "reinforcement_learning",
+  "task": "quantum_circuit_synthesis",
+  "problem_type": "clifford_synthesis",
+  "framework": "qiskit-gym",
+  "license": "apache-2.0",
+  "tags": ["quantum-computing", "reinforcement-learning", "circuit-synthesis", "qiskit", "quantum-transpilation", "clifford-synthesis"],
+  "paper": {
+    "title": "Practical and efficient quantum circuit synthesis and transpiling with reinforcement learning",
+    "authors": ["Kremer, D.", "Villar, V.", "Paik, H.", "Duran, I.", "Faro, I.", "Cruz-Benito, J."],
+    "arxiv": "2405.13196",
+    "year": 2024
+  }
+}
