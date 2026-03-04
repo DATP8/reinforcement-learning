@@ -1,3 +1,5 @@
+from model import ValueModel
+from swap_optimizer import SwapOptimizer
 from cnot_circuit import CNOTCircuit
 from basegame import BaseGame
 from torch import nn
@@ -12,13 +14,13 @@ class DAVI:
         self.horizon = horizon
         self.game = game
         
-    def train(self, batchsize=100, num_iterations=1000, update_frequency=10, K=100, loss_threshold=0.01):
+    def train(self, batchsize=100, initial_difficulty=1, num_iterations=1000, update_frequency=10, max_difficulty=100, loss_threshold=0.06):
         optimizer = torch.optim.Adam(self.train_model.parameters())
         mse_loss = nn.MSELoss()
-        dificulty = 1
+        difficulty = initial_difficulty
         
         for iteration in range(num_iterations):
-            X = self.get_random_states(batchsize, dificulty)
+            X = self.get_random_states(batchsize, difficulty)
             y = torch.zeros((batchsize, 1))
             
             for i in range(batchsize):
@@ -26,10 +28,10 @@ class DAVI:
                 for action in self.game.get_possible_actions(X[i]):
                     next_state = self.game.get_next_state(X[i], action)
                     if self.game.is_terminal(next_state):
-                        y[i] = 1.0
+                        y[i] = self.game.get_action_cost(X[i], action)
                         break
-                    
-                    cost = self.game.get_action_cost(X[i], action) + self.evaluation_model.predict(next_state)[1].item()
+                    with torch.no_grad():
+                        cost = self.game.get_action_cost(X[i], action) + self.evaluation_model.predict(next_state.unsqueeze(0)).item()
                     if cost < min_cost:
                         min_cost = cost
                         y[i] = cost
@@ -39,17 +41,18 @@ class DAVI:
             loss.backward()
             optimizer.step()
             
-            print(f"Iteration {iteration}, Difficulty: {dificulty}, Loss: {loss.item():.4f}")
+            print(f"Difficulty: {difficulty}, Iteration {iteration}, Loss: {loss.item():.4f}")
             
             if iteration % update_frequency == 0 and loss.item() < loss_threshold:
                 self.evaluation_model.load_state_dict(self.train_model.state_dict())
-                dificulty += 1
+                difficulty = min(max_difficulty, 1 + difficulty)
+                torch.save(self.train_model.state_dict(), f"models/value_model_deep_cube_a_exp_relu/difficulty{difficulty}_iteration{iteration}.pt")
 
         
-    def get_random_states(self, batchsize, dificulty):
+    def get_random_states(self, batchsize, difficulty):
         states = torch.zeros((batchsize, self.n_qubits, self.n_qubits, self.horizon))
         for i in range(batchsize):
-            n_gates = random.randint(1, dificulty)
+            n_gates = random.randint(1, difficulty)
             states[i] = self.generate_random_circuit(n_gates)
 
         return states
@@ -77,3 +80,13 @@ if __name__ == "__main__":
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    game = SwapOptimizer(n_qubits, horizon, topology)
+    training_model = ValueModel(n_qubits, horizon, len(topology))
+    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
+    training_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
+    evaluation_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
+    
+    trainer = DAVI(training_model, evaluation_model, n_qubits, horizon, game)
+    
+    trainer.train(batchsize=1000, initial_difficulty=5, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.06)
+    

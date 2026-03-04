@@ -37,22 +37,20 @@ class CNOTCircuit(QuantumCircuit):
         if horizon is None:
             tensor = tensor[:, :, :layer]
         
-        #assert layer == depth, f"Number of layers in tensor ({layer}) does not match circuit depth ({self.depth()})."
         
-        return tensor.unsqueeze(0)  # Add batch dimension
+        return tensor
     
     @staticmethod
     def from_tensor(tensor: torch.Tensor):        
-        assert tensor.dim() == 4, "Input tensor must be 4-dimensional (batch_size, n_qubits, n_qubits, depth)."
-        assert tensor.size(0) == 1, "Batch size must be 1 for circuit representation."
+        assert tensor.dim() == 3, "Input tensor must be 3-dimensional (n_qubits, n_qubits, depth)."
         
-        _, n_qubits, n_qubits2, depth = tensor.size()
+        n_qubits, n_qubits2, depth = tensor.size()
         assert n_qubits == n_qubits2, f"The first two dimensions of the tensor must be equal (square). Got {n_qubits} and {n_qubits2}."
         
         qc = CNOTCircuit(n_qubits)
         
         for i in range(depth):
-            lefts, rights = torch.where(tensor[0, :, :, i] == 1.0)
+            lefts, rights = torch.where(tensor[:, :, i] == 1.0)
             pairs = list(zip(lefts.tolist(), rights.tolist()))
             for q1, q2 in pairs:
                 qc.add_cnot(q1, q2)

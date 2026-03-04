@@ -76,23 +76,24 @@ class Model(PVModel):
     def predict(self, x: torch.Tensor):
         return self.forward(x)
     
-class ValueModel(PVModel):
+class ValueModel(nn.Module):
     def __init__(self, n_qubits, horizon, n_actions):
-        super().__init__(n_qubits, horizon, n_actions)
+        super().__init__()
         self.conv1 = nn.Conv1d(n_qubits * n_qubits, n_qubits * 4, kernel_size=3, padding=1)
         self.linear1 = nn.Linear(4 * n_qubits * horizon, n_actions * 4)
         self.estimate = nn.Linear(n_actions * 4, 1)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.flatten(start_dim=1, end_dim=2)
         x = self.conv1(x)
         x = F.relu(x)
         x = x.view(x.size(0), -1)
         x = self.linear1(x)
         x = F.relu(x)
-        v = F.softplus(self.estimate(x))
+        #v = F.softplus(self.estimate(x))
+        v = torch.exp(self.estimate(x))
         
-        return probs, v
+        return v
     
     def predict(self, x: torch.Tensor):
         return self.forward(x)
@@ -112,10 +113,7 @@ class RetardModel(PVModel):
 
 if __name__ == "__main__":
     horizon = 10
-    model = Model(n_qubits=5, horizon=10, n_actions=20)
-    print(type (model))
-    circuit = generate_random_circuit(n_qubits=5, n_gates=10)
-    probs, v = model(circuit.to_tensor(horizon=horizon))
-    print("Value:", v)
-    print("Probabilities:", probs)
+    model = ValueModel(n_qubits=5, horizon=10, n_actions=20)
+    
+    torch.save(model.state_dict(), "models/test/pik.pt")
 
