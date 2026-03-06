@@ -122,7 +122,6 @@ def run_random_benchmark(iterations=10, num_qubits=6, max_gates=10, seed=42, mod
         BWASRouting(coupling_map=coupling_map, 
                     horizon=horizon, 
                     model_path=model_path, 
-                    batch_size=batch_size,
                     device="cpu"),
     ])
 
@@ -165,7 +164,6 @@ def test_bwas_routing(model_path):
         BWASRouting(coupling_map=coupling_map, 
                     horizon=horizon, 
                     model_path=model_path, 
-                    batch_size=1,
                     device="cpu"),
     ])
 

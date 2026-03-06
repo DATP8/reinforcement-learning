@@ -15,11 +15,11 @@ import torch
 
 class BWASRouting(TransformationPass):
 
-    def __init__(self, coupling_map: CouplingMap, horizon: int, model_path: str, batch_size: int, device: str):
+    def __init__(self, coupling_map: CouplingMap, horizon: int, model_path: str, device: str):
         super().__init__()
         self.horizon    = horizon
         self.model_path = model_path
-        self.batch_size = batch_size
+        self.batch_size = 1
         self.device     = device
         self.last_time  = 0.0
         
