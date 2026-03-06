@@ -1,8 +1,7 @@
-from torch import Size
 from sympy.printing.pytorch import torch
-from cnot_circuit import CNOTCircuit
+from .cnot_circuit import CNOTCircuit
 import torch
-from basegame import BaseGame
+from. basegame import BaseGame
 
 class SwapOptimizer(BaseGame[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):

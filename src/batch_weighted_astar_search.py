@@ -5,8 +5,8 @@ from qiskit import QuantumCircuit
 import heapq
 import torch
 import time
-from model import ValueModel
-from swap_optimizer import SwapOptimizer, CNOTCircuit
+from .model import ValueModel
+from .swap_optimizer import SwapOptimizer, CNOTCircuit
 import random
 import itertools
 from qiskit.converters import circuit_to_dag
@@ -80,10 +80,10 @@ class BWAS:
     
     def insert_swaps(self, qc: CNOTCircuit, path: list, horizon: int):
         state = qc.to_tensor(horizon=horizon)
-        state, _ = game.prune(state)
+        state, _ = self.game.prune(state)
         new_circuit = CNOTCircuit.from_tensor(state)
 
-        depth_list = [new_circuit.depth()]
+        depth_list = []
         for action in path:
             state = self.game.get_next_state(state, action)
             new_circuit = CNOTCircuit.from_tensor(state)
@@ -93,7 +93,7 @@ class BWAS:
         if not depth_list:
             return qc
                 # This address when the swap algo swap and prune in same step !BUT NOT FOR
-        depth_list.pop()
+       
         depth = qc.depth() 
 
         dag = circuit_to_dag(qc)
@@ -150,7 +150,8 @@ if __name__ == "__main__":
     
     game = SwapOptimizer(n_qubits, horizon, topology)
     model = ValueModel(n_qubits, horizon, len(topology))
-    model.load_state_dict(torch.load("/home/vind/code/P8/project/reinforcement-learning/models/difficulty10_iteration2600.pt"))
+    model.load_state_dict(torch.load("/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt", map_location="cpu"))
+    model.to("cpu")
     bwas = BWAS(model, game, batch_size=1)
     
     #root_state = generate_random_circuit(game, n_qubits, 4, horizon)
