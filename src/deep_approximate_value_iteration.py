@@ -15,6 +15,12 @@ class DAVI:
         self.game = game
         
     def train(self, batchsize=100, initial_difficulty=1, num_iterations=1000, update_frequency=10, max_difficulty=100, loss_threshold=0.06):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {device}")
+        self.train_model.to(device)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {device}")
+        self.train_model.to(device)
         optimizer = torch.optim.Adam(self.train_model.parameters())
         mse_loss = nn.MSELoss()
         difficulty = initial_difficulty
@@ -36,6 +42,10 @@ class DAVI:
                         min_cost = cost
                         y[i] = cost
             
+            X = X.to(device)
+            y = y.to(device)
+            X = X.to(device)
+            y = y.to(device)
             optimizer.zero_grad()
             loss = mse_loss(self.train_model(X), y)
             loss.backward()
@@ -46,7 +56,8 @@ class DAVI:
             if iteration % update_frequency == 0 and loss.item() < loss_threshold:
                 self.evaluation_model.load_state_dict(self.train_model.state_dict())
                 difficulty = min(max_difficulty, 1 + difficulty)
-                torch.save(self.train_model.state_dict(), f"models/value_model_deep_cube_a_exp_relu/difficulty{difficulty}_iteration{iteration}.pt")
+                torch.save(self.train_model.state_dict(), f"models/davi/difficulty{difficulty}_iteration{iteration}.pt")
+                torch.save(self.train_model.state_dict(), f"models/davi/difficulty{difficulty}_iteration{iteration}.pt")
 
         
     def get_random_states(self, batchsize, difficulty):
@@ -68,7 +79,6 @@ class DAVI:
             qc.add_cnot(q1, q2)
             
         state = qc.to_tensor(horizon=self.horizon)
-        state, _ = self.game.prune(state)
         
         if self.game.is_terminal(state):
             return self.generate_random_circuit(n_gates)
@@ -83,10 +93,12 @@ if __name__ == "__main__":
     game = SwapOptimizer(n_qubits, horizon, topology)
     training_model = ValueModel(n_qubits, horizon, len(topology))
     evaluation_model = ValueModel(n_qubits, horizon, len(topology))
-    training_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
-    evaluation_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
+    #training_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
+    #evaluation_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
+    #training_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
+    #evaluation_model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty5_iteration320.pt"))
     
     trainer = DAVI(training_model, evaluation_model, n_qubits, horizon, game)
     
-    trainer.train(batchsize=1000, initial_difficulty=5, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.06)
+    trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
     

@@ -6,6 +6,7 @@ from basegame import BaseGame
 
 class SwapOptimizer(BaseGame[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):
+        self.n_qubits = n_qubits
         self.horizon = horizon
         self.topology = topology
         self.mask = self.init_mask(n_qubits)
@@ -17,8 +18,14 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
             mask[q2, q1] = 0.0
         return mask
     
-    def get_possible_actions(self, state: torch.Tensor):
+    def get_possible_actions(self, state: torch.Tensor) -> list[int]:
         return list(range(len(self.topology)))
+    
+
+    def get_restricted_actions(self, state: torch.Tensor):
+        pruned_state, _ = self.prune(state)
+        frontlayer_qubits, _ = self.get_front_layer_qubits(pruned_state)
+        return [i for i, (q1, q2) in enumerate(self.topology) if (q1 in frontlayer_qubits or q2 in frontlayer_qubits)]    
 
     def prune(self, state: torch.Tensor) -> tuple[torch.Tensor, int]:
         new_state = state.clone()
@@ -35,26 +42,65 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
         return new_state, layers_removed
 
     def get_next_state(self, state: torch.Tensor, action: int) -> torch.Tensor:
-        new_state = state.clone()
+        # If the first layer is now empty, shift all layers by one  
+        new_state, layers_removed = self.prune(state)
         q1, q2 = self.topology[action]
         
         # Swap the qubits in the tensor representation
-        new_state[q1, :, :] = state[q2, :, :].clone()
-        new_state[q2, :, :] = state[q1, :, :].clone()
+        # todo: check if all clones are necessary
+        new_state_temp = new_state.clone()
+        new_state[q1, :, :] = new_state_temp[q2, :, :].clone()
+        new_state[q2, :, :] = new_state_temp[q1, :, :].clone()
 
-        new_state[:, q1, :], new_state[:, q2, :] = new_state[:, q2, :].clone(), new_state[:, q1, :].clone()
-    
-    
-        # If the first layer is now empty, shift all layers by one  
-        new_state, layers_removed = self.prune(new_state)
+        new_state_temp = new_state.clone()
+        new_state[:, q1, :] = new_state_temp[:, q2, :].clone()
+        new_state[:, q2, :] = new_state_temp[:, q1, :].clone()
 
         return new_state
 
     def is_terminal(self, state: torch.Tensor) -> bool:
-        return torch.sum(state).item() <= 1e-7    
+        next_state, _ = self.prune(state)
+        return torch.sum(next_state).item() <= 1e-7    
 
     def get_action_cost(self, state: torch.Tensor, action: int) -> float:
+        _, layers_removed = self.prune(state)
+        _, backlayer_gates = self.get_front_layer_qubits(torch.flip(state[:,:,:layers_removed], dims=[-1]))
+        
+        # check if swap is successor of removed cnot gates, if so return lower cost
+        q1, q2 = self.topology[action]
+        if (q1, q2) in backlayer_gates or (q2, q1) in backlayer_gates:
+            return 0.5
+        
         return 1.0
+    
+    def get_front_layer_qubits(self, state: torch.Tensor) -> tuple[set[int], set[tuple[int, int]]]:
+        visited_qubits = set()
+        frontlayer_qubits = set()
+        frontlayer_gates = set()
+        
+        for i in range(state.shape[-1]):
+            for q in range(self.n_qubits):
+                if state[q, :, i].sum().item() > 1e-7:
+                    q2 = int(torch.where(state[q, :, i] > 0)[0].item())
+                    if q not in visited_qubits and q2 not in visited_qubits:
+                        frontlayer_qubits.add(q)
+                        frontlayer_qubits.add(q2)
+                        frontlayer_gates.add((q, q2))
+                    visited_qubits.add(q)
+                    visited_qubits.add(q2)
+                if state[:, q, i].sum().item() > 1e-7:
+                    q2 = int(torch.where(state[:, q, i] > 0)[0].item())
+                    if q not in visited_qubits and q2 not in visited_qubits:
+                        frontlayer_qubits.add(q)
+                        frontlayer_qubits.add(q2)
+                        frontlayer_gates.add((q, q2))
+                    visited_qubits.add(q)
+                    visited_qubits.add(q2)
+                    
+            if len(visited_qubits) >= self.n_qubits - 1:
+                break
+                
+        return frontlayer_qubits, frontlayer_gates
 
 
 if __name__ == "__main__":
@@ -63,19 +109,22 @@ if __name__ == "__main__":
     
     circuit = CNOTCircuit(n_qubits)
     circuit.add_cnot(0, 2)
-    circuit.add_cnot(1, 2)
-    
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)]
+    circuit.add_cnot(0, 1)
+    circuit.add_cnot(0, 3)
+    print(circuit)
+    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     
     game = SwapOptimizer(n_qubits, horizon, topology)
     
     root_state = circuit.to_tensor(horizon=horizon)    
     
-    print(circuit)
-    #new_state, layers_removed = game.prune(root_state)
-    #print("Layers removed:", layers_removed)
+    next_state = game.get_next_state(root_state, 0)
+    print(CNOTCircuit.from_tensor(next_state))
+
+    print(next_state.shape)    
+    print(game.get_action_cost(next_state, 0))
+    print(game.get_action_cost(next_state, 1))
+    print(game.get_possible_actions(next_state))
+    print(game.is_terminal(next_state))
     
-    new_state = game.get_next_state(root_state, 0)
-    new_circuit = CNOTCircuit.from_tensor(new_state)
-    print(new_circuit)
     
