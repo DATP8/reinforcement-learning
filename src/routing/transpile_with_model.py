@@ -138,7 +138,7 @@ def plot_heatmap(metric):
     plt.title(metric)
     plt.show()
 
-def plot_fb_heatmaps(metric):
+def plot_fb_heatmaps(df, metric):
 
     fbs = df["forward_backward"].unique()
 
@@ -154,8 +154,11 @@ def plot_fb_heatmaps(metric):
             values=metric
         )
 
+        if pivot.empty:
+            return
+
         sns.heatmap(
-            pivot,
+        pivot,
             annot=True,
             fmt=".2f",
             cmap="viridis",
@@ -174,7 +177,7 @@ if __name__ == "__main__":
     # final_routers = ["sabre", "rl"]
 
     initial_layouts = ["qiskit"]
-    forward_backward = ["none"]
+    forward_backward = ["none", "sabre"]
     final_routers = ["sabre", "rl"]
     
     configs = list(product(
@@ -261,4 +264,5 @@ if __name__ == "__main__":
     df["swap_improvement"] = df["swap_count"] / baseline["swap_count"]
     df["depth_improvement"] = df["depth"] / baseline["depth"]
 
-    plot_fb_heatmaps("swap_improvement")
+
+    plot_fb_heatmaps(df, "swap_improvement")
