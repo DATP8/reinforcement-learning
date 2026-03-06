@@ -80,12 +80,13 @@ class BWAS:
     
     def insert_swaps(self, qc: CNOTCircuit, path: list, horizon: int):
         state = qc.to_tensor(horizon=horizon)
-        state, _ = self.game.prune(state)
         depth_list = []
         for action in path:
             state = self.game.get_next_state(state, action)
             new_circuit = CNOTCircuit.from_tensor(state)
+            print(new_circuit)
             depth_list.append(new_circuit.depth())
+
 
         if not depth_list:
             return qc
@@ -113,7 +114,7 @@ class BWAS:
     
 if __name__ == "__main__":
     
-    random.seed(9)
+    random.seed(42)
     
     def generate_random_circuit(game, n_qubits: int, n_gates: int, horizon: int):
         qc = CNOTCircuit(n_qubits)
@@ -149,19 +150,16 @@ if __name__ == "__main__":
     game = SwapOptimizer(n_qubits, horizon, topology)
     model = ValueModel(n_qubits, horizon, len(topology))
     model.load_state_dict(torch.load("/home/vind/code/P8/project/reinforcement-learning/models/difficulty10_iteration2600.pt"))
-    root_state = generate_random_circuit(game, n_qubits, 11, horizon)
-    qc = CNOTCircuit.from_tensor(root_state)
     bwas = BWAS(model, game, batch_size=1)
     
+    root_state = generate_random_circuit(game, n_qubits, 4, horizon)
+    qc = CNOTCircuit.from_tensor(root_state)
     print(qc)
-    cnot_c = CNOTCircuit.from_quantum_circuit(qc)
+    cnot_c = CNOTCircuit.from_tensor(root_state)
     print(cnot_c)
-
-    state = cnot_c.to_tensor(horizon=horizon)
-    state, _ = game.prune(state)
     
     start_time = time.time()
-    path = bwas.search(state)
+    path = bwas.search(root_state)
     end_time = time.time()
 
     print(path)
