@@ -23,7 +23,8 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
     
 
     def get_restricted_actions(self, state: torch.Tensor):
-        frontlayer_qubits, _ = self.get_front_layer_qubits(state)
+        pruned_state, _ = self.prune(state)
+        frontlayer_qubits, _ = self.get_front_layer_qubits(pruned_state)
         return [i for i, (q1, q2) in enumerate(self.topology) if (q1 in frontlayer_qubits or q2 in frontlayer_qubits)]    
 
     def prune(self, state: torch.Tensor) -> tuple[torch.Tensor, int]:
@@ -109,6 +110,7 @@ if __name__ == "__main__":
     circuit = CNOTCircuit(n_qubits)
     circuit.add_cnot(0, 2)
     circuit.add_cnot(0, 1)
+    circuit.add_cnot(0, 3)
     print(circuit)
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     
@@ -122,6 +124,7 @@ if __name__ == "__main__":
     print(next_state.shape)    
     print(game.get_action_cost(next_state, 0))
     print(game.get_action_cost(next_state, 1))
+    print(game.get_possible_actions(next_state))
     print(game.is_terminal(next_state))
     
     
