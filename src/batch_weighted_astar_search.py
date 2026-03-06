@@ -78,7 +78,7 @@ class BWAS:
             node = node.parent_node
         return path[::-1]
     
-    def insert_swaps(self, qc: CNOTCircuit, path: list, horizon: int):
+    def insert_swaps(self, qc: CNOTCircuit, path: list, horizon: int, topology: list):
         state = qc.to_tensor(horizon=horizon)
         state, _ = self.game.prune(state)
         new_circuit = CNOTCircuit.from_tensor(state)
@@ -87,7 +87,6 @@ class BWAS:
         for action in path:
             state = self.game.get_next_state(state, action)
             new_circuit = CNOTCircuit.from_tensor(state)
-            print(new_circuit)
             depth_list.append(new_circuit.depth())
 
         if not depth_list:
@@ -170,6 +169,6 @@ if __name__ == "__main__":
 
     print(path)
   
-    cnot_c = bwas.insert_swaps(qc=cnot_c, path=path, horizon=horizon)
+    cnot_c = bwas.insert_swaps(qc=cnot_c, path=path, horizon=horizon, topology=topology)
     print(cnot_c)
     print(cnot_c.reconstruct_with_swaps())

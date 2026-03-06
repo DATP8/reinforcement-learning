@@ -48,7 +48,7 @@ class BWASRouting(TransformationPass):
         end_time = time.time()
         
         self.last_time = end_time - start_time
-        cnot_c = bwas.insert_swaps(qc=cnot_c, path=path, horizon=self.horizon)
+        cnot_c = bwas.insert_swaps(qc=cnot_c, path=path, horizon=self.horizon, topology=topology)
         cnot_c.reconstruct_with_swaps()
         return circuit_to_dag(cnot_c.reconstruct_with_swaps())
 
