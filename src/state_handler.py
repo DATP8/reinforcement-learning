@@ -1,8 +1,16 @@
+import torch
+from typing import overload
+from typing import List
+from typing import SupportsIndex
 from abc import ABC, abstractmethod
 from typing import Iterable, Protocol
 
 class Batchable[S](Protocol, Iterable[S]):
     def __len__(self) -> int: ...
+    @overload
+    def __getitem__ (self, i: SupportsIndex, /) -> S:...
+    @overload
+    def __getitem__ (self, s: slice, /) -> List[S]: ...
 
 class StateHandler[S](ABC):        
     @abstractmethod
@@ -30,7 +38,7 @@ class StateHandler[S](ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def batch_states(self, states: Batchable[S]) -> S:
+    def batch_states(self, states: Batchable[S]) -> torch.Tensor:
         """
         `batch_size`: None if all states should be combined
         """
