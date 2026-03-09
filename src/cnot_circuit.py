@@ -2,7 +2,7 @@ from collections import defaultdict
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 import torch
 import random
-from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.converters import circuit_to_dag
 from qiskit.quantum_info import Operator
  
 
