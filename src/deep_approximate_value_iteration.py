@@ -101,4 +101,28 @@ if __name__ == "__main__":
     trainer = DAVI(training_model, evaluation_model, n_qubits, horizon, game)
     
     trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
+  
+    from itertools import product
+    import matplotlib
+    matplotlib.use("TkAgg")
+    from .routing.benchmarker import Benchmarker
+    from qiskit.transpiler import CouplingMap
+
+    initial_layouts = ["qiskit"]
+    forward_backward = ["none", "sabre"]
+    final_routers = ["sabre", "rl"]
+
+    configs = list(product(
+        initial_layouts,
+        forward_backward,
+        final_routers
+    ))
+
+    qubits = 6
+    max_gates = 9
+    coupling_map = CouplingMap([[0,1],[1,2],[2,3],[3,4],[4,5]])
+    path = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt"
+    bench = Benchmarker(path, qubits, max_gates, coupling_map)
+    # Run each combination
+    rows = bench.run_rand_benchmarks(configs, 1)
     
