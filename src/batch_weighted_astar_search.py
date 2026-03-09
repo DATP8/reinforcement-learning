@@ -1,6 +1,5 @@
 from qiskit.circuit.library import SwapGate
 from qiskit.circuit import CircuitInstruction
-from numpy import insert
 from qiskit import QuantumCircuit
 import heapq
 import torch

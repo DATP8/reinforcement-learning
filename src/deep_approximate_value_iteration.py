@@ -1,7 +1,7 @@
-from model import ValueModel
-from swap_optimizer import SwapOptimizer
-from cnot_circuit import CNOTCircuit
-from basegame import BaseGame
+from .model import ValueModel
+from .swap_optimizer import SwapOptimizer
+from .cnot_circuit import CNOTCircuit
+from .basegame import BaseGame
 from torch import nn
 import torch
 import random
