@@ -18,9 +18,7 @@ class DAVI:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
         self.train_model.to(device)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {device}")
-        self.train_model.to(device)
+
         optimizer = torch.optim.Adam(self.train_model.parameters())
         mse_loss = nn.MSELoss()
         difficulty = initial_difficulty
@@ -43,8 +41,6 @@ class DAVI:
                         min_cost = cost
                         y[i] = cost
             
-            X = X.to(device)
-            y = y.to(device)
             X = X.to(device)
             y = y.to(device)
             optimizer.zero_grad()

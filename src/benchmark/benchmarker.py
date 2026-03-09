@@ -8,7 +8,7 @@ from itertools import product
 import time
 import matplotlib
 matplotlib.use("TkAgg")
-from src.routing.bwas_routing import BWASRouting
+from ..routing.bwas_routing import BWASRouting
 
 class Benchmarker: 
     def __init__(self, model_path, qubits, max_gates, coupling_map):

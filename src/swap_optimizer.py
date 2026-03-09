@@ -20,7 +20,6 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
     def get_possible_actions(self, state: torch.Tensor) -> list[int]:
         return list(range(len(self.topology)))
     
-
     def get_restricted_actions(self, state: torch.Tensor):
         pruned_state, _ = self.prune(state)
         frontlayer_qubits, _ = self.get_front_layer_qubits(pruned_state)
@@ -58,8 +57,8 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
         return new_state
 
     def is_terminal(self, state: torch.Tensor) -> bool:
-        next_state, _ = self.prune(state)
-        return torch.sum(next_state).item() <= 1e-7    
+        pruned_state, _ = self.prune(state)
+        return torch.sum(pruned_state).item() <= 1e-7    
 
     def get_action_cost(self, state: torch.Tensor, action: int) -> float:
         _, layers_removed = self.prune(state)
