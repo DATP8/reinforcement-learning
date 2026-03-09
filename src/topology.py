@@ -36,8 +36,27 @@ class Topology:
     def nodes(self):
         return list(self.graph.nodes())
 
-def get_topology_from_file(file_path: str) -> Topology:
-    graph = nx.read_edgelist(file_path, nodetype=int)
+def get_topology_from_file(file_path: str, num_qubits: int) -> Topology:
+    graph = nx.Graph()
+    mapping = {}  # physical qubit -> logical qubit index
+
+    with open(file_path, 'r') as f:
+        for line in f:
+            qubit1, qubit2 = map(int, line.strip().split())
+
+            # Assign logical indices to any new physical qubits
+            if qubit1 not in mapping:
+                mapping[qubit1] = len(mapping)
+            if qubit2 not in mapping:
+                mapping[qubit2] = len(mapping)
+
+            # Add edge using logical qubit indices
+            graph.add_edge(mapping[qubit1], mapping[qubit2])
+
+            # Stop once we've seen enough logical qubits
+            if len(mapping) >= num_qubits and mapping[qubit1] == num_qubits - 1:
+                break
+
     return Topology(graph)
 
 if __name__ == "__main__":
@@ -46,5 +65,5 @@ if __name__ == "__main__":
     #with open('./src/topologies/marrakesh_topology.txt', 'w') as f: 
     #    for edge in topology.edges():
     #        f.write(f"{edge[0]} {edge[1]}\n")
-    top_from_file = get_topology_from_file('./src/topologies/torino_topology.txt')
+    top_from_file = get_topology_from_file('./src/topologies/torino_topology.txt', 10)
     print(top_from_file.edges())
