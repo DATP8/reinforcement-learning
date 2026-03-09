@@ -2,3 +2,4 @@
 models
 circuits
 !.gitignore
+*.pyc
