@@ -36,8 +36,15 @@ class Topology:
     def nodes(self):
         return list(self.graph.nodes())
 
+def get_topology_from_file(file_path: str) -> Topology:
+    graph = nx.read_edgelist(file_path, nodetype=int)
+    return Topology(graph)
 
 if __name__ == "__main__":
-    topology = Topology(nx.Graph())
-    topology.add_ibm_marrakesh_topology()
-    print(topology.edges())
+    #topology = Topology(nx.Graph())
+    #topology.add_ibm_marrakesh_topology()
+    #with open('./src/topologies/marrakesh_topology.txt', 'w') as f: 
+    #    for edge in topology.edges():
+    #        f.write(f"{edge[0]} {edge[1]}\n")
+    top_from_file = get_topology_from_file('./src/topologies/torino_topology.txt')
+    print(top_from_file.edges())
