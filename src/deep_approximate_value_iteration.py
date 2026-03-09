@@ -24,6 +24,7 @@ class DAVI:
         optimizer = torch.optim.Adam(self.train_model.parameters())
         mse_loss = nn.MSELoss()
         difficulty = initial_difficulty
+        last_model_path = ""
         
         for iteration in range(num_iterations):
             X = self.get_random_states(batchsize, difficulty)
@@ -56,8 +57,9 @@ class DAVI:
             if iteration % update_frequency == 0 and loss.item() < loss_threshold:
                 self.evaluation_model.load_state_dict(self.train_model.state_dict())
                 difficulty = min(max_difficulty, 1 + difficulty)
-                torch.save(self.train_model.state_dict(), f"models/davi/difficulty{difficulty}_iteration{iteration}.pt")
-                torch.save(self.train_model.state_dict(), f"models/davi/difficulty{difficulty}_iteration{iteration}.pt")
+                last_model_path = f"models/davi/difficulty{difficulty}_iteration{iteration}.pt"
+                torch.save(self.train_model.state_dict(), last_model_path)
+        return last_model_path
 
         
     def get_random_states(self, batchsize, difficulty):
@@ -100,7 +102,7 @@ if __name__ == "__main__":
     
     trainer = DAVI(training_model, evaluation_model, n_qubits, horizon, game)
     
-    trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
+    path = trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
   
     from itertools import product
     import matplotlib
@@ -121,7 +123,6 @@ if __name__ == "__main__":
     qubits = 6
     max_gates = 9
     coupling_map = CouplingMap([[0,1],[1,2],[2,3],[3,4],[4,5]])
-    path = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt"
     bench = Benchmarker(path, qubits, max_gates, coupling_map)
     # Run each combination
     rows = bench.run_rand_benchmarks(configs, 1)

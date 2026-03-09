@@ -218,8 +218,6 @@ if __name__ == "__main__":
     initial_layouts = ["qiskit"]
     forward_backward = ["none", "sabre"]
     final_routers = ["sabre", "rl"]
-    
-
 
     configs = list(product(
         initial_layouts,
