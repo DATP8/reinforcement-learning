@@ -1,8 +1,8 @@
 from collections import defaultdict
-from basegame import BaseGame
+from state_handler import StateHandler
 import torch
 
-class Swapper(BaseGame[torch.Tensor]):
+class Swapper(StateHandler[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.horizon = horizon

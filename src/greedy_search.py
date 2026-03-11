@@ -1,8 +1,8 @@
-from basegame import BaseGame
+from state_handler import StateHandler
 import torch
 
 class GreedySearch:
-    def __init__(self, model, game: BaseGame[torch.Tensor]):
+    def __init__(self, model, game: StateHandler[torch.Tensor]):
         self.model = model
         self.game = game
     

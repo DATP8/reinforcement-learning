@@ -1,6 +1,6 @@
 from model import RetardModel
 from model import PVModel
-from basegame import BaseGame
+from state_handler import StateHandler
 import torch
 from math import sqrt
 from cachetools import LRUCache
@@ -35,7 +35,7 @@ class MCTSNode:
     
     
 class MCTS:
-    def __init__(self, game: BaseGame[torch.Tensor], model: PVModel, cache_size=100):
+    def __init__(self, game: StateHandler[torch.Tensor], model: PVModel, cache_size=100):
         self.model = model
         self.state_cache = LRUCache(maxsize=cache_size)  # nodeid -> 
         self.root_state = game.get_initial_state()
