@@ -2,3 +2,5 @@
 models
 circuits
 !.gitignore
+*.pyc
+src/benchmark/results

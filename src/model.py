@@ -1,36 +1,13 @@
 from torch_geometric.loader import DataLoader
-from circuit_graph import CircuitGraph
+from .circuit_graph import CircuitGraph
 from qiskit import QuantumCircuit
 from abc import abstractmethod
-from abc import ABC
-from cnot_circuit import generate_random_circuit
-from tornado import gen
-from cnot_circuit import CNOTCircuit
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torch_geometric.nn import GINEConv, global_add_pool, BatchNorm
 from torch_geometric.data import Data
 
-# class AttentionModel(nn.Module):
-#     def __init__(self, n_qubits, d_model, nhead, num_layers):
-#         super().__init__()
-#         self.n_qubits = n_qubits
-#         self.d_model = d_model
-#         self.nhead = nhead
-#         self.num_layers = num_layers
-
-#         self.scale = nn.Linear(n_qubits, d_model)
-#         self.pos_encoding = PositionalEncoding(d_model)
-#         self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
-#         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        
-#     def forward(self, x):
-#         x = F.relu(self.scale(x))
-#         x = x.view(x.size(0), 1, self.d_model)
-#         x = self.pos_encoding(x)
-#         out = self.transformer_encoder(x)
-#         return out
 
 class PVModel(nn.Module):
     def __init__(self, n_qubits: int, horizon: int, n_actions: int):

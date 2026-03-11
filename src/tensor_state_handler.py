@@ -1,11 +1,11 @@
 from multiprocessing.sharedctypes import Value
-from state_handler import Batchable
-from torch import Size
 from sympy.printing.pytorch import torch
-from cnot_circuit import CNOTCircuit
-import torch
-from state_handler import StateHandler
+
+from .state_handler import Batchable, StateHandler
+from .cnot_circuit import CNOTCircuit
+
 import random
+import torch
 
 class TensorStateHandler(StateHandler[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):
@@ -21,6 +21,12 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
             mask[q2, q1] = 0.0
         return mask
     
+    def get_topology(self):
+        return self.topology
+
+    def get_qubits(self):
+        return self.n_qubits
+
     def get_possible_actions(self, state: torch.Tensor) -> list[int]:
         return list(range(len(self.topology)))
     
