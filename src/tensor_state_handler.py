@@ -35,6 +35,8 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         new_state[:, :, 0] *= self.mask
             
         while layers_removed < self.horizon - 1 and torch.sum(new_state[:, :, layers_removed]) <= 1e-7:
+            if torch.sum(new_state[:, :, layers_removed + 1]) <= 1e-7:
+                break
             new_state[:, :, layers_removed + 1] *= self.mask
             layers_removed += 1
         
@@ -51,12 +53,12 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         # Swap the qubits in the tensor representation
         # todo: check if all clones are necessary
         new_state_temp = new_state.clone()
-        new_state[q1, :, :] = new_state_temp[q2, :, :].clone()
-        new_state[q2, :, :] = new_state_temp[q1, :, :].clone()
+        new_state[q1, :, :] = new_state_temp[q2, :, :]
+        new_state[q2, :, :] = new_state_temp[q1, :, :]
 
         new_state_temp = new_state.clone()
-        new_state[:, q1, :] = new_state_temp[:, q2, :].clone()
-        new_state[:, q2, :] = new_state_temp[:, q1, :].clone()
+        new_state[:, q1, :] = new_state_temp[:, q2, :]
+        new_state[:, q2, :] = new_state_temp[:, q1, :]
 
         return new_state
 
@@ -113,19 +115,19 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         return states
 
     def generate_random_circuit(self, n_gates: int):
-        qc = CNOTCircuit(self.n_qubits)
+        flag = False
+        while not flag:
+            qc = CNOTCircuit(self.n_qubits)
+            for i in range(n_gates):
+                q1, q2 = random.sample(range(self.n_qubits), 2)
+                while q1 == q2:
+                    q2 = random.choice(range(self.n_qubits))
+                if not (q1,q2) in self.topology or not (q2,q1) in self.topology:
+                    flag = True
+                qc.add_cnot(q1, q2)
         
-        for i in range(n_gates):
-            q1, q2 = random.sample(range(self.n_qubits), 2)
-            while q1 == q2:
-                q2 = random.choice(range(self.n_qubits))
-            
-            qc.add_cnot(q1, q2)
-            
+        
         state = qc.to_tensor(horizon=self.horizon)
-        
-        if self.is_terminal(state):
-            return self.generate_random_circuit(n_gates)
             
         return state
     
