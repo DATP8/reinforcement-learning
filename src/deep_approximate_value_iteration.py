@@ -1,5 +1,7 @@
+from model import BiCircuitGNN
 from model import ValueModel
 from tensor_state_handler import TensorStateHandler
+from circuit_graph_state_handler import CircuitGraphStateHandler
 from state_handler import StateHandler
 from torch import nn
 import torch
@@ -72,11 +74,11 @@ if __name__ == "__main__":
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game = TensorStateHandler(n_qubits, horizon, topology)
-    training_model = ValueModel(n_qubits, horizon, len(topology))
-    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
+    state_handler = CircuitGraphStateHandler(n_qubits, topology)
+    training_model = BiCircuitGNN(n_qubits)
+    evaluation_model = BiCircuitGNN(n_qubits)
     
-    trainer = DAVI(training_model, evaluation_model, game)
+    trainer = DAVI(training_model, evaluation_model, state_handler)
     
     trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
     

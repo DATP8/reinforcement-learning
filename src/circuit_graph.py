@@ -51,7 +51,6 @@ class CircuitGraph(Data):
                     
         edge_index = torch.tensor(edge_index).t()
         edge_attr = torch.stack(edge_attr)
-    
         
         return CircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
