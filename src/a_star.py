@@ -11,7 +11,8 @@ class AStarPolicySearch:
         self.frontier = set[torch.Tensor]()  # frontier states
         
     def expand(self, state: torch.Tensor, game: StateHandler[torch.Tensor], model: PVModel, n_steps=100, k=10) -> float:
-        if game.is_terminal(state): return self.g[state.__hash__()]
+        if game.is_terminal(state): 
+            return self.g[state.__hash__()]
 
         raise NotImplementedError
         
