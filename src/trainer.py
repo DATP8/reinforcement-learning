@@ -7,7 +7,6 @@ from model import PVModel
 from mcts import MCTS
 import random
 import torch
-import torch.nn.functional as F
 
 class Trainer():
     def __init__(self, model: PVModel, topology: list[tuple[int, int]]):

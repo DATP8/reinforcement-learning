@@ -1,7 +1,4 @@
-from dill.pointers import parent
-from random import random
 from model import RetardModel
-from model import Model
 from model import PVModel
 from basegame import BaseGame
 import torch

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Sequence, Union, Iterable, Protocol
+from typing import Iterable, Protocol
 
 class Batchable[S](Protocol, Iterable[S]):
     def __len__(self) -> int: ...

@@ -1,5 +1,4 @@
 from collections import defaultdict
-from traitlets import default
 from basegame import BaseGame
 import torch
 

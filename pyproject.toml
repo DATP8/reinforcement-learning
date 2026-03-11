@@ -7,7 +7,19 @@ requires-python = ">=3.12"
 dependencies = [
     "matplotlib[pyplot]>=3.10.8",
     "networkx>=3.6.1",
-    "qiskit-ibm-runtime>=0.45.1",
+    "qiskit>=2.3.0",
     "torch>=2.10.0",
-    "tornado>=6.5.4",
+    "torch-geometric>=2.7.0",
+]
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.55.0",
+    "ruff>=0.15.5",
 ]
