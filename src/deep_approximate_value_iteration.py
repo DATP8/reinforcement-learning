@@ -134,7 +134,7 @@ def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str
 
     cwd = os.getcwd()
     model_path = os.path.join(cwd, rel_model_path)
-    out_path = os.path.join(cwd, BENCHMARK_PATH, f"benchmark{start_time_str}.md")
+    out_path = os.path.join(cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md")
     
     bench = Benchmarker(model_path, n_qubits, difficulty, coupling_map)
 
