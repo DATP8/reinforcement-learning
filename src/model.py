@@ -1,3 +1,6 @@
+from torch_geometric.loader import DataLoader
+from circuit_graph import CircuitGraph
+from qiskit import QuantumCircuit
 from abc import abstractmethod
 from abc import ABC
 from cnot_circuit import generate_random_circuit
@@ -7,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 from torch_geometric.nn import GINEConv, global_add_pool, BatchNorm
+from torch_geometric.data import Data
 
 # class AttentionModel(nn.Module):
 #     def __init__(self, n_qubits, d_model, nhead, num_layers):
@@ -94,16 +98,17 @@ class ValueModel(nn.Module):
         #v = F.softplus(self.estimate(x))
         v = torch.exp(self.estimate(x))
         
-        return v
+        return v.squeeze(-1)
     
     def predict(self, x: torch.Tensor):
         return self.forward(x)
 
 class BiCircuitGNN(nn.Module):
-    def __init__(self, node_dim, edge_dim, hidden_dim=128):
+    def __init__(self, n_qubits, hidden_dim=128):
         super().__init__()
 
-        self.node_encoder = nn.Linear(node_dim, hidden_dim)
+        self.node_encoder = nn.Linear(n_qubits * 2, hidden_dim)
+        self.edge_encoder = nn.Linear(n_qubits, hidden_dim)
 
         def make_mlp():
             return nn.Sequential(
@@ -113,14 +118,14 @@ class BiCircuitGNN(nn.Module):
             )
 
         # forward DAG propagation
-        self.f_conv1 = GINEConv(make_mlp(), edge_dim=edge_dim, flow="source_to_target")
+        self.f_conv1 = GINEConv(make_mlp(), flow="source_to_target")
         self.f_conv2 = GINEConv(make_mlp(), flow="source_to_target")
-        self.b_bn1 = BatchNorm(hidden_dim)
-        self.b_bn2 = BatchNorm(hidden_dim)
+        self.f_bn1 = BatchNorm(hidden_dim)
+        self.f_bn2 = BatchNorm(hidden_dim)
 
 
         # backward propagation
-        self.b_conv1 = GINEConv(make_mlp(), edge_dim=edge_dim, flow="target_to_source")
+        self.b_conv1 = GINEConv(make_mlp(), flow="target_to_source")
         self.b_conv2 = GINEConv(make_mlp(), flow="target_to_source")
         self.b_bn1 = BatchNorm(hidden_dim)
         self.b_bn2 = BatchNorm(hidden_dim)        
@@ -131,12 +136,12 @@ class BiCircuitGNN(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
-    def forward(self, data):
+    def forward(self, data: Data):
 
         x = self.node_encoder(data.x)
+        edge_attr = self.edge_encoder(data.edge_attr)
 
         edge_index = data.edge_index
-        edge_attr = data.edge_attr
         batch = data.batch
 
         # forward pass
@@ -170,8 +175,29 @@ class RetardModel(PVModel):
 
 
 if __name__ == "__main__":
-    horizon = 10
-    model = ValueModel(n_qubits=5, horizon=10, n_actions=20)
+    n_qubits = 6
+    model = BiCircuitGNN(n_qubits)
     
-    torch.save(model.state_dict(), "models/test/pik.pt")
+    qc = QuantumCircuit(n_qubits)
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    qc.cx(1, 2)
+    
+    qc2 = QuantumCircuit(n_qubits)
+    qc2.cx(0, 1)
+    
+    
+    graph1 = CircuitGraph.from_circuit(qc)
+    graph2 = CircuitGraph.from_circuit(qc2)
+    
+    data = next(x for x in DataLoader([graph1, graph2], batch_size=2))
+    
+    print(model(data))
 
