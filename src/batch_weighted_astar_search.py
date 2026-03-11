@@ -1,14 +1,17 @@
 from qiskit.circuit.library import SwapGate
 from qiskit.circuit import CircuitInstruction
 from qiskit import QuantumCircuit
-import heapq
-import torch
-import time
+from qiskit.converters import circuit_to_dag
+
+from .tensor_state_handler import TensorStateHandler
 from .model import ValueModel
-from .swap_optimizer import SwapOptimizer, CNOTCircuit
+from .cnot_circuit import CNOTCircuit
+
+import torch
+import heapq
 import random
 import itertools
-from qiskit.converters import circuit_to_dag
+import time
 
 class BWASNode:
     def __init__(self, state, g: float):
@@ -146,7 +149,7 @@ if __name__ == "__main__":
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     
-    game = SwapOptimizer(n_qubits, horizon, topology)
+    game = TensorStateHandler(n_qubits, horizon, topology)
     model = ValueModel(n_qubits, horizon, len(topology))
     model.load_state_dict(torch.load("/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt", map_location="cpu"))
     model.to("cpu")

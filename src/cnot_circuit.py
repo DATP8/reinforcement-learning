@@ -1,3 +1,4 @@
+from .circuit_graph import CircuitGraph
 from collections import defaultdict
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 import torch
@@ -77,6 +78,18 @@ class CNOTCircuit(QuantumCircuit):
                 qc.add_cnot(q1, q2)
 
         return qc
+    
+    def from_circuit_graph(dag: CircuitGraph):
+        if dag.x is None:
+            return None
+        
+        circuit = QuantumCircuit(dag.x.shape[1] // 2)
+        for x in dag.x[:-1]: # Exclude global node
+            q1 = torch.where(x[:dag.x.shape[1] // 2] > 0)[0].item()
+            q2 = torch.where(x[dag.x.shape[1] // 2:] > 0)[0].item()
+            circuit.cx(q1, q2)
+        
+        return circuit
 
     @staticmethod
     def from_quantum_circuit(qc: QuantumCircuit):

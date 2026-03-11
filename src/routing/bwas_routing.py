@@ -5,12 +5,12 @@ from qiskit.transpiler.coupling import CouplingMap
 import torch
 import time
 from ..model import ValueModel
-from ..swap_optimizer import SwapOptimizer, CNOTCircuit
-from ..swap_optimizer import SwapOptimizer, CNOTCircuit
+from ..cnot_circuit import CNOTCircuit
 from ..batch_weighted_astar_search import BWAS
+from ..tensor_state_handler import TensorStateHandler
+
 
 from qiskit.converters import circuit_to_dag, dag_to_circuit
-import torch
 
 
 class BWASRouting(TransformationPass):
@@ -33,7 +33,8 @@ class BWASRouting(TransformationPass):
     def run(self, dag):
         qc  = dag_to_circuit(dag)
         topology = [edge for edge in self.coupling_map.get_edges() if edge[0] < edge[1]]
-        game  = SwapOptimizer(qc.num_qubits, self.horizon, topology)
+
+        game = TensorStateHandler(qc.num_qubits, self.horizon, topology)
         model = ValueModel(qc.num_qubits, self.horizon, len(topology))
        
         model.load_state_dict(torch.load(self.model_path, map_location=self.device))
