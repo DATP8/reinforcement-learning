@@ -3,8 +3,21 @@ from .swap_optimizer import SwapOptimizer
 from .cnot_circuit import CNOTCircuit
 from .basegame import BaseGame
 from torch import nn
+from itertools import product
+from qiskit.transpiler import CouplingMap
+from multiprocessing import Process, set_start_method
+from datetime import datetime
+
+import sys
 import torch
+import os
 import random
+import matplotlib
+
+matplotlib.use("TkAgg")
+from .benchmark.benchmarker import Benchmarker
+
+BENCHMARK_PATH_RESULTS = "src/benchmark/results"
 
 class DAVI:
     def __init__(self, training_model, evaluation_model, n_qubits, horizon, game: BaseGame[torch.Tensor]):
@@ -15,9 +28,14 @@ class DAVI:
         self.game = game
         
     def train(self, batchsize=100, initial_difficulty=1, num_iterations=1000, update_frequency=10, max_difficulty=100, loss_threshold=0.06):
+        p_list = []
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
         self.train_model.to(device)
+
+        now = datetime.now()
+        start_time = now.strftime("%Y-%m-%dT%H:%M:%S")
 
         optimizer = torch.optim.Adam(self.train_model.parameters())
         mse_loss = nn.MSELoss()
@@ -53,8 +71,19 @@ class DAVI:
             if iteration % update_frequency == 0 and loss.item() < loss_threshold:
                 self.evaluation_model.load_state_dict(self.train_model.state_dict())
                 difficulty = min(max_difficulty, 1 + difficulty)
+
                 last_model_path = f"models/davi/difficulty{difficulty}_iteration{iteration}.pt"
-                torch.save(self.train_model.state_dict(), last_model_path)
+                tmp = last_model_path + ".tmp"
+                torch.save(self.train_model.state_dict(), tmp)
+                os.rename(tmp, last_model_path)
+
+                topology = self.game.get_topology()
+                p_list.append(Process(target=bench_process, args=(self.n_qubits, last_model_path, difficulty, topology, start_time)))
+                p_list[-1].start()
+         
+        for p in p_list:
+            p.join()
+                
         return last_model_path
 
         
@@ -83,8 +112,42 @@ class DAVI:
             
         return state
 
+def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str=""):
 
+    o = sys.stdout
+
+    bench_iterations = 1
+
+    initial_layouts = ["qiskit"]
+    forward_backward = ["none", "sabre"]
+    final_routers = ["sabre", "rl"]
+
+    configs = list(product(
+        initial_layouts,
+        forward_backward,
+        final_routers
+    ))
+
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
+
+    cwd = os.getcwd()
+    model_path = os.path.join(cwd, rel_model_path)
+    out_path = os.path.join(cwd, BENCHMARK_PATH, f"benchmark{start_time_str}.md")
+    
+    bench = Benchmarker(model_path, n_qubits, difficulty, coupling_map)
+
+    with open(out_path, 'a') as f:
+        sys.stdout = f
+        print("\n#", rel_model_path)
+        bench.run_rand_benchmarks(configs, bench_iterations)
+
+    sys.stdout = o
+    
 if __name__ == "__main__":
+    set_start_method("spawn", force=True)
+
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
@@ -98,28 +161,4 @@ if __name__ == "__main__":
     
     trainer = DAVI(training_model, evaluation_model, n_qubits, horizon, game)
     
-    path = trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
-  
-    from itertools import product
-    import matplotlib
-    matplotlib.use("TkAgg")
-    from .routing.benchmarker import Benchmarker
-    from qiskit.transpiler import CouplingMap
-
-    initial_layouts = ["qiskit"]
-    forward_backward = ["none", "sabre"]
-    final_routers = ["sabre", "rl"]
-
-    configs = list(product(
-        initial_layouts,
-        forward_backward,
-        final_routers
-    ))
-
-    qubits = 6
-    max_gates = 9
-    coupling_map = CouplingMap([[0,1],[1,2],[2,3],[3,4],[4,5]])
-    bench = Benchmarker(path, qubits, max_gates, coupling_map)
-    # Run each combination
-    rows = bench.run_rand_benchmarks(configs, 1)
-    
+    path = trainer.train(batchsize=1000, initial_difficulty=100000, num_iterations=5, update_frequency=1, max_difficulty=1000, loss_threshold=0.08)

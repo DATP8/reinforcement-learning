@@ -17,6 +17,9 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
             mask[q2, q1] = 0.0
         return mask
     
+    def get_topology(self):
+        return self.topology
+
     def get_possible_actions(self, state: torch.Tensor) -> list[int]:
         return list(range(len(self.topology)))
     

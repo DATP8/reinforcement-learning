@@ -215,6 +215,10 @@ class RLSwapRouter(TransformationPass):
 
 
 if __name__ == "__main__":
+
+    import multiprocessing as mp
+    mp.set_start_method("spawn", force=True)
+    
     initial_layouts = ["qiskit"]
     forward_backward = ["none", "sabre"]
     final_routers = ["sabre", "rl"]

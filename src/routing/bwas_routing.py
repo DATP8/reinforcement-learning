@@ -35,8 +35,9 @@ class BWASRouting(TransformationPass):
         topology = [edge for edge in self.coupling_map.get_edges() if edge[0] < edge[1]]
         game  = SwapOptimizer(qc.num_qubits, self.horizon, topology)
         model = ValueModel(qc.num_qubits, self.horizon, len(topology))
+       
         model.load_state_dict(torch.load(self.model_path, map_location=self.device))
-        
+
         bwas = BWAS(model, game, batch_size=self.batch_size)
         cnot_c = CNOTCircuit.from_quantum_circuit(qc)
 
