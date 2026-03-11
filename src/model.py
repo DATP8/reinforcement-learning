@@ -6,6 +6,7 @@ from cnot_circuit import CNOTCircuit
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from torch_geometric.nn import GINEConv, global_add_pool, BatchNorm
 
 # class AttentionModel(nn.Module):
 #     def __init__(self, n_qubits, d_model, nhead, num_layers):
@@ -97,6 +98,63 @@ class ValueModel(nn.Module):
     
     def predict(self, x: torch.Tensor):
         return self.forward(x)
+
+class BiCircuitGNN(nn.Module):
+    def __init__(self, node_dim, edge_dim, hidden_dim=128):
+        super().__init__()
+
+        self.node_encoder = nn.Linear(node_dim, hidden_dim)
+
+        def make_mlp():
+            return nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, hidden_dim),
+            )
+
+        # forward DAG propagation
+        self.f_conv1 = GINEConv(make_mlp(), edge_dim=edge_dim, flow="source_to_target")
+        self.f_conv2 = GINEConv(make_mlp(), flow="source_to_target")
+        self.b_bn1 = BatchNorm(hidden_dim)
+        self.b_bn2 = BatchNorm(hidden_dim)
+
+
+        # backward propagation
+        self.b_conv1 = GINEConv(make_mlp(), edge_dim=edge_dim, flow="target_to_source")
+        self.b_conv2 = GINEConv(make_mlp(), flow="target_to_source")
+        self.b_bn1 = BatchNorm(hidden_dim)
+        self.b_bn2 = BatchNorm(hidden_dim)        
+
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+
+    def forward(self, data):
+
+        x = self.node_encoder(data.x)
+
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+        batch = data.batch
+
+        # forward pass
+        xf = F.relu(self.f_bn1(self.f_conv1(x, edge_index, edge_attr)))
+        xf = F.relu(self.f_bn2(self.f_conv2(xf, edge_index, edge_attr)))
+
+        # backward pass
+        xb = F.relu(self.b_bn1(self.b_conv1(x, edge_index, edge_attr)))
+        xb = F.relu(self.b_bn2(self.b_conv2(xb, edge_index, edge_attr)))
+
+        # combine
+        x = torch.cat([xf, xb], dim=1)
+
+        x = global_add_pool(x, batch)
+
+        out = self.head(x)
+
+        return out.squeeze(-1)
 
 
 class RetardModel(PVModel):

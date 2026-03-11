@@ -1,10 +1,13 @@
+from multiprocessing.sharedctypes import Value
+from state_handler import Batchable
 from torch import Size
 from sympy.printing.pytorch import torch
 from cnot_circuit import CNOTCircuit
 import torch
-from basegame import BaseGame
+from state_handler import StateHandler
+import random
 
-class SwapOptimizer(BaseGame[torch.Tensor]):
+class TensorStateHandler(StateHandler[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.horizon = horizon
@@ -100,6 +103,37 @@ class SwapOptimizer(BaseGame[torch.Tensor]):
                 break
                 
         return frontlayer_qubits, frontlayer_gates
+    
+    def get_random_states(self, batch_size: int, max_difficulty: int):
+        states = torch.zeros((batch_size, self.n_qubits, self.n_qubits, self.horizon))
+        for i in range(batch_size):
+            n_gates = random.randint(1, max_difficulty)
+            states[i] = self.generate_random_circuit(n_gates)
+
+        return states
+
+    def generate_random_circuit(self, n_gates: int):
+        qc = CNOTCircuit(self.n_qubits)
+        
+        for i in range(n_gates):
+            q1, q2 = random.sample(range(self.n_qubits), 2)
+            while q1 == q2:
+                q2 = random.choice(range(self.n_qubits))
+            
+            qc.add_cnot(q1, q2)
+            
+        state = qc.to_tensor(horizon=self.horizon)
+        
+        if self.is_terminal(state):
+            return self.generate_random_circuit(n_gates)
+            
+        return state
+    
+    def batch_states(self, states: Batchable[torch.Tensor]) -> torch.Tensor:
+        if type(states) == torch.Tensor:
+            return states
+        
+        return torch.stack([state for state in states])
 
 
 if __name__ == "__main__":
@@ -113,7 +147,7 @@ if __name__ == "__main__":
     print(circuit)
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     
-    game = SwapOptimizer(n_qubits, horizon, topology)
+    game = TensorStateHandler(n_qubits, horizon, topology)
     
     root_state = circuit.to_tensor(horizon=horizon)    
     
