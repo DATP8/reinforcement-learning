@@ -59,7 +59,7 @@ class TestTensorStateHandler(unittest.TestCase):
                 circuit.add_cnot(q1, q2)
             states.append(circuit.to_tensor(horizon))
         for i, state in enumerate(states):
-            next_state, _ = self.game.get_next_state(state, actions[i])
+            next_state= self.game.get_next_state(state, actions[i])
             pruned_circuit = CNOTCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.add_cnot(q1,q2)
