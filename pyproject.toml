@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cachetools>=7.0.5",
     "matplotlib[pyplot]>=3.10.8",
+    "networkx>=3.6.1",
     "pyrefly>=0.56.0",
     "pytest>=9.0.2",
     "qiskit>=2.3.0",
@@ -19,5 +21,4 @@ dependencies = [
 [tool.pyrefly]
 project-includes = [
     "**/*.py*",
-    "**/*.ipynb",
 ]

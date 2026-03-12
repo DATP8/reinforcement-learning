@@ -7,8 +7,8 @@ class Topology:
         self.graph = graph
 
     def draw_topology(self):
-        pos = nx.spring_layout(self.graph)
-        nx.draw(self.graph, pos, with_labels=True, node_color='lightblue', edge_color='gray')
+        pos = nx.drawing.spring_layout(self.graph)
+        nx.drawing.draw(self.graph, pos, with_labels=True, node_color='lightblue', edge_color='gray')
         plt.title("Quantum Hardware Topology")
         plt.show()
 
