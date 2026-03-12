@@ -134,11 +134,9 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         
         return new_state, len(removed_gates) + n_pruned_gates
     
-    def get_random_state(self, max_difficulty: int) -> CircuitGraph:
-        n_gates = random.randint(1, max_difficulty)
-        
+    def get_random_state(self, difficulty: int) -> CircuitGraph:
         qc = QuantumCircuit(self.n_qubits)
-        for _ in range(n_gates):
+        for _ in range(difficulty):
             q1, q2 = random.sample(range(self.n_qubits), 2)
             while q1 == q2:
                 q2 = random.choice(range(self.n_qubits))
@@ -146,12 +144,9 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         
         state = CircuitGraph.from_circuit(qc)
         if self.is_terminal(state):
-            return self.get_random_state(max_difficulty)
+            return self.get_random_state(difficulty)
         
         return state
-
-    def get_random_states(self, batch_size: int, max_difficulty: int):
-        return [self.get_random_state(max_difficulty) for _ in range(batch_size)]
 
     def batch_states(self, states: Batchable[CircuitGraph]) -> CircuitGraph:
         return next(combined_state for combined_state in DataLoader(states, batch_size=len(states)))

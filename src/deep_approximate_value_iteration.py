@@ -1,5 +1,6 @@
+from model import ValueModel
 from circuit_graph_state_handler import CircuitGraphStateHandler
-from model import BiCircuitGNN, ValueModelFlat
+from model import BiCircuitGNN
 from state_handler import StateHandler
 from qtensor_state_handler import QtensorStateHandler
 from torch import nn
@@ -29,7 +30,7 @@ class DAVI[S: To]:
         difficulty = initial_difficulty
         
         for iteration in range(num_iterations):
-            states = self.state_handler.get_random_states(batchsize, difficulty)
+            states = self.state_handler.get_random_states_in_range(batchsize, 1, difficulty)
             y = torch.full((batchsize, 1), float('inf')).squeeze(-1).to(device)
             
             next_states = []
@@ -50,7 +51,6 @@ class DAVI[S: To]:
             for state_index, (i, action) in enumerate(next_state_actions):
                 y[i] = torch.min(self.state_handler.get_action_cost(state, action) + next_state_values[state_index], y[i])
             
-            del next_state_values
             X = self.state_handler.batch_states(states).to(device)
             optimizer.zero_grad()
             loss = mse_loss(self.train_model(X), y)
@@ -71,8 +71,8 @@ def qtensor():
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     game = QtensorStateHandler(n_qubits, horizon, topology)
-    training_model = ValueModelFlat(n_qubits, horizon, len(topology))
-    evaluation_model = ValueModelFlat(n_qubits, horizon, len(topology))
+    training_model = ValueModel(n_qubits, horizon, len(topology))
+    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
     
     trainer = DAVI(training_model, evaluation_model, game)
     

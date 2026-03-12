@@ -102,19 +102,19 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 
         return frontlayer_qubits, frontlayer_gates
     
-    def get_random_states(self, batch_size: int, max_difficulty: int):
+    def get_random_states_in_range(self, batch_size: int, min_difficulty: int, max_difficulty: int):
         states = torch.zeros((batch_size, self.n_qubits, self.n_qubits, self.horizon))
         for i in range(batch_size):
-            n_gates = random.randint(1, max_difficulty)
-            states[i] = self.generate_random_circuit(n_gates)
+            n_gates = random.randint(min_difficulty, max_difficulty)
+            states[i] = self.get_random_state(n_gates)
 
         return states
 
-    def generate_random_circuit(self, n_gates: int):
+    def get_random_state(self, difficulty: int):
         flag = False
         while not flag:
             qc = CNOTCircuit(self.n_qubits)
-            for i in range(n_gates):
+            for i in range(difficulty):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))

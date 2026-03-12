@@ -1,5 +1,5 @@
+import random
 from typing import overload
-from typing import List
 from typing import SupportsIndex
 from abc import ABC, abstractmethod
 from typing import Iterable, Protocol
@@ -9,7 +9,8 @@ class Batchable[S](Protocol, Iterable[S]):
     @overload
     def __getitem__ (self, i: SupportsIndex, /) -> S:...
     @overload
-    def __getitem__ (self, s: slice, /) -> List[S]: ...
+    def __getitem__ (self, s: slice, /) -> 'Batchable[S]': ...
+    
 
 class StateHandler[S](ABC):        
     @abstractmethod
@@ -32,14 +33,18 @@ class StateHandler[S](ABC):
     def prune(self, state: S) -> tuple[S, int]:
         raise NotImplementedError
     
+    def get_random_states_in_range(self, batch_size: int, min_difficulty: int, max_difficulty: int) -> Batchable[S]:
+        """Default implementation"""
+        return [self.get_random_state(random.randint(min_difficulty, max_difficulty)) for _ in range(batch_size)]
+    
+    def get_random_states_at_difficulty(self, batch_size: int, difficulty: int) -> Batchable[S]:
+        """Default implementation"""
+        return [self.get_random_state(difficulty) for _ in range(batch_size)]
+    
     @abstractmethod
-    def get_random_states(self, batch_size: int, max_difficulty: int) -> Batchable[S]:
+    def get_random_state(self, difficulty: int) -> S:
         raise NotImplementedError
     
     @abstractmethod
     def batch_states(self, states: Batchable[S]) -> S:
-        """
-        `batch_size`: None if all states should be combined
-        """
-        
         raise NotImplementedError
