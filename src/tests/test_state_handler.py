@@ -59,15 +59,11 @@ class TestTensorStateHandler(unittest.TestCase):
                 circuit.add_cnot(q1, q2)
             states.append(circuit.to_tensor(horizon))
         for i, state in enumerate(states):
-            next_state, _ = self.game.get_next_state(state, actions[i])
+            next_state = self.game.get_next_state(state, actions[i])
             pruned_circuit = CNOTCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.add_cnot(q1,q2)
             #self.assertTrue(torch.equal(pruned_circuit.to_tensor(horizon), next_state))
-            
-            
-        
-        
         
 class TestQtensorStateHandler(unittest.TestCase):
     game = QtensorStateHandler(n_qubits, horizon, topology)
@@ -93,7 +89,7 @@ class TestQtensorStateHandler(unittest.TestCase):
                 print(state)
             self.assertFalse(self.game.is_terminal(pruned_state))
             
-    def test_tensor_get_next_state(self):
+    def test_qtensor_get_next_state(self):
         states = []
         for gate_list in input_circuits:
             circuit = QuantumCircuit(n_qubits)
