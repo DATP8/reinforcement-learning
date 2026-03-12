@@ -14,6 +14,45 @@ class CNOTCircuit(QuantumCircuit):
         self.qubit_layers = [-1 for _ in range(n_qubits)]
         self.sub_circuit_list = []
 
+    @staticmethod
+    def from_quantum_circuit(qc: QuantumCircuit):
+        dag = circuit_to_dag(qc)
+        sub_qc = QuantumCircuit(qc.num_qubits)
+        cnot_c = CNOTCircuit(qc.num_qubits)
+
+        found_2q_gate = False
+        for g in dag.topological_op_nodes():
+            sub_qc.append(g.op, g.qargs)
+            if g.op.num_qubits == 2:
+                q1, q2 = (dag.find_bit(q).index for q in g.qargs)
+                cnot_c.add_cnot(q1, q2)
+                found_2q_gate = True
+
+            if found_2q_gate:
+                found_2q_gate =False
+                cnot_c.sub_circuit_list.append(sub_qc)
+                sub_qc = QuantumCircuit(qc.num_qubits)
+        return cnot_c  
+
+    def _swap_remaining_gates(self, swap_q1, swap_q2, start_idx):
+        for idx in range(start_idx, len(self.sub_circuit_list)):
+            qc = self.sub_circuit_list[idx]
+            dag = circuit_to_dag(qc)
+            sub_qc = QuantumCircuit(qc.num_qubits)
+
+            for g in dag.topological_op_nodes():
+                new_qargs = []
+                for q in g.qargs:
+                    qubit_idx = dag.find_bit(q).index
+                    if qubit_idx == swap_q1:
+                        new_idx = swap_q2
+                    elif qubit_idx == swap_q2:
+                        new_idx = swap_q1
+                    else:
+                        new_idx = qubit_idx
+                    new_qargs.append(qc.qubits[new_idx])
+                sub_qc.append(g.op, new_qargs)
+            self.sub_circuit_list[idx] = sub_qc
 
 
     def reconstruct_with_swaps(self):
@@ -22,7 +61,11 @@ class CNOTCircuit(QuantumCircuit):
         cx_idx = 0
 
         for g in dag.topological_op_nodes():
-            if g.op.name == 'cx':
+            if g.op.name == 'swap':
+                new_qc.append(g.op, g.qargs)
+                q1, q2 = (dag.find_bit(q).index for q in g.qargs)
+                self._swap_remaining_gates(q1, q2, cx_idx)
+            elif g.op.name == 'cx':
                 new_qc = new_qc.compose(self.sub_circuit_list[cx_idx])
                 cx_idx += 1
             else:
@@ -91,25 +134,6 @@ class CNOTCircuit(QuantumCircuit):
         
         return circuit
 
-    @staticmethod
-    def from_quantum_circuit(qc: QuantumCircuit):
-        dag = circuit_to_dag(qc)
-        sub_qc = QuantumCircuit(qc.num_qubits)
-        cnot_c = CNOTCircuit(qc.num_qubits)
-
-        found_2q_gate = False
-        for g in dag.topological_op_nodes():
-            sub_qc.append(g.op, g.qargs)
-            if g.op.num_qubits == 2:
-                q1, q2 = (dag.find_bit(q).index for q in g.qargs)
-                cnot_c.add_cnot(q1, q2)
-                found_2q_gate = True
-
-            if found_2q_gate:
-                found_2q_gate =False
-                cnot_c.sub_circuit_list.append(sub_qc)
-                sub_qc = QuantumCircuit(qc.num_qubits)
-        return cnot_c  
 
 def generate_random_circuit(n_qubits: int, n_gates: int):
     qc = CNOTCircuit(n_qubits)

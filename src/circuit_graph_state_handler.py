@@ -172,7 +172,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
 if __name__ == "__main__":
     from qiskit import QuantumCircuit
-    from cnot_circuit import CNOTCircuit
+    from .cnot_circuit import CNOTCircuit
     
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     n_qubits = 6

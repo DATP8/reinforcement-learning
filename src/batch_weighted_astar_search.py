@@ -82,24 +82,19 @@ class BWAS:
     
     def insert_swaps(self, qc: CNOTCircuit, path: list, horizon: int, topology: list):
         state = qc.to_tensor(horizon=horizon)
-        state, _ = self.game.prune(state)
-        new_circuit = CNOTCircuit.from_tensor(state)
-
+        state, layers_removed = self.game.prune(state)
         depth_list = []
         for action in path:
+            state, temp_layers_removed = self.game.prune(state)
             state = self.game.get_next_state(state, action)
-            new_circuit = CNOTCircuit.from_tensor(state)
-            depth_list.append(new_circuit.depth())
+            layers_removed += temp_layers_removed
+            depth_list.append(layers_removed)
 
         if not depth_list:
             return qc
-                # This address when the swap algo swap and prune in same step !BUT NOT FOR
        
-        depth = qc.depth() 
-
         dag = circuit_to_dag(qc)
-        gates_per_layer = [sum(1 for _ in layer["graph"].op_nodes()) for layer in dag.layers()]
-        gates_per_layer.insert(0,0)
+        gates_per_layer = [0] + [sum(1 for _ in layer["graph"].op_nodes()) for layer in dag.layers()]
         cumulative = list(itertools.accumulate(gates_per_layer))
 
         while (depth_list):
@@ -107,8 +102,7 @@ class BWAS:
             edge  = path.pop()
             qubit_pair = topology[edge]
 
-            layer_index = depth - layer
-            gate_amount = cumulative[layer_index]
+            gate_amount = cumulative[layer]
 
             qc.data.insert(gate_amount , CircuitInstruction(SwapGate(), [qc.qubits[qubit_pair[0]], qc.qubits[qubit_pair[1]]], []))
             
@@ -143,6 +137,10 @@ if __name__ == "__main__":
     qc.cz(2, 3)
     qc.h(1)
     qc.cx(0, 2)
+    qc.cx(4, 3)
+    qc.cx(1, 3)
+    qc.cx(2, 3)
+
     
 
     n_qubits = 6
@@ -160,7 +158,7 @@ if __name__ == "__main__":
     print(qc)
     #cnot_c = CNOTCircuit.from_tensor(root_state)
     cnot_c = CNOTCircuit.from_quantum_circuit(qc) # This doesn't work for some reason
-    print(cnot_c)
+    #print(cnot_c)
 
     state = cnot_c.to_tensor(horizon=horizon)
     root_state, _ = game.prune(state)
@@ -169,8 +167,8 @@ if __name__ == "__main__":
     path = bwas.search(root_state)
     end_time = time.time()
 
-    print(path)
+    #print(path)
   
     cnot_c = bwas.insert_swaps(qc=cnot_c, path=path, horizon=horizon, topology=topology)
-    print(cnot_c)
+    #print(cnot_c)
     print(cnot_c.reconstruct_with_swaps())
