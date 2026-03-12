@@ -78,11 +78,11 @@ class QtensorStateHandler(StateHandler[Qtensor]):
             batch.append(self.get_random_state(difficulty))
         return batch
     
-    def generate_random_circuit(self, n_gates: int):
+    def get_random_state(self, difficulty: int):
         flag = False
         while not flag:
             qc = QuantumCircuit(self.n_qubits)
-            for _ in range(n_gates):
+            for _ in range(difficulty):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
