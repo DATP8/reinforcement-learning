@@ -1,4 +1,3 @@
-import torch
 from typing import overload
 from typing import List
 from typing import SupportsIndex
