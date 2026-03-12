@@ -6,3 +6,4 @@ circuits
 src/__pycache__
 pyproject.toml
 uv.lock
+*.ipynb

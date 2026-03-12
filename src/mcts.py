@@ -1,4 +1,3 @@
-from model import RetardModel
 from model import PVModel
 from state_handler import StateHandler
 import torch
@@ -38,7 +37,7 @@ class MCTS:
     def __init__(self, game: StateHandler[torch.Tensor], model: PVModel, cache_size=100):
         self.model = model
         self.state_cache = LRUCache(maxsize=cache_size)  # nodeid -> 
-        self.root_state = game.get_initial_state()
+        #self.root_state = game.get_initial_state()
         self.actions = game.get_possible_actions(self.root_state)
         self.game = game
         self.root = MCTSNode()
@@ -137,7 +136,6 @@ class MCTS:
         
         
 if __name__ == "__main__":
-    from swap_optimizer import SwapOptimizer
     from cnot_circuit import CNOTCircuit
     
     n_qubits = 4
@@ -149,21 +147,21 @@ if __name__ == "__main__":
     topology = [(0, 1), (1, 2), (2, 3)]
     
     #model = Model(n_qubits=n_qubits, horizon=horizon, n_actions=len(topology))
-    model = RetardModel(n_qubits=n_qubits, horizon=horizon, n_actions=len(topology))
-    game = SwapOptimizer(circuit.to_tensor(horizon=horizon), topology)
-    mcts = MCTS(game, model, cache_size=100)
-    
-    policy = mcts.run(num_simulations=100, exploration_factor=1.0)
-    #action = torch.multinomial(policy, num_samples=1).item()
-    action = 2
-    print(CNOTCircuit.from_tensor(game.get_initial_state()))
-    print("MCTS Policy:", policy)
-    
-    #new_state = mcts.get_state(mcts.root.children[action])
-    new_state = mcts.update_root(action)
-    is_terminal = mcts.is_terminal(mcts.root)
-    
-    print(CNOTCircuit.from_tensor(new_state))
-    print("Is terminal:", is_terminal)
+    #model = RetardModel(n_qubits=n_qubits, horizon=horizon, n_actions=len(topology))
+    #game = SwapOptimizer(circuit.to_tensor(horizon=horizon), topology)
+    #mcts = MCTS(game, model, cache_size=100)
+    #
+    #policy = mcts.run(num_simulations=100, exploration_factor=1.0)
+    ##action = torch.multinomial(policy, num_samples=1).item()
+    #action = 2
+    #print(CNOTCircuit.from_tensor(game.get_initial_state()))
+    #print("MCTS Policy:", policy)
+    #
+    ##new_state = mcts.get_state(mcts.root.children[action])
+    #new_state = mcts.update_root(action)
+    #is_terminal = mcts.is_terminal(mcts.root)
+    #
+    #print(CNOTCircuit.from_tensor(new_state))
+    #print("Is terminal:", is_terminal)
     
 
