@@ -8,6 +8,7 @@ dependencies = [
     "matplotlib[pyplot]>=3.10.8",
     "pyrefly>=0.56.0",
     "qiskit>=2.3.0",
+    "qiskit-ibm-runtime>=0.45.1",
     "ruff>=0.15.5",
     "torch>=2.10.0",
     "torch-geometric>=2.7.0",
