@@ -18,7 +18,7 @@ jobs:
       - run: uv run pyrefly check
         name: Run Pyrefly Check
 
-  ruff-checks:
+  ruff-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -28,6 +28,12 @@ jobs:
         name: Check Linting
         with:
          args: 'check --fix'
+
+  ruff-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+        name: Checkout Repository
 
       - uses: astral-sh/ruff-action@v3.6.1
         name: Check Formatting
