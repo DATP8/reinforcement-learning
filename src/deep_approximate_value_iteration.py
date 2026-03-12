@@ -1,8 +1,8 @@
 from circuit_graph_state_handler import CircuitGraphStateHandler
-from model import BiCircuitGNN, ValueModel, ValueModelFlat
-from tensor_state_handler import TensorStateHandler
+from model import BiCircuitGNN, ValueModelFlat
+from model import ValueModelFlat
 from state_handler import StateHandler
-from Qtensor_state_handler import QtensorStateHandler
+from qtensor_state_handler import QtensorStateHandler
 from torch import nn
 import torch
 

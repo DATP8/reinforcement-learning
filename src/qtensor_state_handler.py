@@ -1,9 +1,7 @@
 from state_handler import Batchable
-from torch import Size
-from sympy.printing.pytorch import torch
 import torch
 import random
-from Qtensor import Qtensor
+from qtensor import Qtensor
 from state_handler import StateHandler
 from qiskit import QuantumCircuit
 
