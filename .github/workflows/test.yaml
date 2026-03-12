@@ -9,20 +9,39 @@ jobs:
   pyrefly-check:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6.0.2
+        name: Checkout Repository
+
       - uses: ./.github/actions/setup-env
+        name: Setup Environment
+
       - run: uv run pyrefly check
+        name: Run Pyrefly Check
 
   ruff-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+        name: Checkout Repository
+      
       - uses: astral-sh/ruff-action@v3.6.1
-      - uses: astral-sh/ruff-action@v3.6.1
+        name: Check Linting
         with:
-          args: 'format --check'
+         args: 'check --fix'
+
+      - uses: astral-sh/ruff-action@v3.6.1
+        name: Check Formatting
+        with:
+          args: 'format'
 
   unit-tests:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6.0.2
+        name: Checkout Repository
+
       - uses: ./.github/actions/setup-env
+        name: Setup Environment
+
       - run: uv run python -m unittest discover -v
+        name: Run Unit Tests
