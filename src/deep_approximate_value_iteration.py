@@ -1,6 +1,7 @@
-from model import ValueModel
+from model import ValueModel, ValueModelFlat
 from tensor_state_handler import TensorStateHandler
 from state_handler import StateHandler
+from Qtensor_state_handler import QtensorStateHandler
 from torch import nn
 import torch
 
@@ -54,7 +55,6 @@ class DAVI[S: To]:
                     if self.state_handler.is_terminal(next_state):
                         y[i] = self.state_handler.get_action_cost(state, action)
                         break
-
                     next_states.append(next_state)
                     next_state_actions.append((i, action))
 
@@ -71,7 +71,6 @@ class DAVI[S: To]:
                 )
 
             del next_state_values
-
             X = self.state_handler.batch_states(states).to(device)
             optimizer.zero_grad()
             loss = mse_loss(self.train_model(X), y)
@@ -91,13 +90,13 @@ class DAVI[S: To]:
                 )
 
 
-if __name__ == "__main__":
+def foo():
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game = TensorStateHandler(n_qubits, horizon, topology)
-    training_model = ValueModel(n_qubits, horizon, len(topology))
-    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
+    game = QtensorStateHandler(n_qubits, horizon, topology)
+    training_model = ValueModelFlat(n_qubits, horizon, len(topology))
+    evaluation_model = ValueModelFlat(n_qubits, horizon, len(topology))
 
     trainer = DAVI(training_model, evaluation_model, game)
 
@@ -109,3 +108,7 @@ if __name__ == "__main__":
         max_difficulty=1000,
         loss_threshold=0.08,
     )
+
+
+if __name__ == "__main__":
+    foo()

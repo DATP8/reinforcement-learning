@@ -58,7 +58,6 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         q1, q2 = self.topology[action]
 
         # Swap the qubits in the tensor representation
-        # todo: check if all clones are necessary
         new_state_temp = new_state.clone()
         new_state[q1, :, :] = new_state_temp[q2, :, :]
         new_state[q2, :, :] = new_state_temp[q1, :, :]
@@ -67,7 +66,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         new_state[:, q1, :] = new_state_temp[:, q2, :]
         new_state[:, q2, :] = new_state_temp[:, q1, :]
 
-        return new_state
+        return new_state, layers_removed
 
     def is_terminal(self, state: torch.Tensor) -> bool:
         pruned_state, _ = self.prune(state)
