@@ -56,7 +56,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         new_state[:, q1, :] = new_state_temp[:, q2, :]
         new_state[:, q2, :] = new_state_temp[:, q1, :]
 
-        return new_state, layers_removed
+        return new_state
 
     def is_terminal(self, state: torch.Tensor) -> bool:
         pruned_state, _ = self.prune(state)
