@@ -5,3 +5,4 @@ circuits
 src/__pycache__
 pyproject.toml
 uv.lock
+src/tests/__pycache__
