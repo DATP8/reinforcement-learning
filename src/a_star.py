@@ -1,6 +1,5 @@
-from collections import defaultdict
 from model import PVModel
-from basegame import BaseGame
+from state_handler import StateHandler
 import torch
 
 
@@ -11,13 +10,14 @@ class AStarPolicySearch:
         self.parent = {}  # parent of each node in the path
         self.frontier = set[torch.Tensor]()  # frontier states
         
-    def expand(self, state: torch.Tensor, game: BaseGame[torch.Tensor], model: PVModel, n_steps=100, k=10) -> float:
-        if game.is_terminal(state): return self.g[state.__hash__()]
+    def expand(self, state: torch.Tensor, game: StateHandler[torch.Tensor], model: PVModel, n_steps=100, k=10) -> float:
+        if game.is_terminal(state): 
+            return self.g[state.__hash__()]
 
         raise NotImplementedError
         
         
-    def search(self, state: torch.Tensor, game: BaseGame[torch.Tensor], model: PVModel, n_steps=100, k=10):
+    def search(self, state: torch.Tensor, game: StateHandler[torch.Tensor], model: PVModel, n_steps=100, k=10):
         self.g[state.__hash__()] = 0
         policy, v = model.predict(state)
         

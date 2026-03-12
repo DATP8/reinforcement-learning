@@ -1,7 +1,4 @@
-from multiprocessing.sharedctypes import Value
 from state_handler import Batchable
-from torch import Size
-from sympy.printing.pytorch import torch
 from cnot_circuit import CNOTCircuit
 import torch
 from state_handler import StateHandler
@@ -134,7 +131,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         return state
     
     def batch_states(self, states: Batchable[torch.Tensor]) -> torch.Tensor:
-        if type(states) == torch.Tensor:
+        if type(states) is torch.Tensor:
             return states
         
         return torch.stack([state for state in states])

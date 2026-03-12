@@ -1,11 +1,9 @@
 from state_handler import Batchable
 from torch_geometric.loader import DataLoader
-from torch_geometric.data import Data
 from state_handler import StateHandler
 from circuit_graph import CircuitGraph
 import torch
 import random
-from typing import Iterable, Union, Sequence
 
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):

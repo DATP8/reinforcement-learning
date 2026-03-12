@@ -2,10 +2,6 @@ from torch_geometric.loader import DataLoader
 from circuit_graph import CircuitGraph
 from qiskit import QuantumCircuit
 from abc import abstractmethod
-from abc import ABC
-from cnot_circuit import generate_random_circuit
-from tornado import gen
-from cnot_circuit import CNOTCircuit
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
