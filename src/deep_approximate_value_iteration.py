@@ -1,6 +1,6 @@
 from circuit_graph_state_handler import CircuitGraphStateHandler
 from model import BiCircuitGNN, ValueModelFlat
-from model import ValueModelFlat
+from model import ValueModelFlat, ValueModel
 from state_handler import StateHandler
 from qtensor_state_handler import QtensorStateHandler
 from torch import nn
@@ -71,8 +71,8 @@ def qtensor():
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     game = QtensorStateHandler(n_qubits, horizon, topology)
-    training_model = ValueModelFlat(n_qubits, horizon, len(topology))
-    evaluation_model = ValueModelFlat(n_qubits, horizon, len(topology))
+    training_model = ValueModel(n_qubits, horizon, len(topology))
+    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
     
     trainer = DAVI(training_model, evaluation_model, game)
     

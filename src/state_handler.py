@@ -12,6 +12,7 @@ class Batchable[S](Protocol, Iterable[S]):
     def __getitem__ (self, i: SupportsIndex, /) -> S:...
     @overload
     def __getitem__ (self, s: slice, /) -> 'Batchable[S]': ...
+    
 
 class StateHandler[S](ABC):        
     @abstractmethod
