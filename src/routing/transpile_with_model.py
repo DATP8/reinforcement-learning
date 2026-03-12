@@ -11,7 +11,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from src.routing.bwas_routing import BWASRouting
 
-def collect_metrics(original_circuit, routed_circuit, transpile_time):
+def collect_metrics(routed_circuit, transpile_time):
 
     ops = routed_circuit.count_ops()
 
@@ -218,7 +218,6 @@ if __name__ == "__main__":
         transpile_time = end - start
     
         metrics = collect_metrics(
-            qc,
             routed,
             transpile_time
         )

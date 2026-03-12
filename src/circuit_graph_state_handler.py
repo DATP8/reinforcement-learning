@@ -5,7 +5,6 @@ from .state_handler import StateHandler, Batchable
 from .circuit_graph import CircuitGraph
 import torch
 import random
-from typing import Iterable, Union, Sequence
 
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
