@@ -2,6 +2,8 @@
 models
 circuits
 !.gitignore
-src/__pycache__
+!.github
 pyproject.toml
 uv.lock
+*.ipynb
+__pycache__

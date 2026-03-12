@@ -20,7 +20,7 @@ from torch_geometric.data import Data
 #         self.pos_encoding = PositionalEncoding(d_model)
 #         self.encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
 #         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        
+
 #     def forward(self, x):
 #         x = F.relu(self.scale(x))
 #         x = x.view(x.size(0), 1, self.d_model)
@@ -28,14 +28,14 @@ from torch_geometric.data import Data
 #         out = self.transformer_encoder(x)
 #         return out
 
+
 class PVModel(nn.Module):
     def __init__(self, n_qubits: int, horizon: int, n_actions: int):
         super().__init__()
         self.n_qubits = n_qubits
         self.horizon = horizon
         self.n_actions = n_actions
-        
-        
+
     @abstractmethod
     def predict(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """_summary_
@@ -49,17 +49,17 @@ class PVModel(nn.Module):
             tuple[torch.Tensor, torch.Tensor, torch.Tensor]: (value, logits, probabilities)
         """
         raise NotImplementedError("Subclasses must implement this method.")
-    
+
 
 class Model(PVModel):
     def __init__(self, n_qubits, horizon, n_actions):
         super().__init__(n_qubits, horizon, n_actions)
-        self.conv1 = nn.Conv1d(n_qubits * n_qubits, n_qubits * 4, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv1d(
+            n_qubits * n_qubits, n_qubits * 4, kernel_size=3, padding=1
+        )
         self.linear1 = nn.Linear(4 * n_qubits * horizon, n_actions * 4)
         self.distribution = nn.Linear(n_actions * 4, n_actions)
         self.estimate = nn.Linear(n_actions * 4, 1)
-    
-    
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = x.flatten(start_dim=1, end_dim=2)
@@ -71,16 +71,19 @@ class Model(PVModel):
         logits = self.distribution(x)
         probs = F.softmax(logits, dim=-1)
         v = F.softplus(self.estimate(x))
-        
+
         return probs, v
-    
+
     def predict(self, x: torch.Tensor):
         return self.forward(x)
-    
+
+
 class ValueModel(nn.Module):
     def __init__(self, n_qubits, horizon, n_actions):
         super().__init__()
-        self.conv1 = nn.Conv1d(n_qubits * n_qubits, n_qubits * 4, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv1d(
+            n_qubits * n_qubits, n_qubits * 4, kernel_size=3, padding=1
+        )
         self.linear1 = nn.Linear(4 * n_qubits * horizon, n_actions * 4)
         self.estimate = nn.Linear(n_actions * 4, 1)
 
@@ -91,14 +94,15 @@ class ValueModel(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.linear1(x)
         x = F.relu(x)
-        #v = F.softplus(self.estimate(x))
+        # v = F.softplus(self.estimate(x))
         v = torch.exp(self.estimate(x))
-        
+
         return v.squeeze(-1)
-    
+
     def predict(self, x: torch.Tensor):
         return self.forward(x)
-    
+
+
 class ValueModelFlat(nn.Module):
     def __init__(self, n_qubits, horizon, n_actions):
         super().__init__()
@@ -112,13 +116,14 @@ class ValueModelFlat(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.linear1(x)
         x = F.relu(x)
-        #v = F.softplus(self.estimate(x))
+        # v = F.softplus(self.estimate(x))
         v = torch.exp(self.estimate(x))
-        
+
         return v.squeeze(-1)
-    
+
     def predict(self, x: torch.Tensor):
         return self.forward(x)
+
 
 class BiCircuitGNN(nn.Module):
     def __init__(self, n_qubits, hidden_dim=128):
@@ -140,17 +145,14 @@ class BiCircuitGNN(nn.Module):
         self.f_bn1 = BatchNorm(hidden_dim)
         self.f_bn2 = BatchNorm(hidden_dim)
 
-
         # backward propagation
         self.b_conv1 = GINEConv(make_mlp(), flow="target_to_source")
         self.b_conv2 = GINEConv(make_mlp(), flow="target_to_source")
         self.b_bn1 = BatchNorm(hidden_dim)
-        self.b_bn2 = BatchNorm(hidden_dim)        
+        self.b_bn2 = BatchNorm(hidden_dim)
 
         self.head = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
+            nn.Linear(hidden_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
         )
 
     def forward(self, data: Data):
@@ -183,8 +185,7 @@ class RetardModel(PVModel):
     def __init__(self, n_qubits, horizon, n_actions):
         super().__init__(n_qubits=0, horizon=0, n_actions=n_actions)
         self.n_actions = n_actions
-        
-    
+
     def predict(self, x: torch.Tensor):
         probs = torch.ones((x.size(0), self.n_actions)) / self.n_actions
         v = torch.zeros((x.size(0), 1))
@@ -194,7 +195,7 @@ class RetardModel(PVModel):
 if __name__ == "__main__":
     n_qubits = 6
     model = BiCircuitGNN(n_qubits)
-    
+
     qc = QuantumCircuit(n_qubits)
     qc.cx(0, 1)
     qc.cx(1, 2)
@@ -206,15 +207,13 @@ if __name__ == "__main__":
     qc.cx(1, 2)
     qc.cx(1, 2)
     qc.cx(1, 2)
-    
+
     qc2 = QuantumCircuit(n_qubits)
     qc2.cx(0, 1)
-    
-    
+
     graph1 = CircuitGraph.from_circuit(qc)
     graph2 = CircuitGraph.from_circuit(qc2)
-    
-    data = next(x for x in DataLoader([graph1, graph2], batch_size=2))
-    
-    print(model(data))
 
+    data = next(x for x in DataLoader([graph1, graph2], batch_size=2))
+
+    print(model(data))
