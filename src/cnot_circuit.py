@@ -52,14 +52,14 @@ class CNOTCircuit(QuantumCircuit):
                         new_qc.swap(q1, q2)
 
                         v1, v2 = mapping[q1], mapping[q2]
-                        mapping[v1] = q2  ## Feel like this should be possible without a reverse map
-                        mapping[v2] = q1
+                        mapping[q1] = v2 
+                        mapping[q2] = v1
                         inverse[v1] = q2 
                         inverse[v2] = q1
 
                     for q in org_g.qargs:
                         qubit_idx = org_dag.find_bit(q).index
-                        new_idx = mapping[qubit_idx]
+                        new_idx = inverse[qubit_idx]
                         new_qargs.append(new_qc.qubits[new_idx])
 
                     new_qc.append(org_g.op, new_qargs)
@@ -72,7 +72,7 @@ class CNOTCircuit(QuantumCircuit):
 
         self = new_qc
         return self
-
+        
     def add_cnot(self, q1, q2):
         if q1 == q2:
             raise ValueError("Control and target qubits must be different.")
