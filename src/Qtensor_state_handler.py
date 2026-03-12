@@ -95,7 +95,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         # pyrefly: ignore[unbound-name]
         return state
     
-    def batch_states(self, states: Batchable[Qtensor]) -> torch.Tensor:
+    def batch_states(self, states: Batchable[Qtensor]) -> Qtensor:
         states_new = []
         for i in range(len(states)):
             states_new.append(states[i].unwrap())
