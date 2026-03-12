@@ -31,7 +31,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def prune(self, state: Qtensor) -> tuple[Qtensor, int]:
         new_state = state.clone()
-        removed_gates = torch.ones((self.horizon))
+        # pyrefly: ignore[no-matching-overload]
+        removed_gates = torch.ones((self.horizon), dtype=bool)
         front_layer = set()
         layers_removed = 0
         for i in range(state.gates):
