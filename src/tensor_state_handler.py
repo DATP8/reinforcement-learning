@@ -138,7 +138,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                     flag = True
                 qc.add_cnot(q1, q2)
 
-        state = qc.to_tensor( # pyrefly: ignore[unbound-name], qc will always be initialized
+        state = qc.to_tensor(  # pyrefly: ignore[unbound-name], qc will always be initialized
             horizon=self.horizon
         )
 

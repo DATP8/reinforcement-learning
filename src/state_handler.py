@@ -10,10 +10,10 @@ class Batchable[S](Protocol, Iterable[S]):
     @overload
     def __getitem__(self, i: SupportsIndex, /) -> S: ...
     @overload
-    def __getitem__ (self, s: slice, /) -> 'Batchable[S]': ...
-    
+    def __getitem__(self, s: slice, /) -> "Batchable[S]": ...
 
-class StateHandler[S](ABC):        
+
+class StateHandler[S](ABC):
     @abstractmethod
     def get_possible_actions(self, state: S) -> list[int]:
         raise NotImplementedError

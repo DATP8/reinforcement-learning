@@ -45,9 +45,11 @@ class DAVI[S: To]:
         difficulty = initial_difficulty
 
         for iteration in range(num_iterations):
-            states = self.state_handler.get_random_states_in_range(batchsize, 1, difficulty)
-            y = torch.full((batchsize, 1), float('inf')).squeeze(-1).to(device)
-            
+            states = self.state_handler.get_random_states_in_range(
+                batchsize, 1, difficulty
+            )
+            y = torch.full((batchsize, 1), float("inf")).squeeze(-1).to(device)
+
             next_states = []
             next_state_actions = []
             for i, state in enumerate(states):
@@ -65,8 +67,12 @@ class DAVI[S: To]:
                 )
 
             for state_index, (i, action) in enumerate(next_state_actions):
-                y[i] = torch.min(self.state_handler.get_action_cost(state, action) + next_state_values[state_index], y[i])
-            
+                y[i] = torch.min(
+                    self.state_handler.get_action_cost(state, action)
+                    + next_state_values[state_index],
+                    y[i],
+                )
+
             X = self.state_handler.batch_states(states).to(device)
             optimizer.zero_grad()
             loss = mse_loss(self.train_model(X), y)
