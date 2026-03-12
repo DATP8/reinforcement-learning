@@ -34,6 +34,11 @@ jobs:
         with:
           args: 'format'
 
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        name: Commit formatted files
+        with:
+          commit_message: "style: auto-format code"
+
   unit-tests:
     runs-on: ubuntu-latest
     steps:
