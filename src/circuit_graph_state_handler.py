@@ -1,3 +1,4 @@
+from torch_geometric.utils import subgraph
 from state_handler import Batchable
 from torch_geometric.loader import DataLoader
 from state_handler import StateHandler
@@ -105,34 +106,28 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         
         if len(removed_gates) == 0:
             return state, 0
+
+        num_nodes = state.x.size(0)
         
-        removed_gates_set = set(removed_gates)
-
-        keep_nodes = [i for i in range(state.x.shape[0]) if i not in removed_gates_set]
+        removed = torch.tensor(removed_gates, device=state.x.device)
+        
+        # mask of nodes to keep
+        node_mask = torch.ones(num_nodes, dtype=torch.bool, device=state.x.device)
+        node_mask[removed] = False
+        
+        # node indices to keep
+        keep_nodes = node_mask.nonzero(as_tuple=False).view(-1)
+        
+        # filter + relabel edges
+        edge_index, edge_attr = subgraph(
+            keep_nodes,
+            state.edge_index,
+            edge_attr=state.edge_attr,
+            relabel_nodes=True,
+        )
+        
+        # filter node features
         x = state.x[keep_nodes]
-
-        # build index map
-        index_map = {old: new for new, old in enumerate(keep_nodes)}
-
-        edge_index = []
-        edge_attr = []
-
-        for i, (succ, prev) in enumerate(state.edge_index.t()):
-            succ = succ.item()
-            prev = prev.item()
-
-            if succ in removed_gates_set or prev in removed_gates_set:
-                continue
-
-            edge_index.append((index_map[succ], index_map[prev]))
-            edge_attr.append(state.edge_attr[i])
-
-        if len(edge_index) == 0:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
-            edge_attr = torch.empty((0, state.edge_attr.shape[1]), dtype=torch.float)
-        else:
-            edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-            edge_attr = torch.stack(edge_attr)
         
         new_state = CircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
         new_state, n_pruned_gates = self.prune(new_state)
