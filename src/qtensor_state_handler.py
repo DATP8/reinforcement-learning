@@ -16,8 +16,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         q1 = -1
         q2 = -1
         for i in range(self.n_qubits):
-            if tensor[i] == 1:
-                if q1 is None:
+            if tensor[i].item() == 1:
+                if q1 == -1:
                     q1 = i
                 else:
                     q2 = i
