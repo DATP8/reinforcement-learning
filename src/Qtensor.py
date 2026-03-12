@@ -50,8 +50,8 @@ class Qtensor():
                 i += 1
         return Qtensor(c, len(circuit.data))
     
-    def to(self, **args):
-        return self._t.to(**args)
+    def to(self, device: torch.device):
+        return self._t.to(device)
     
     def unsqueeze(self, **args):
         return Qtensor(self._t.unsqueeze(**args), self.gates)
