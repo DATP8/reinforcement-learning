@@ -12,7 +12,7 @@ runs:
       name: Setup UV
       with:
         enable-cache: true
-        cache-dependency-glob: "uv.lock"
+        cache-dependency-glob: "**/uv.lock"
     
     - shell: bash
       name: Synchronize UV
