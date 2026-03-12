@@ -2,8 +2,8 @@ import torch
 from cnot_circuit import CNOTCircuit
 from tensor_state_handler import TensorStateHandler
 from qiskit import QuantumCircuit
-from Qtensor import Qtensor
-from Qtensor_state_handler import QtensorStateHandler
+from qtensor import Qtensor
+from qtensor_state_handler import QtensorStateHandler
 import unittest
 
 n_qubits = 6
@@ -94,7 +94,7 @@ class TestQtensorStateHandler(unittest.TestCase):
                 pruned_circuit.cx(q1,q2)
             self.assertTrue(torch.equal(Qtensor.from_circuit(pruned_circuit, horizon)._t, pruned_state._t))
             
-    def test_qtensor_generate_random_circuit(self):
+    def test_Qtensor_generate_random_circuit(self):
         for _ in range(1000):
             state = self.game.get_random_state(10)
             pruned_state, _ = self.game.prune(state)
@@ -116,7 +116,7 @@ class TestQtensorStateHandler(unittest.TestCase):
                 pruned_circuit.cx(q1,q2)
             self.assertTrue(torch.equal(Qtensor.from_circuit(pruned_circuit, horizon)._t, next_state._t))
             
-    def test_qtensor_is_terminal(self):
+    def test_Qtensor_is_terminal(self):
         circuits = []
         for gate_list in input_circuits:
             circuit = QuantumCircuit(n_qubits)
