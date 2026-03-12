@@ -118,12 +118,12 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
-                if not (q1,q2) in self.topology or not (q2,q1) in self.topology:
+                if (not (q1,q2) in self.topology) and (not (q2,q1) in self.topology):
                     flag = True
                 qc.add_cnot(q1, q2)
         
-        state = qc.to_tensor(horizon=self.horizon) #pyrefly: ignore, qc will always be initialized
-            
+            state = qc.to_tensor(horizon=self.horizon)
+        # pyrefly: ignore[unbound-name]
         return state
     
     def batch_states(self, states: Batchable[torch.Tensor]) -> torch.Tensor:
@@ -156,5 +156,3 @@ if __name__ == "__main__":
     print(game.get_action_cost(next_state, 1))
     print(game.get_possible_actions(next_state))
     print(game.is_terminal(next_state))
-    
-    

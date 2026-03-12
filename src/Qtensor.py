@@ -1,3 +1,5 @@
+from typing import SupportsIndex
+from typing import override
 import torch
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 class Qtensor():
@@ -25,16 +27,13 @@ class Qtensor():
         assert len(gates) > 0
         ret = func(*args_new, **kwargs)
         return Qtensor(ret)
-    
+
     def __getitem__(self, key):
         return Qtensor(self._t[key], self.gates)
     
     def __setitem__(self, key, value):
         self._t[key] = value
         
-    def __eq__(self, value):
-        return self._t == value
-    
     def __mul__(self, other):
         return Qtensor(self._t * other, self.gates)
     
