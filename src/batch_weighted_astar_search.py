@@ -72,7 +72,7 @@ class BWAS:
     
 if __name__ == "__main__":
     from model import ValueModel
-    from swap_optimizer import SwapOptimizer, CNOTCircuit
+    from tensor_state_handler import TensorStateHandler, CNOTCircuit
     import random
     
     def generate_random_circuit(game, n_qubits: int, n_gates: int, horizon: int):
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     
-    game = SwapOptimizer(n_qubits, horizon, topology)
+    game = TensorStateHandler(n_qubits, horizon, topology)
     model = ValueModel(n_qubits, horizon, len(topology))
     model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty11_iteration6790.pt"))
     

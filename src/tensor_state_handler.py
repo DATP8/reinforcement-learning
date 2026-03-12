@@ -116,8 +116,8 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
 
     def generate_random_circuit(self, n_gates: int):
         flag = False
+        qc = CNOTCircuit(self.n_qubits)
         while not flag:
-            qc = CNOTCircuit(self.n_qubits)
             for i in range(n_gates):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
@@ -125,6 +125,8 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 if not (q1,q2) in self.topology or not (q2,q1) in self.topology:
                     flag = True
                 qc.add_cnot(q1, q2)
+                
+            qc = CNOTCircuit(self.n_qubits)
         
         
         state = qc.to_tensor(horizon=self.horizon)
