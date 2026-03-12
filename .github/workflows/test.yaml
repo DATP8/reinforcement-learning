@@ -30,7 +30,10 @@ jobs:
          args: 'check --fix'
 
   unit-tests:
-    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+            os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6.0.2
         name: Checkout Repository
