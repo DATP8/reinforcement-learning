@@ -23,7 +23,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         xcap = state.x.shape[0]
         icap = torch.max(state.edge_index) if not state.edge_index.numel() == 0 else 0
         if not 0 <= icap < xcap:
-            print(f"Error in state")
+            print("Error in state")
             print("x.Shape:", state.x.shape)
             print("edge_index", state.edge_index)
             raise ValueError("Edge indexes should be within bounds")

@@ -65,5 +65,6 @@ if __name__ == "__main__":
     #with open('./src/topologies/marrakesh_topology.txt', 'w') as f: 
     #    for edge in topology.edges():
     #        f.write(f"{edge[0]} {edge[1]}\n")
+
     top_from_file = get_topology_from_file('./src/topologies/torino_topology.txt', 10)
     print(top_from_file.edges())

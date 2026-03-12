@@ -1,9 +1,7 @@
 from state_handler import Batchable
-from torch import Size
-from sympy.printing.pytorch import torch
 import torch
 import random
-from Qtensor import Qtensor
+from qtensor import Qtensor
 from state_handler import StateHandler
 from qiskit import QuantumCircuit
 
@@ -19,7 +17,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         q2 = -1
         for i in range(self.n_qubits):
             if tensor[i] == 1:
-                if q1 == None:
+                if q1 is None:
                     q1 = i
                 else:
                     q2 = i
@@ -37,7 +35,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         layers_removed = 0
         for i in range(state.gates):
             q1, q2 = self.gate_to_tuple(new_state[:,i])
-            if (q1, q2) in self.topology and not q1 in front_layer and q2 not in front_layer:
+            if (q1, q2) in self.topology and q1 not in front_layer and q2 not in front_layer:
                 new_state[:,i] = self.mask
                 removed_gates[i] = False
                 layers_removed += 1
@@ -86,7 +84,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
-                if not (q1, q2) in self.topology or not (q2, q1) in self.topology:
+                if (q1, q2) not in self.topology or (q2, q1) not in self.topology:
                     flag = True
                 
                 qc.cx(q1, q2)

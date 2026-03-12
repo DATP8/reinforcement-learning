@@ -3,7 +3,7 @@ from qiskit.circuit.quantumcircuit import QuantumCircuit
 class Qtensor():
     def __init__(self, data, gates=None, **kwargs):
         self._t = torch.as_tensor(data, **kwargs)
-        if gates == None:
+        if gates is None:
             if self._t.dim() > 1:
                 self.gates = self._t.size()[1]
             else:

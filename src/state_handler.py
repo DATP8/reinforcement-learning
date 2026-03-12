@@ -38,7 +38,7 @@ class StateHandler[S](ABC):
         raise NotImplementedError
     
     @abstractmethod
-    def batch_states(self, states: Batchable[S]) -> torch.Tensor:
+    def batch_states(self, states: Batchable[S]) -> S:
         """
         `batch_size`: None if all states should be combined
         """

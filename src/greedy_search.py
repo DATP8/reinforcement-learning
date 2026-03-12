@@ -1,3 +1,4 @@
+from tensor_state_handler import TensorStateHandler
 from state_handler import StateHandler
 import torch
 
@@ -45,7 +46,7 @@ class GreedySearch:
 
 if __name__ == "__main__":
     from model import ValueModel
-    from swap_optimizer import SwapOptimizer, CNOTCircuit
+    from cnot_circuit import CNOTCircuit
     import random
     import time
     
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     
-    game = SwapOptimizer(n_qubits, horizon, topology)
+    game = TensorStateHandler(n_qubits, horizon, topology)
     model = ValueModel(n_qubits, horizon, len(topology))
     model.load_state_dict(torch.load("models/value_model_deep_cube_a_exp_relu/difficulty11_iteration6790.pt"))
     
