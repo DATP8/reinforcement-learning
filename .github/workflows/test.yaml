@@ -15,7 +15,7 @@ jobs:
       - uses: ./.github/actions/setup-env
         name: Setup Environment
 
-      - run: uv run pyrefly check
+      - run: uv run pyrefly check --output-format=github
         name: Run Pyrefly Check
 
   ruff-lint:
@@ -38,7 +38,8 @@ jobs:
       - uses: ./.github/actions/setup-env
         name: Setup Environment
 
-      - run: uv run python -m unittest discover -v
+        #- run: uv run python -m unittest discover -v
+      - run: uv run --with pytest --with pytest-github-actions-annotate-failures pytest
         name: Run Unit Tests
 
   ruff-format:
