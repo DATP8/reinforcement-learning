@@ -1,6 +1,5 @@
 from state_handler import Batchable
 from torch import Size
-from sympy.printing.pytorch import torch
 import torch
 import random
 from Qtensor import Qtensor
@@ -31,7 +30,6 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def prune(self, state: Qtensor) -> tuple[Qtensor, int]:
         new_state = state.clone()
-        # pyrefly: ignore[no-matching-overload]
         removed_gates = torch.ones((self.horizon), dtype=bool)
         front_layer = set()
         layers_removed = 0
@@ -70,7 +68,6 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def is_terminal(self, state: Qtensor) -> bool:
         next_state, _ = self.prune(state)
-        # pyrefly: ignore[no-matching-overload]
         return torch.sum(next_state).item() <= 1e-7
 
     def get_action_cost(self, state: Qtensor, action: int) -> float:
@@ -100,7 +97,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
                 qc.cx(q1, q2)
 
             state = Qtensor.from_circuit(qc, self.horizon)
-        # pyrefly: ignore[unbound-name]
+   
         return state
 
     def batch_states(self, states: Batchable[Qtensor]) -> torch.Tensor:
