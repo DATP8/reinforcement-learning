@@ -74,15 +74,15 @@ class QtensorStateHandler(StateHandler[Qtensor]):
     def get_random_states(self, batch_size: int, max_difficulty: int) -> Batchable[Qtensor]:
         batch = []
         for _ in range(batch_size):
-            n_gates = random.randint(1, max_difficulty)
-            batch.append(self.generate_random_circuit(n_gates))
+            difficulty = random.randint(1, max_difficulty)
+            batch.append(self.get_random_state(difficulty))
         return batch
     
-    def generate_random_circuit(self, n_gates: int):
+    def get_random_state(self, difficulty: int):
         qc = QuantumCircuit(self.n_qubits)
         flag = False
         while not flag:
-            for _ in range(n_gates):
+            for _ in range(difficulty):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
@@ -99,7 +99,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         states_new = []
         for i in range(len(states)):
             states_new.append(states[i].unwrap())
-        return torch.stack(states_new)
+        return Qtensor(torch.stack(states_new))
 
 
 if __name__ == "__main__":
