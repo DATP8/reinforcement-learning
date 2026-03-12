@@ -28,7 +28,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         return [
             i
             for i, (q1, q2) in enumerate(self.topology)
-            if (q1 in frontlayer_qubits or q2 in frontlayer_qubits)
+            if q1 in frontlayer_qubits or q2 in frontlayer_qubits
         ]
 
     def prune(self, state: torch.Tensor) -> tuple[torch.Tensor, int]:
