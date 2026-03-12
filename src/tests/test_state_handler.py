@@ -93,7 +93,7 @@ class TestQtensorStateHandler(unittest.TestCase):
                 print(state)
             self.assertFalse(self.game.is_terminal(pruned_state))
             
-    def test_tensor_get_next_state(self):
+    def test_qtensor_get_next_state(self):
         states = []
         for gate_list in input_circuits:
             circuit = QuantumCircuit(n_qubits)
