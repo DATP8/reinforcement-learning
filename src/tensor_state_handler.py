@@ -122,8 +122,8 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                     flag = True
                 qc.add_cnot(q1, q2)
         
-            state = qc.to_tensor(horizon=self.horizon)
-        # pyrefly: ignore[unbound-name]
+        state = qc.to_tensor(horizon=self.horizon) #pyrefly: ignore, qc will always be initialized
+            
         return state
     
     def batch_states(self, states: Batchable[torch.Tensor]) -> torch.Tensor:
