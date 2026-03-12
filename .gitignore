@@ -7,3 +7,4 @@ src/__pycache__
 pyproject.toml
 uv.lock
 *.ipynb
+src/tests/__pycache__
