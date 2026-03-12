@@ -1,4 +1,4 @@
-name: "test"
+name: "Run type checking, linting, formatting and unit tests"
 on:
   workflow_dispatch:
   pull_request:
