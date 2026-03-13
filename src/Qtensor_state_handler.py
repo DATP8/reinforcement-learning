@@ -18,8 +18,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         q1 = -1
         q2 = -1
         for i in range(self.n_qubits):
-            if tensor[i] == 1:
-                if q1 == None:
+            if tensor[i].item() == 1:
+                if q1 == -1:
                     q1 = i
                 else:
                     q2 = i
@@ -37,7 +37,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         layers_removed = 0
         for i in range(state.gates):
             q1, q2 = self.gate_to_tuple(new_state[:,i])
-            if (q1, q2) in self.topology and not q1 in front_layer and q2 not in front_layer:
+            if ((q1, q2) in self.topology or (q2, q1) in self.topology) and not q1 in front_layer and q2 not in front_layer:
                 new_state[:,i] = self.mask
                 removed_gates[i] = False
                 layers_removed += 1
@@ -79,14 +79,14 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         return batch
     
     def get_random_state(self, difficulty: int):
-        qc = QuantumCircuit(self.n_qubits)
         flag = False
         while not flag:
+            qc = QuantumCircuit(self.n_qubits)
             for _ in range(difficulty):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
-                if not (q1, q2) in self.topology or not (q2, q1) in self.topology:
+                if (not (q1, q2) in self.topology) and (not (q2, q1) in self.topology):
                     flag = True
                 
                 qc.cx(q1, q2)
@@ -120,7 +120,8 @@ if __name__ == "__main__":
     
     root_state = Qtensor.from_circuit(circuit, horizon)
     #print(root_state)
-    #next_state, gates_removed = game.prune(root_state, 7)
+    next_state, gates_removed = game.prune(root_state)
+    print(next_state)
     #print(CNOTCircuitSmall.from_tensor(next_state))
     #print(gates_removed)
     next_state = game.get_next_state(root_state, 0)
