@@ -1,3 +1,4 @@
+import hashlib
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from torch_geometric.data import Data
 import torch
@@ -7,10 +8,15 @@ import torch.nn.functional as F
 class CircuitGraph(Data):
     def __init__(self, **args):
         super().__init__(**args)
+        self.quantum_circuit = None
         
     def __hash__(self):
         assert self.x is not None and self.edge_index is not None and self.edge_attr is not None, "State must have x, edge_index, and edge_attr defined"
-        return hash(self.x.data_ptr()) ^ hash(self.edge_index.data_ptr()) ^ hash(self.edge_attr.data_ptr())
+        return self.tensor_hash(self.x) ^ self.tensor_hash(self.edge_index) ^ self.tensor_hash(self.edge_attr)
+    
+    @staticmethod
+    def tensor_hash(t: torch.Tensor) -> int:
+        return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
     
     def from_circuit(circuit: QuantumCircuit):
         n_qubits = circuit.num_qubits
