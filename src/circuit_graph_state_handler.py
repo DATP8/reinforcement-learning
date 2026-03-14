@@ -14,6 +14,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         self.topology = topology
         self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](maxsize=10000)
         self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
+        self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
 
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
@@ -77,24 +78,30 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         return is_terminal
     
     def get_action_cost(self, state: CircuitGraph, action: int) -> float:
+        state_hash = hash(state)
+        if (state_hash, action) in self.action_cost_cache:
+            return self.action_cost_cache[(state_hash, action)]
+        
         if state.x is None:
             raise ValueError("State must have x defined")
 
         removed_gates = self.get_removed_gates(state)
         n_qubits = state.x.shape[1] // 2
         q1, q2 = self.topology[action]
+        action_cost = 1.0
         for removed_gate in removed_gates[::-1]:
             gate_q1 = torch.where(state.x[removed_gate, :n_qubits] > 0)[0].item()
-            gate_q2 = torch.where(state.x[removed_gate, n_qubits:] > 0)[0].item()
-            if gate_q1 == q1 and gate_q2 == q2:  # exact match
-                return 0.5
-            if (
-                gate_q1 == q2 or gate_q2 == q1
-            ):  # partial match can not reduce cnot amount
-                return 1.0
-
-        return 1.0
-
+            gate_q2 = torch.where(state.x[removed_gate, n_qubits:] > 0)[0].item() 
+            if gate_q1 == q1 and gate_q2 == q2: # exact match
+                action_cost = 0.5
+                break
+            if gate_q1 == q2 or gate_q2 == q1: # partial match can not reduce cnot amount
+                break
+        
+        self.action_cost_cache[(state_hash, action)] = action_cost
+        
+        return action_cost
+    
     def get_removed_gates(self, state: CircuitGraph) -> list[int]:
         if state.x is None or state.edge_index is None or state.edge_attr is None:
             return []
