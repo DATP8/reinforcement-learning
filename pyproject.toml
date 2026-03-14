@@ -5,27 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "cachetools>=7.0.5",
     "matplotlib[pyplot]>=3.10.8",
     "networkx>=3.6.1",
     "pyrefly>=0.56.0",
     "qiskit>=2.3.0",
     "qiskit-ibm-runtime>=0.45.1",
     "ruff>=0.15.5",
-    "torch>=2.2.2",
+    "torch>=2.10.0",
     "torch-geometric>=2.7.0",
     "tornado>=6.5.4",
 ]
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch-cpu" },
-]
-torchvision = [
-    { index = "pytorch-cpu" },
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
