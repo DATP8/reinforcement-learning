@@ -7,7 +7,11 @@ import torch.nn.functional as F
 class CircuitGraph(Data):
     def __init__(self, **args):
         super().__init__(**args)
-
+        
+    def __hash__(self):
+        assert self.x is not None and self.edge_index is not None and self.edge_attr is not None, "State must have x, edge_index, and edge_attr defined"
+        return hash(self.x.data_ptr()) ^ hash(self.edge_index.data_ptr()) ^ hash(self.edge_attr.data_ptr())
+    
     def from_circuit(circuit: QuantumCircuit):
         n_qubits = circuit.num_qubits
         two_qubit_gates = []
