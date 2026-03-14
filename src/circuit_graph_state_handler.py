@@ -5,69 +5,76 @@ from state_handler import StateHandler
 from circuit_graph import CircuitGraph
 import torch
 import random
+from cachetools import LFUCache
 
 
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.topology = topology
+        self.next_state_cache = LFUCache[tuple[CircuitGraph, int], CircuitGraph](maxsize=10000)
+        self.is_terminal_cache = LFUCache[CircuitGraph, bool](maxsize=10000)
 
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
 
     def get_next_state(self, state: CircuitGraph, action: int) -> CircuitGraph:
-        state = self.prune(state)[0]
-        if state.x is None or state.edge_index is None or state.edge_attr is None:
+        if (state, action) in self.next_state_cache:
+            return self.next_state_cache[(state, action)]
+        
+        pruned_state = self.prune(state)[0]
+        if pruned_state.x is None or pruned_state.edge_index is None or pruned_state.edge_attr is None:
             raise ValueError("State must have x, edge_index, and edge_attr defined")
 
         # Ensure edges are valid after pruning
-        xcap = state.x.shape[0]
-        icap = torch.max(state.edge_index) if not state.edge_index.numel() == 0 else 0
+        xcap = pruned_state.x.shape[0]
+        icap = torch.max(pruned_state.edge_index) if not pruned_state.edge_index.numel() == 0 else 0
         if not 0 <= icap < xcap:
-            print("Error in state")
-            print("x.Shape:", state.x.shape)
-            print("edge_index", state.edge_index)
+            print(f"Error in state")
+            print("x.Shape:", pruned_state.x.shape)
+            print("edge_index", pruned_state.edge_index)
             raise ValueError("Edge indexes should be within bounds")
-
-        new_state = state.clone()
-
+        
+        new_state = pruned_state.clone()
+        
         # make type checker happy
-        assert not (
-            new_state.x is None
-            or new_state.edge_index is None
-            or new_state.edge_attr is None
-        ), "State must have x, edge_index, and edge_attr defined"
-
-        n_qubits = state.x.shape[1] // 2
+        assert (not (new_state.x is None or new_state.edge_index is None or new_state.edge_attr is None)), "State must have x, edge_index, and edge_attr defined"
+        
+        n_qubits = pruned_state.x.shape[1] // 2 
         q1, q2 = self.topology[action]
 
         # swap first qubits
-        new_state.x[:, q1] = state.x[:, q2]
-        new_state.x[:, q2] = state.x[:, q1]
+        new_state.x[:, q1] = pruned_state.x[:, q2]
+        new_state.x[:, q2] = pruned_state.x[:, q1]
 
         # swap second qubits
-        new_state.x[:, n_qubits + q1] = state.x[:, n_qubits + q2]
-        new_state.x[:, n_qubits + q2] = state.x[:, n_qubits + q1]
-
-        for i, att in enumerate(new_state.edge_attr):
+        new_state.x[:, n_qubits + q1] = pruned_state.x[:, n_qubits + q2]
+        new_state.x[:, n_qubits + q2] = pruned_state.x[:, n_qubits + q1]
+        
+        for i, att in enumerate(new_state.edge_attr): 
             if att[q1] > 0:
                 new_state.edge_attr[i][q1] = 0
                 new_state.edge_attr[i][q2] = att[q1]
             elif att[q2] > 0:
                 new_state.edge_attr[i][q2] = 0
                 new_state.edge_attr[i][q1] = att[q2]
-
+        
+        self.next_state_cache[(state, action)] = new_state
+        
         return new_state
 
     def is_terminal(self, state: CircuitGraph) -> bool:
         if state.x is None:
             raise ValueError("State must have x defined")
+        
+        if state in self.is_terminal_cache:
+            return self.is_terminal_cache[state]
 
-        removed_gages = self.get_removed_gates(state)
-        return (
-            len(removed_gages) == state.x.shape[0] - 1
-        )  # all gates removed, only global node left
-
+        removed_gates = self.get_removed_gates(state)
+        is_terminal = len(removed_gates) == state.x.shape[0] - 1 # all gates removed, only global node left
+        self.is_terminal_cache[state] = is_terminal
+        return is_terminal
+    
     def get_action_cost(self, state: CircuitGraph, action: int) -> float:
         if state.x is None:
             raise ValueError("State must have x defined")
