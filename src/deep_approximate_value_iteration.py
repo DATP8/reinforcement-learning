@@ -92,5 +92,5 @@ def graph():
     trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
     
 if __name__ == "__main__":
-    # graph()
-    qtensor()
+    graph()
+    #qtensor()

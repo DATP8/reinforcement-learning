@@ -7,19 +7,21 @@ import torch
 import random
 from cachetools import LFUCache
 from qiskit import QuantumCircuit
+
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.topology = topology
-        self.next_state_cache = LFUCache[tuple[CircuitGraph, int], CircuitGraph](maxsize=10000)
-        self.is_terminal_cache = LFUCache[CircuitGraph, bool](maxsize=10000)
+        self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](maxsize=10000)
+        self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
 
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
     
     def get_next_state(self, state: CircuitGraph, action: int) -> CircuitGraph:
-        if (state, action) in self.next_state_cache:
-            return self.next_state_cache[(state, action)]
+        state_hash = hash(state)
+        if (state_hash, action) in self.next_state_cache:
+            return self.next_state_cache[(state_hash, action)]
         
         pruned_state = self.prune(state)[0]
         if pruned_state.x is None or pruned_state.edge_index is None or pruned_state.edge_attr is None:
@@ -58,20 +60,20 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
                 new_state.edge_attr[i][q2] = 0         
                 new_state.edge_attr[i][q1] = att[q2]
         
-        self.next_state_cache[(state, action)] = new_state
+        self.next_state_cache[(state_hash, action)] = new_state
         
         return new_state
     
     def is_terminal(self, state: CircuitGraph) -> bool:
         if state.x is None:
             raise ValueError("State must have x defined")
-        
-        if state in self.is_terminal_cache:
-            return self.is_terminal_cache[state]
+        state_hash = hash(state)
+        if state_hash in self.is_terminal_cache:
+            return self.is_terminal_cache[state_hash]
 
         removed_gages = self.get_removed_gates(state)
         is_terminal = len(removed_gages) == state.x.shape[0] - 1 # all gates removed, only global node left
-        self.is_terminal_cache[state] = is_terminal
+        self.is_terminal_cache[state_hash] = is_terminal
         return is_terminal
     
     def get_action_cost(self, state: CircuitGraph, action: int) -> float:
