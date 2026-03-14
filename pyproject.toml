@@ -12,7 +12,7 @@ dependencies = [
     "qiskit>=2.3.0",
     "qiskit-ibm-runtime>=0.45.1",
     "ruff>=0.15.5",
-    "torch==2.2.2",
+    "torch>=2.2.2",
     "torch-geometric>=2.7.0",
     "tornado>=6.5.4",
 ]

@@ -6,7 +6,7 @@ from circuit_graph import CircuitGraph
 import torch
 import random
 from cachetools import LFUCache
-
+from qiskit import QuantumCircuit
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
@@ -166,7 +166,6 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
 
 if __name__ == "__main__":
-    from qiskit import QuantumCircuit
     from cnot_circuit import CNOTCircuit
     
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
