@@ -1,3 +1,4 @@
+from cachetools import LFUCache
 from state_handler import Batchable
 import torch
 import random
@@ -12,7 +13,10 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         self.horizon = horizon
         self.topology = topology
         self.mask = torch.zeros((self.n_qubits), dtype=torch.float32)
-
+        self.next_state_cache = LFUCache[tuple[int, int], Qtensor](maxsize=10000)
+        self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
+        self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
+        
     def gate_to_tuple(self, tensor: Qtensor):
         q1 = -1
         q2 = -1
@@ -55,7 +59,11 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         return new_state, layers_removed
 
     def get_next_state(self, state: Qtensor, action: int) -> Qtensor:
-        # If the first layer is now empty, shift all layers by one
+        state_hash = hash(state)
+        if (state_hash, action) in self.next_state_cache:
+            return self.next_state_cache[(state_hash, action)]
+    
+        # If the first layer is now empty, shift all layers by one  
         new_state, layers_removed = self.prune(state)
         q1, q2 = self.topology[action]
 
@@ -64,15 +72,21 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         new_state[q1] = new_state_temp[q2]
         new_state[q2] = new_state_temp[q1]
 
+        self.next_state_cache[(state_hash, action)] = new_state
         return new_state
 
     def is_terminal(self, state: Qtensor) -> bool:
+        state_hash = hash(state)
+        if state_hash in self.is_terminal_cache:
+            return self.is_terminal_cache[state_hash]
         next_state, _ = self.prune(state)
         # pyrefly: ignore[no-matching-overload]
-        return torch.sum(next_state).item() <= 1e-7
+        is_terminal = torch.sum(next_state).item() <= 1e-7
+        self.is_terminal_cache[state_hash] = is_terminal
+        return is_terminal
 
     def get_action_cost(self, state: Qtensor, action: int) -> float:
-
+        # todo: this is incomplete. Should have cost 0.5 if cnot reduction is possible.
         return 1.0
 
     def get_random_states(
