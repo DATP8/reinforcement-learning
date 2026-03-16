@@ -30,7 +30,10 @@ class Qtensor():
         return Qtensor(self._t[key], self.gates)
     
     def __setitem__(self, key, value):
-        self._t[key] = value
+        if isinstance(value, Qtensor):
+            self._t[key] = value._t
+        else:
+            self._t[key] = value
         
     def __eq__(self, value):
         return self._t == value
