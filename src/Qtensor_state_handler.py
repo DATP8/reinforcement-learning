@@ -57,8 +57,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         
         # Swap the qubits in the tensor representation
         new_state_temp = new_state.clone()
-        new_state[:,q1] = new_state_temp[:,q2]
-        new_state[:,q2] = new_state_temp[:,q1]
+        new_state[q1] = new_state_temp[q2]
+        new_state[q2] = new_state_temp[q1]
 
         return new_state
 
