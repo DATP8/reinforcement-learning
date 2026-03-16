@@ -60,3 +60,7 @@ class StateHandler[S](ABC):
         """
 
         raise NotImplementedError
+    
+    @abstractmethod
+    def state_from(self, circuit) -> S:
+        raise NotImplementedError

@@ -87,11 +87,15 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def get_action_cost(self, state: Qtensor, action: int) -> float:
         # todo: this is incomplete. Should have cost 0.5 if cnot reduction is possible.
-        return 1.0
+        state_hash = hash(state)
+        if (state_hash, action) in self.action_cost_cache:
+            return self.action_cost_cache[(state_hash, action)]
+        cost = 1.0
+        self.action_cost_cache[(state_hash, action)] = cost
+        
+        return cost
 
-    def get_random_states(
-        self, batch_size: int, max_difficulty: int
-    ) -> Batchable[Qtensor]:
+    def get_random_states(self, batch_size: int, max_difficulty: int) -> Batchable[Qtensor]:
         batch = []
         for _ in range(batch_size):
             difficulty = random.randint(1, max_difficulty)
@@ -120,6 +124,9 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         for i in range(len(states)):
             states_new.append(states[i].unwrap())
         return Qtensor(torch.stack(states_new))
+    
+    def state_from(self, circuit: QuantumCircuit) -> Qtensor:
+        return Qtensor.from_circuit(circuit, self.horizon)
 
 
 if __name__ == "__main__":

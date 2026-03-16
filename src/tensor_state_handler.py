@@ -1,3 +1,4 @@
+from qiskit import QuantumCircuit
 from state_handler import Batchable
 from cnot_circuit import CNOTCircuit
 import torch
@@ -149,7 +150,17 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
             return states
 
         return torch.stack([state for state in states])
-
+    
+    def state_from(self, circuit: QuantumCircuit) -> torch.Tensor:
+        # todo: This is shit
+        cnot_circuit = CNOTCircuit(circuit.num_qubits)
+        for gate in circuit.data:
+            if gate.operation.num_qubits == 2:
+                q1, q2 = gate.qubits
+                cnot_circuit.add_cnot(q1._index, q2._index)
+                
+        return cnot_circuit.to_tensor(horizon=self.horizon)
+            
 
 if __name__ == "__main__":
     n_qubits = 6
