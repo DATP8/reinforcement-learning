@@ -114,7 +114,7 @@ if __name__ == "__main__":
     
     # state_handler = CircuitGraphStateHandler(n_qubits, topology)
     # model = BiCircuitGNN(n_qubits)
-    # model.load_state_dict(torch.load("models/graph/difficulty17_iteration1020.pt", map_location=device))
+    # model.load_state_dict(torch.load("models/graph/difficulty45_iteration12510.pt", map_location=device))
     
     state_handler = QtensorStateHandler(n_qubits, horizon, topology)
     model = ValueModelFlat(n_qubits, horizon, len(topology))
