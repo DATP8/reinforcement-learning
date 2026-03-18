@@ -1,0 +1,19 @@
+name: "Setup Environment"
+description: "Checks out code, sets up Python, installs uv, and syncs dependencies"
+runs:
+  using: "composite"
+  steps:  
+    - uses: actions/setup-python@v6.2.0
+      name: Setup Python
+      with:
+        python-version: '3.12'
+        
+    - uses: astral-sh/setup-uv@v7.4.0
+      name: Setup UV
+      with:
+        enable-cache: true
+        cache-dependency-glob: "**/uv.lock"
+    
+    - shell: bash
+      name: Synchronize UV
+      run: uv sync

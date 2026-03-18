@@ -4,6 +4,9 @@ circuits
 !.gitignore
 *.pyc
 src/benchmark/results
+!.github
 src/__pycache__
 pyproject.toml
 uv.lock
+*.ipynb
+src/tests/__pycache__
