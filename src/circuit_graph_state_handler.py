@@ -32,7 +32,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         xcap = pruned_state.x.shape[0]
         icap = torch.max(pruned_state.edge_index) if not pruned_state.edge_index.numel() == 0 else 0
         if not 0 <= icap < xcap:
-            print(f"Error in state")
+            print("Error in state")
             print("x.Shape:", pruned_state.x.shape)
             print("edge_index", pruned_state.edge_index)
             raise ValueError("Edge indexes should be within bounds")
@@ -183,6 +183,8 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
             combined_state
             for combined_state in DataLoader(states, batch_size=len(states))
         )
+    def state_from(self, circuit: QuantumCircuit) -> CircuitGraph:
+        return CircuitGraph.from_circuit(circuit)
 
 
 if __name__ == "__main__":

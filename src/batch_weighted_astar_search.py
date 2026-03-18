@@ -1,5 +1,3 @@
-from qtensor_state_handler import QtensorStateHandler
-from model import ValueModelFlat
 from deep_approximate_value_iteration import To
 from model import BiCircuitGNN
 from state_handler import StateHandler
@@ -88,12 +86,10 @@ class BWAS[S: To]:
 
 
 if __name__ == "__main__":
-    from model import ValueModel
-    from tensor_state_handler import TensorStateHandler, CNOTCircuit
     import random
     from circuit_graph_state_handler import CircuitGraphStateHandler
     import time
-    from qiskit.qpy import dump, load
+    from qiskit.qpy import dump
     
     def generate_random_circuit(n_qubits: int, n_gates: int):
         qc = QuantumCircuit(n_qubits)

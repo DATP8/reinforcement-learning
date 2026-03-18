@@ -138,10 +138,11 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 if ((q1, q2) not in self.topology) and ((q2, q1) not in self.topology):
                     flag = True
                 qc.add_cnot(q1, q2)
-
+        
+        # pyrefly: ignore[unbound-name], qc will always be initialized        
         state = qc.to_tensor(
             horizon=self.horizon
-        )  # pyrefly: ignore, qc will always be initialized
+        )
 
         return state
 

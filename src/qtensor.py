@@ -57,7 +57,7 @@ class Qtensor:
                 for qubit in gate.qubits:
                     c[qubit._index, i] = 1
                 i += 1
-        return Qtensor(c, len(circuit.data))
+        return cls(c, len(circuit.data))
 
     def to(self, device: torch.device):
         return self._t.to(device)
