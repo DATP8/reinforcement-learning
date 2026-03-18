@@ -5,31 +5,48 @@ from state_handler import StateHandler
 from circuit_graph import CircuitGraph
 import torch
 import random
+from cachetools import LFUCache
+from qiskit import QuantumCircuit
 
 
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.topology = topology
+        self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](maxsize=10000)
+        self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
+        self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
 
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
 
     def get_next_state(self, state: CircuitGraph, action: int) -> CircuitGraph:
-        state = self.prune(state)[0]
-        if state.x is None or state.edge_index is None or state.edge_attr is None:
+        state_hash = hash(state)
+        if (state_hash, action) in self.next_state_cache:
+            return self.next_state_cache[(state_hash, action)]
+
+        pruned_state = self.prune(state)[0]
+        if (
+            pruned_state.x is None
+            or pruned_state.edge_index is None
+            or pruned_state.edge_attr is None
+        ):
             raise ValueError("State must have x, edge_index, and edge_attr defined")
 
         # Ensure edges are valid after pruning
-        xcap = state.x.shape[0]
-        icap = torch.max(state.edge_index) if not state.edge_index.numel() == 0 else 0
+        xcap = pruned_state.x.shape[0]
+        icap = (
+            torch.max(pruned_state.edge_index)
+            if not pruned_state.edge_index.numel() == 0
+            else 0
+        )
         if not 0 <= icap < xcap:
             print("Error in state")
-            print("x.Shape:", state.x.shape)
-            print("edge_index", state.edge_index)
+            print("x.Shape:", pruned_state.x.shape)
+            print("edge_index", pruned_state.edge_index)
             raise ValueError("Edge indexes should be within bounds")
 
-        new_state = state.clone()
+        new_state = pruned_state.clone()
 
         # make type checker happy
         assert not (
@@ -38,16 +55,16 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
             or new_state.edge_attr is None
         ), "State must have x, edge_index, and edge_attr defined"
 
-        n_qubits = state.x.shape[1] // 2
+        n_qubits = pruned_state.x.shape[1] // 2
         q1, q2 = self.topology[action]
 
         # swap first qubits
-        new_state.x[:, q1] = state.x[:, q2]
-        new_state.x[:, q2] = state.x[:, q1]
+        new_state.x[:, q1] = pruned_state.x[:, q2]
+        new_state.x[:, q2] = pruned_state.x[:, q1]
 
         # swap second qubits
-        new_state.x[:, n_qubits + q1] = state.x[:, n_qubits + q2]
-        new_state.x[:, n_qubits + q2] = state.x[:, n_qubits + q1]
+        new_state.x[:, n_qubits + q1] = pruned_state.x[:, n_qubits + q2]
+        new_state.x[:, n_qubits + q2] = pruned_state.x[:, n_qubits + q1]
 
         for i, att in enumerate(new_state.edge_attr):
             if att[q1] > 0:
@@ -57,35 +74,50 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
                 new_state.edge_attr[i][q2] = 0
                 new_state.edge_attr[i][q1] = att[q2]
 
+        self.next_state_cache[(state_hash, action)] = new_state
+
         return new_state
 
     def is_terminal(self, state: CircuitGraph) -> bool:
         if state.x is None:
             raise ValueError("State must have x defined")
+        state_hash = hash(state)
+        if state_hash in self.is_terminal_cache:
+            return self.is_terminal_cache[state_hash]
 
-        removed_gages = self.get_removed_gates(state)
-        return (
-            len(removed_gages) == state.x.shape[0] - 1
+        removed_gates = self.get_removed_gates(state)
+        is_terminal = (
+            len(removed_gates) == state.x.shape[0] - 1
         )  # all gates removed, only global node left
+        self.is_terminal_cache[state_hash] = is_terminal
+        return is_terminal
 
     def get_action_cost(self, state: CircuitGraph, action: int) -> float:
+        state_hash = hash(state)
+        if (state_hash, action) in self.action_cost_cache:
+            return self.action_cost_cache[(state_hash, action)]
+
         if state.x is None:
             raise ValueError("State must have x defined")
 
         removed_gates = self.get_removed_gates(state)
         n_qubits = state.x.shape[1] // 2
         q1, q2 = self.topology[action]
+        action_cost = 1.0
         for removed_gate in removed_gates[::-1]:
             gate_q1 = torch.where(state.x[removed_gate, :n_qubits] > 0)[0].item()
             gate_q2 = torch.where(state.x[removed_gate, n_qubits:] > 0)[0].item()
             if gate_q1 == q1 and gate_q2 == q2:  # exact match
-                return 0.5
+                action_cost = 0.5
+                break
             if (
                 gate_q1 == q2 or gate_q2 == q1
             ):  # partial match can not reduce cnot amount
-                return 1.0
+                break
 
-        return 1.0
+        self.action_cost_cache[(state_hash, action)] = action_cost
+
+        return action_cost
 
     def get_removed_gates(self, state: CircuitGraph) -> list[int]:
         if state.x is None or state.edge_index is None or state.edge_attr is None:
@@ -169,9 +201,11 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
             for combined_state in DataLoader(states, batch_size=len(states))
         )
 
+    def state_from(self, circuit: QuantumCircuit) -> CircuitGraph:
+        return CircuitGraph.from_circuit(circuit)
+
 
 if __name__ == "__main__":
-    from qiskit import QuantumCircuit
     from cnot_circuit import CNOTCircuit
 
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]

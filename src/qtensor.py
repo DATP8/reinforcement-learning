@@ -1,3 +1,4 @@
+import hashlib
 import torch
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 
@@ -40,7 +41,15 @@ class Qtensor:
     def __mul__(self, other):
         return Qtensor(self._t * other, self.gates)
 
-    def from_circuit(circuit: QuantumCircuit, horizon: int):
+    def __hash__(self):
+        return self.tensor_hash(self._t)
+
+    @staticmethod
+    def tensor_hash(t: torch.Tensor) -> int:
+        return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
+
+    @classmethod
+    def from_circuit(cls, circuit: QuantumCircuit, horizon: int):
         c = torch.zeros((circuit.num_qubits, horizon))
         i = 0
         for gate in circuit.data:
@@ -48,7 +57,7 @@ class Qtensor:
                 for qubit in gate.qubits:
                     c[qubit._index, i] = 1
                 i += 1
-        return Qtensor(c, len(circuit.data))
+        return cls(c, len(circuit.data))
 
     def to(self, device: torch.device):
         return self._t.to(device)
