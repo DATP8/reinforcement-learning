@@ -5,6 +5,7 @@ import random
 n_qubits = 10
 horizon = 100
 
+
 class TestCNOTCircuit(unittest.TestCase):
     def test_to_and_from_tensor(self):
         for _ in range(1000):
