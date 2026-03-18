@@ -48,7 +48,8 @@ class Qtensor:
     def tensor_hash(t: torch.Tensor) -> int:
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
     
-    def from_circuit(circuit: QuantumCircuit, horizon: int):
+    @classmethod
+    def from_circuit(cls, circuit: QuantumCircuit, horizon: int):
         c = torch.zeros((circuit.num_qubits, horizon))
         i = 0
         for gate in circuit.data:

@@ -112,13 +112,14 @@ if __name__ == "__main__":
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # state_handler = CircuitGraphStateHandler(n_qubits, topology)
-    # model = BiCircuitGNN(n_qubits)
-    # model.load_state_dict(torch.load("models/graph/difficulty45_iteration12510.pt", map_location=device))
+    state_handler = CircuitGraphStateHandler(n_qubits, topology)
+    model = BiCircuitGNN(n_qubits)
+    #model.load_state_dict(torch.load("models/graph/difficulty43_updates9_iteration13490.pt", map_location=device))
+    model.load_state_dict(torch.load("models/graph/difficulty17_updates9_iteration3060.pt", map_location=device))
     
-    state_handler = QtensorStateHandler(n_qubits, horizon, topology)
-    model = ValueModelFlat(n_qubits, horizon, len(topology))
-    model.load_state_dict(torch.load("models/qtensor/difficulty99_iteration2510.pt", map_location=device))
+    # state_handler = QtensorStateHandler(n_qubits, horizon, topology)
+    # model = ValueModelFlat(n_qubits, horizon, len(topology))
+    # model.load_state_dict(torch.load("models/qtensor/difficulty99_iteration2510.pt", map_location=device))
     
     # state_handler = TensorStateHandler(n_qubits, horizon, topology)
     # model = ValueModel(n_qubits, horizon, len(topology))
@@ -128,12 +129,12 @@ if __name__ == "__main__":
     bwas = BWAS(model.to(device), state_handler)
     
         
-    # circuit = generate_random_circuit(n_qubits, n_gates=16)
-    # with open("circuits/dud.qpy", "wb") as f:
-    #     dump(circuit, f)
+    circuit = generate_random_circuit(n_qubits, n_gates=16)
+    with open("circuits/dud.qpy", "wb") as f:
+        dump(circuit, f)
     
-    with open("circuits/dud.qpy", "rb") as f:
-        circuit = load(f)[0]
+    # with open("circuits/dud.qpy", "rb") as f:
+    #     circuit = load(f)[0]
     
     print(circuit)
     t0 = time.time()
