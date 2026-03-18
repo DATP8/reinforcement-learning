@@ -138,11 +138,9 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 if ((q1, q2) not in self.topology) and ((q2, q1) not in self.topology):
                     flag = True
                 qc.add_cnot(q1, q2)
-        
-        # pyrefly: ignore[unbound-name], qc will always be initialized        
-        state = qc.to_tensor(
-            horizon=self.horizon
-        )
+
+        # pyrefly: ignore[unbound-name], qc will always be initialized
+        state = qc.to_tensor(horizon=self.horizon)
 
         return state
 
@@ -151,7 +149,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
             return states
 
         return torch.stack([state for state in states])
-    
+
     def state_from(self, circuit: QuantumCircuit) -> torch.Tensor:
         # todo: This is shit
         cnot_circuit = CNOTCircuit(circuit.num_qubits)
@@ -159,9 +157,9 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
             if gate.operation.num_qubits == 2:
                 q1, q2 = gate.qubits
                 cnot_circuit.add_cnot(q1._index, q2._index)
-                
+
         return cnot_circuit.to_tensor(horizon=self.horizon)
-            
+
 
 if __name__ == "__main__":
     n_qubits = 6

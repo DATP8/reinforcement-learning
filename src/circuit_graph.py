@@ -8,15 +8,23 @@ import torch.nn.functional as F
 class CircuitGraph(Data):
     def __init__(self, **args):
         super().__init__(**args)
-        
+
     def __hash__(self):
-        assert self.x is not None and self.edge_index is not None and self.edge_attr is not None, "State must have x, edge_index, and edge_attr defined"
-        return self.tensor_hash(self.x) ^ self.tensor_hash(self.edge_index) ^ self.tensor_hash(self.edge_attr)
-    
+        assert (
+            self.x is not None
+            and self.edge_index is not None
+            and self.edge_attr is not None
+        ), "State must have x, edge_index, and edge_attr defined"
+        return (
+            self.tensor_hash(self.x)
+            ^ self.tensor_hash(self.edge_index)
+            ^ self.tensor_hash(self.edge_attr)
+        )
+
     @staticmethod
     def tensor_hash(t: torch.Tensor) -> int:
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
-    
+
     @classmethod
     def from_circuit(cls, circuit: QuantumCircuit):
         n_qubits = circuit.num_qubits
@@ -60,11 +68,10 @@ class CircuitGraph(Data):
 
         edge_index = torch.tensor(edge_index).t()
         edge_attr = torch.stack(edge_attr)
-    
-        
+
         return cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
-    
-    
+
+
 if __name__ == "__main__":
     qs = QuantumCircuit(6)
 

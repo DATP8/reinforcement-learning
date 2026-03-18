@@ -40,14 +40,14 @@ class Qtensor:
 
     def __mul__(self, other):
         return Qtensor(self._t * other, self.gates)
-    
+
     def __hash__(self):
         return self.tensor_hash(self._t)
-    
+
     @staticmethod
     def tensor_hash(t: torch.Tensor) -> int:
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
-    
+
     @classmethod
     def from_circuit(cls, circuit: QuantumCircuit, horizon: int):
         c = torch.zeros((circuit.num_qubits, horizon))

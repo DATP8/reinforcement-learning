@@ -16,7 +16,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         self.next_state_cache = LFUCache[tuple[int, int], Qtensor](maxsize=10000)
         self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
         self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
-        
+
     def gate_to_tuple(self, tensor: Qtensor):
         q1 = -1
         q2 = -1
@@ -62,8 +62,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         state_hash = hash(state)
         if (state_hash, action) in self.next_state_cache:
             return self.next_state_cache[(state_hash, action)]
-    
-        # If the first layer is now empty, shift all layers by one  
+
+        # If the first layer is now empty, shift all layers by one
         new_state, layers_removed = self.prune(state)
         q1, q2 = self.topology[action]
 
@@ -92,10 +92,12 @@ class QtensorStateHandler(StateHandler[Qtensor]):
             return self.action_cost_cache[(state_hash, action)]
         cost = 1.0
         self.action_cost_cache[(state_hash, action)] = cost
-        
+
         return cost
 
-    def get_random_states(self, batch_size: int, max_difficulty: int) -> Batchable[Qtensor]:
+    def get_random_states(
+        self, batch_size: int, max_difficulty: int
+    ) -> Batchable[Qtensor]:
         batch = []
         for _ in range(batch_size):
             difficulty = random.randint(1, max_difficulty)
@@ -124,7 +126,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         for i in range(len(states)):
             states_new.append(states[i].unwrap())
         return Qtensor(torch.stack(states_new))
-    
+
     def state_from(self, circuit: QuantumCircuit) -> Qtensor:
         return Qtensor.from_circuit(circuit, self.horizon)
 
