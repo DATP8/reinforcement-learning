@@ -1,9 +1,7 @@
-from torch.utils.data.dataset import Dataset
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from torch_geometric.data import Data
 import torch
 import torch.nn.functional as F
-from torch_geometric.loader import DataLoader
 
 class CircuitGraph(Data):
     def __init__(self, **args):

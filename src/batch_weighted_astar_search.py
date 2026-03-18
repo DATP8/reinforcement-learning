@@ -1,16 +1,13 @@
-from qiskit.circuit.library import SwapGate
-from qiskit.circuit import CircuitInstruction
 from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag
 
-from .tensor_state_handler import TensorStateHandler
-from .model import ValueModel
-from .cnot_circuit import CNOTCircuit
+from .tensor_state          import TensorState
+from .tensor_state_handler  import TensorStateHandler
+from .model                 import ValueModel
+from .cnot_circuit          import CNOTCircuit
 
 import torch
 import heapq
 import random
-import itertools
 import time
 
 class BWASNode:
@@ -79,38 +76,13 @@ class BWAS:
             path.append(node.action)
             node = node.parent_node
         return path[::-1]
-    
-    def insert_swaps(self, qc: CNOTCircuit, path: list, horizon: int, topology: list):
-        state = qc.to_tensor(horizon=horizon)
-        state, layers_removed = self.game.prune(state)
-        depth_list = []
-        for action in path:
-            state, temp_layers_removed = self.game.prune(state)
-            state = self.game.get_next_state(state, action)
-            layers_removed += temp_layers_removed
-            depth_list.append(layers_removed)
 
-        if not depth_list:
-            return qc
-       
-        dag = circuit_to_dag(qc)
-        gates_per_layer = [0] + [sum(1 for _ in layer["graph"].op_nodes()) for layer in dag.layers()]
-        cumulative = list(itertools.accumulate(gates_per_layer))
-
-        while (depth_list):
-            layer = depth_list.pop()
-            edge  = path.pop()
-            qubit_pair = topology[edge]
-
-            gate_amount = cumulative[layer]
-
-            qc.data.insert(gate_amount , CircuitInstruction(SwapGate(), [qc.qubits[qubit_pair[0]], qc.qubits[qubit_pair[1]]], []))
-            
-        return qc
-    
 if __name__ == "__main__":
     
     random.seed(42)
+    from .model import ValueModel
+    from .tensor_state_handler import TensorStateHandler, CNOTCircuit
+    import random
     
     def generate_random_circuit(game, n_qubits: int, n_gates: int, horizon: int):
         qc = CNOTCircuit(n_qubits)
@@ -131,17 +103,14 @@ if __name__ == "__main__":
         return state
 
     qc = QuantumCircuit(6)
-    qc.h(0)
-    qc.cx(1, 3)
-    qc.rz(0.5, 2)
-    qc.cz(2, 3)
-    qc.h(1)
-    qc.cx(0, 2)
-    qc.cx(4, 3)
-    qc.cx(1, 3)
-    qc.cx(2, 3)
-
-    
+    qc.cz(2, 3)      # 4
+    qc.cx(3, 4)      # 5
+    qc.cz(4, 5)      # 6
+    qc.cx(5, 0)      # 7
+    qc.cx(1, 3)      # 8
+    qc.cz(2, 4)      # 9
+    qc.cx(3, 5)      # 10
+    qc.h(2)          # 11
 
     n_qubits = 6
     horizon = 100
@@ -149,26 +118,18 @@ if __name__ == "__main__":
     
     game = TensorStateHandler(n_qubits, horizon, topology)
     model = ValueModel(n_qubits, horizon, len(topology))
-    model.load_state_dict(torch.load("/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt", map_location="cpu"))
+    model.load_state_dict(torch.load("/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt", map_location="cpu"))
     model.to("cpu")
     bwas = BWAS(model, game, batch_size=1)
-    
-    #root_state = generate_random_circuit(game, n_qubits, 4, horizon)
-    #qc = CNOTCircuit.from_tensor(root_state)
-    print(qc)
-    #cnot_c = CNOTCircuit.from_tensor(root_state)
-    cnot_c = CNOTCircuit.from_quantum_circuit(qc) # This doesn't work for some reason
-    #print(cnot_c)
 
-    state = cnot_c.to_tensor(horizon=horizon)
+    print(qc)
+
+    state = TensorState.from_quantum_circuit(qc, horizon=horizon)
     root_state, _ = game.prune(state)
     
     start_time = time.time()
     path = bwas.search(root_state)
     end_time = time.time()
 
-    #print(path)
-  
-    cnot_c = bwas.insert_swaps(qc=cnot_c, path=path, horizon=horizon, topology=topology)
-    #print(cnot_c)
-    print(cnot_c.reconstruct_with_swaps())
+    state = TensorState(state)
+    print(state.as_subclass(TensorState).insert_swaps(qc, path, topology, game))

@@ -1,7 +1,10 @@
-from .model import ValueModel
-from .cnot_circuit import CNOTCircuit
 from .tensor_state_handler import TensorStateHandler
 from .state_handler import StateHandler
+from .circuit_graph_state_handler import CircuitGraphStateHandler
+from .model import BiCircuitGNN, ValueModel, ValueModelFlat
+from .Qtensor_state_handler import QtensorStateHandler
+from .routing.bwas_routing import BWASRouting
+
 from torch import nn
 from itertools import product
 from qiskit.transpiler import CouplingMap
@@ -59,7 +62,6 @@ class DAVI[S: To]:
                     if self.state_handler.is_terminal(next_state):
                         y[i] = self.state_handler.get_action_cost(state, action)
                         break
-                    
                     next_states.append(next_state)
                     next_state_actions.append((i, action))
 
@@ -71,7 +73,6 @@ class DAVI[S: To]:
                 y[i] = torch.min(self.state_handler.get_action_cost(state, action) + next_state_values[state_index], y[i])
             
             del next_state_values
-            
             X = self.state_handler.batch_states(states).to(device)
             optimizer.zero_grad()
             loss = mse_loss(self.train_model(X), y)
@@ -98,31 +99,6 @@ class DAVI[S: To]:
                 
         return last_model_path
 
-        
-    def get_random_states(self, batchsize, difficulty):
-        states = torch.zeros((batchsize, self.n_qubits, self.n_qubits, self.horizon))
-        for i in range(batchsize):
-            n_gates = random.randint(1, difficulty)
-            states[i] = self.generate_random_circuit(n_gates)
-
-        return states
-
-    def generate_random_circuit(self, n_gates: int):
-        qc = CNOTCircuit(self.n_qubits)
-        
-        for i in range(n_gates):
-            q1, q2 = random.sample(range(self.n_qubits), 2)
-            while q1 == q2:
-                q2 = random.choice(range(self.n_qubits))
-            
-            qc.add_cnot(q1, q2)
-            
-        state = qc.to_tensor(horizon=self.horizon)
-        
-        if self.game.is_terminal(state):
-            return self.generate_random_circuit(n_gates)
-            
-        return state
 
 def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str=""):
 
@@ -143,7 +119,6 @@ def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
-
     cwd = os.getcwd()
     model_path = os.path.join(cwd, rel_model_path)
     out_path = os.path.join(cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md")
@@ -157,16 +132,78 @@ def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str
 
     sys.stdout = o
     
+
+def qtensor():
+    n_qubits = 6
+    horizon = 100
+    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    #game = QtensorStateHandler(n_qubits, horizon, topology)
+    training_model = ValueModelFlat(n_qubits, horizon, len(topology))
+    evaluation_model = ValueModelFlat(n_qubits, horizon, len(topology))
+    
+    #trainer = DAVI(training_model, evaluation_model, game)
+    
+    #trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
+
+def graph():
+    n_qubits = 6
+    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    game = CircuitGraphStateHandler(n_qubits, topology)
+    # training_model = BiCircuitGNN(n_qubits, len(topology))
+    # evaluation_model = BiCircuitGNN(n_qubits, len(topology))
+    training_model = BiCircuitGNN(n_qubits)
+    evaluation_model = BiCircuitGNN(n_qubits)
+    
+    trainer = DAVI(training_model, evaluation_model, game)
+    
+    trainer.train(batchsize=1000, initial_difficulty=1, num_iterations=100000, update_frequency=10, max_difficulty=1000, loss_threshold=0.08)
+    
 if __name__ == "__main__":
     set_start_method("spawn", force=True)
+
+    from qiskit.transpiler.passes import TrivialLayout, VF2Layout, SabreLayout, SabreSwap
+    #graph()
+    #qtensor()
 
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game = TensorStateHandler(n_qubits, horizon, topology)
-    training_model = ValueModel(n_qubits, horizon, len(topology))
-    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
+    game1 = TensorStateHandler(n_qubits, horizon, topology)
+    model1 = ValueModel(n_qubits, horizon, len(topology))
+
+    game2 = TensorStateHandler(n_qubits, horizon, topology)
+    model2 = ValueModel(n_qubits, horizon, len(topology))
+
+    path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
+    path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
+    model1.load_state_dict(torch.load(path1, map_location='cpu'))
+    model2.load_state_dict(torch.load(path2, map_location='cpu'))
+
+    bench_iterations = 15
+    coupling_map = CouplingMap(topology)
+
+
+    initial_layouts = [
+        TrivialLayout(coupling_map)
+    ]
+
+    forward_backward = [
+        SabreLayout(coupling_map)
+    ]
+
+    final_routers = [
+        SabreSwap(coupling_map),
+        BWASRouting(coupling_map, horizon, model1, game1, "diff17"),
+        BWASRouting(coupling_map, horizon, model2, game2, "incr14")
+    ]
+
+    configs = list(product(
+        initial_layouts,
+        [None],
+        final_routers
+    ))
+
+    coupling_map.make_symmetric()
     
-    trainer = DAVI(training_model, evaluation_model, game)
-    
-    path = trainer.train(batchsize=1000, initial_difficulty=5, num_iterations=5, update_frequency=1, max_difficulty=1000, loss_threshold=1.0)
+    bench = Benchmarker(n_qubits, 14, coupling_map)
+    bench.run_rand_benchmarks(configs, bench_iterations, True)

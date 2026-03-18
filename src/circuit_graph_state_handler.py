@@ -1,8 +1,11 @@
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
+from torch_geometric.utils import subgraph
 
 from .state_handler import StateHandler, Batchable
 from .circuit_graph import CircuitGraph
+from .state_handler import Batchable
+
 import torch
 import random
 
@@ -24,6 +27,15 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         state = self.prune(state)[0]
         if state.x is None or state.edge_index is None or state.edge_attr is None:
             raise ValueError("State must have x, edge_index, and edge_attr defined")
+
+        # Ensure edges are valid after pruning
+        xcap = state.x.shape[0]
+        icap = torch.max(state.edge_index) if not state.edge_index.numel() == 0 else 0
+        if not 0 <= icap < xcap:
+            print(f"Error in state")
+            print("x.Shape:", state.x.shape)
+            print("edge_index", state.edge_index)
+            raise ValueError("Edge indexes should be within bounds")
         
         new_state = state.clone()
         
@@ -103,43 +115,28 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         
         if len(removed_gates) == 0:
             return state, 0
+
+        num_nodes = state.x.size(0)
         
-        x = torch.stack([state.x[i] for i in range(state.x.shape[0]) if i not in removed_gates])
+        removed = torch.tensor(removed_gates, device=state.x.device)
         
-        edge_index = []
-        edge_attr = []
+        # mask of nodes to keep
+        node_mask = torch.ones(num_nodes, dtype=torch.bool, device=state.x.device)
+        node_mask[removed] = False
         
-        # remove edges associated with removed gates
-        n_directed_edges = state.edge_index.shape[1] - (state.x.shape[0] - 1) * 2 # Exclude global node edges
-        for i, (succ, prev) in enumerate(state.edge_index.t()):
-            if i < n_directed_edges and succ.item() in removed_gates:
-                raise ValueError("Acedently removed gate not in frontlayer")
-            
-            if prev.item() in removed_gates or succ.item() in removed_gates:
-                continue
-            
-            edge_index.append((succ.item(), prev.item()))
-            edge_attr.append(state.edge_attr[i])
-            
-        if len(edge_index) == 0:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
-            edge_attr = torch.empty((0, state.edge_attr.shape[1]), dtype=torch.float)
-            new_state = CircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
-            return new_state, len(removed_gates)
+        # node indices to keep
+        keep_nodes = node_mask.nonzero(as_tuple=False).view(-1)
         
-        # shift node indexes to account for removed gates
-        for i in range(len(edge_index)):
-            succ_index, prev_index = edge_index[i]
-            for removed_gate in sorted(removed_gates):
-                if succ_index > removed_gate:
-                    succ_index -= 1
-                if prev_index > removed_gate:
-                    prev_index -= 1
-            edge_index[i] = (succ_index, prev_index)
+        # filter + relabel edges
+        edge_index, edge_attr = subgraph(
+            keep_nodes,
+            state.edge_index,
+            edge_attr=state.edge_attr,
+            relabel_nodes=True,
+        )
         
-        
-        edge_index = torch.tensor(edge_index).t()
-        edge_attr = torch.stack(edge_attr)
+        # filter node features
+        x = state.x[keep_nodes]
         
         new_state = CircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
         new_state, n_pruned_gates = self.prune(new_state)

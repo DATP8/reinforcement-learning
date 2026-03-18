@@ -1,6 +1,11 @@
+from qiskit.converters import dag_to_circuit
+from qiskit.circuit.library import SwapGate
+from qiskit.circuit import CircuitInstruction
+from qiskit.circuit.quantumcircuit import QuantumCircuit
+from .state_handler import StateHandler
 from .circuit_graph import CircuitGraph
 from collections import defaultdict
-from qiskit.circuit.quantumcircuit import QuantumCircuit
+import itertools
 import torch
 import random
 from qiskit.converters import circuit_to_dag
@@ -25,54 +30,8 @@ class CNOTCircuit(QuantumCircuit):
                 q1, q2 = (dag.find_bit(q).index for q in g.qargs)
                 cnot_c.add_cnot(q1, q2)
 
-        return cnot_c  
+        return cnot_c 
 
-    def reconstruct_with_swaps(self):
-        cx_dag = circuit_to_dag(self)
-        org_dag = circuit_to_dag(self.org_qc)
-        new_qc = QuantumCircuit(self.num_qubits)
-        
-        mapping = list(range(self.num_qubits))
-        inverse = list(range(self.num_qubits))
-
-        org_node_iter = org_dag.topological_op_nodes()
-        swap = (0, 0)
-        for cx_g in cx_dag.topological_op_nodes():
-            if cx_g.op.name == 'swap': 
-                q1, q2 = (cx_dag.find_bit(q).index for q in cx_g.qargs)
-                swap = (q1, q2)
-                
-            elif cx_g.op.name == 'cx':
-                for org_g in org_node_iter:
-                    new_qargs = []
-                    is_last = org_g.op.num_qubits == 2 
-
-                    if is_last and swap is not None:
-                        q1, q2 = swap
-                        new_qc.swap(q1, q2)
-
-                        v1, v2 = mapping[q1], mapping[q2]
-                        mapping[q1] = v2 
-                        mapping[q2] = v1
-                        inverse[v1] = q2 
-                        inverse[v2] = q1
-
-                    for q in org_g.qargs:
-                        qubit_idx = org_dag.find_bit(q).index
-                        new_idx = inverse[qubit_idx]
-                        new_qargs.append(new_qc.qubits[new_idx])
-
-                    new_qc.append(org_g.op, new_qargs)
-
-                    if not is_last:
-                        continue
-
-                    swap = None
-                    break
-
-        self = new_qc
-        return self
-        
     def add_cnot(self, q1, q2):
         if q1 == q2:
             raise ValueError("Control and target qubits must be different.")

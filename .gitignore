@@ -4,3 +4,6 @@ circuits
 !.gitignore
 *.pyc
 src/benchmark/results
+src/__pycache__
+pyproject.toml
+uv.lock
