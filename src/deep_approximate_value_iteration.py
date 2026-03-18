@@ -24,6 +24,7 @@ matplotlib.use("TkAgg")
 
 BENCHMARK_PATH_RESULTS = "src/benchmark/results"
 
+
 class DAVI[S: To]:
     def __init__(
         self,
@@ -34,7 +35,7 @@ class DAVI[S: To]:
         self.train_model = training_model
         self.evaluation_model = evaluation_model
         self.state_handler = state_handler
-        
+
     def train(
         self,
         batchsize=100,
@@ -50,7 +51,7 @@ class DAVI[S: To]:
 
         self.train_model.to(device)
         self.evaluation_model.to(device).eval()
-        
+
         now = datetime.now()
         start_time = now.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -59,7 +60,6 @@ class DAVI[S: To]:
 
         difficulty = initial_difficulty
         last_model_path = ""
-        
 
         for iteration in range(num_iterations):
             states = self.state_handler.get_random_states_in_range(
@@ -104,18 +104,30 @@ class DAVI[S: To]:
                 self.evaluation_model.load_state_dict(self.train_model.state_dict())
                 difficulty = min(max_difficulty, 1 + difficulty)
 
-                last_model_path = f"models/davi/difficulty{difficulty}_iteration{iteration}.pt"
+                last_model_path = (
+                    f"models/davi/difficulty{difficulty}_iteration{iteration}.pt"
+                )
                 tmp = last_model_path + ".tmp"
                 torch.save(self.train_model.state_dict(), tmp)
                 os.rename(tmp, last_model_path)
 
                 topology = self.state_handler.get_topology()
-                p_list.append(Process(target=bench_process, args=( self.state_handler.get_qubits(), last_model_path, difficulty, topology, start_time)))
+                p_list.append(
+                    Process(
+                        target=bench_process,
+                        args=(
+                            self.state_handler.get_qubits(),
+                            last_model_path,
+                            difficulty,
+                            topology,
+                            start_time,
+                        ),
+                    )
+                )
                 p_list[-1].start()
-         
+
         for p in p_list:
             p.join()
-                
 
         torch.save(
             self.train_model.state_dict(),
@@ -135,28 +147,27 @@ def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str
     forward_backward = ["none", "sabre"]
     final_routers = ["sabre", "rl"]
 
-    configs = list(product(
-        initial_layouts,
-        forward_backward,
-        final_routers
-    ))
+    configs = list(product(initial_layouts, forward_backward, final_routers))
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
     cwd = os.getcwd()
     model_path = os.path.join(cwd, rel_model_path)
-    out_path = os.path.join(cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md")
-    
+    out_path = os.path.join(
+        cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md"
+    )
+
     bench = Benchmarker(model_path, n_qubits, difficulty, coupling_map)
 
-    with open(out_path, 'a') as f:
+    with open(out_path, "a") as f:
         sys.stdout = f
         print("\n#", rel_model_path)
         bench.run_rand_benchmarks(configs, bench_iterations)
 
     sys.stdout = o
-    
+
+
 def qtensor():
     n_qubits = 6
     horizon = 100
@@ -202,8 +213,8 @@ if __name__ == "__main__":
     set_start_method("spawn", force=True)
 
     from qiskit.transpiler.passes import TrivialLayout, SabreLayout, SabreSwap
-    #graph()
-    #qtensor()
+    # graph()
+    # qtensor()
 
     n_qubits = 6
     horizon = 100
@@ -216,34 +227,25 @@ if __name__ == "__main__":
 
     path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
     path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
-    model1.load_state_dict(torch.load(path1, map_location='cpu'))
-    model2.load_state_dict(torch.load(path2, map_location='cpu'))
+    model1.load_state_dict(torch.load(path1, map_location="cpu"))
+    model2.load_state_dict(torch.load(path2, map_location="cpu"))
 
     bench_iterations = 15
     coupling_map = CouplingMap(topology)
 
+    initial_layouts = [TrivialLayout(coupling_map)]
 
-    initial_layouts = [
-        TrivialLayout(coupling_map)
-    ]
-
-    forward_backward = [
-        SabreLayout(coupling_map)
-    ]
+    forward_backward = [SabreLayout(coupling_map)]
 
     final_routers = [
         SabreSwap(coupling_map),
         BWASRouting(coupling_map, horizon, model1, game1, "diff17"),
-        BWASRouting(coupling_map, horizon, model2, game2, "incr14")
+        BWASRouting(coupling_map, horizon, model2, game2, "incr14"),
     ]
 
-    configs = list(product(
-        initial_layouts,
-        [None],
-        final_routers
-    ))
+    configs = list(product(initial_layouts, [None], final_routers))
 
     coupling_map.make_symmetric()
-    
+
     bench = Benchmarker(n_qubits, 14, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations, True)

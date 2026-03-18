@@ -20,7 +20,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
             mask[q1, q2] = 0.0
             mask[q2, q1] = 0.0
         return mask
-    
+
     def get_topology(self):
         return self.topology
 
@@ -166,7 +166,6 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 cnot_circuit.add_cnot(q1._index, q2._index)
 
         return cnot_circuit.to_tensor(horizon=self.horizon)
-
 
 
 if __name__ == "__main__":

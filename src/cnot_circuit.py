@@ -4,6 +4,7 @@ from collections import defaultdict
 import torch
 import random
 
+
 class CNOTCircuit(QuantumCircuit):
     def __init__(self, n_qubits: int):
         super().__init__(n_qubits)

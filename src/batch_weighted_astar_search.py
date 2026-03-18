@@ -9,6 +9,7 @@ import heapq
 import random
 import time
 
+
 class To(Protocol):
     def to(self, device: torch.device) -> "To": ...
 
@@ -97,8 +98,8 @@ class BWAS[S: To]:
             node = node.parent_node
         return path[::-1]
 
+
 if __name__ == "__main__":
-    
     random.seed(42)
     from .states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.qpy import dump
@@ -115,18 +116,16 @@ if __name__ == "__main__":
             qc.cx(q1, q2)
 
         return qc
-            
-       
-    qc = QuantumCircuit(6)
-    qc.cz(2, 3)      # 4
-    qc.cx(3, 4)      # 5
-    qc.cz(4, 5)      # 6
-    qc.cx(5, 0)      # 7
-    qc.cx(1, 3)      # 8
-    qc.cz(2, 4)      # 9
-    qc.cx(3, 5)      # 10
-    qc.h(2)          # 11
 
+    qc = QuantumCircuit(6)
+    qc.cz(2, 3)  # 4
+    qc.cx(3, 4)  # 5
+    qc.cz(4, 5)  # 6
+    qc.cx(5, 0)  # 7
+    qc.cx(1, 3)  # 8
+    qc.cz(2, 4)  # 9
+    qc.cx(3, 5)  # 10
+    qc.h(2)  # 11
 
     n_qubits = 6
     horizon = 100
