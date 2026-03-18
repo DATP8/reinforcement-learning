@@ -1,5 +1,3 @@
-from typing import SupportsIndex
-from typing import override
 import torch
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 class Qtensor():

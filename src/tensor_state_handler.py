@@ -118,7 +118,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
-                if (not (q1,q2) in self.topology) and (not (q2,q1) in self.topology):
+                if ((q1,q2) not in self.topology) and ((q2,q1) not in self.topology):
                     flag = True
                 qc.add_cnot(q1, q2)
         
