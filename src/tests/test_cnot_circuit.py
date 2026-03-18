@@ -1,5 +1,6 @@
 import unittest
 from cnot_circuit import CNOTCircuit
+import torch
 import random
 
 n_qubits = 10
@@ -18,3 +19,4 @@ class TestCNOTCircuit(unittest.TestCase):
             circuit_tensor = circuit.to_tensor(horizon)
             circuit_new = CNOTCircuit.from_tensor(circuit_tensor)
             self.assertEqual(circuit, circuit_new)
+            self.assertTrue(torch.equal(circuit_tensor, circuit_new.to_tensor(horizon)))
