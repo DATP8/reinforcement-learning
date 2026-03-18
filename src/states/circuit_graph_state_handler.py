@@ -4,7 +4,6 @@ from torch_geometric.utils import subgraph
 
 from .state_handler import StateHandler, Batchable
 from .circuit_graph import CircuitGraph
-from .state_handler import Batchable
 
 import torch
 import random

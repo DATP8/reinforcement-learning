@@ -7,9 +7,9 @@ from qiskit.transpiler.coupling import CouplingMap
 import time
 import torch.nn as nn
 
-from ..tensor_state import TensorState
+from ..states.tensor_state import TensorState
+from ..states.state_handler import StateHandler
 from ..batch_weighted_astar_search import BWAS
-from ..state_handler import StateHandler
 
 
 from qiskit.converters import dag_to_circuit
@@ -40,13 +40,12 @@ class BWASRouting(TransformationPass):
         qc  = dag_to_circuit(dag)
         topology = [edge for edge in self.coupling_map.get_edges() if edge[0] < edge[1]]
      
-        bwas = BWAS(self.model, self.state_handler, batch_size=self.batch_size)
+        bwas = BWAS(self.model, self.state_handler)
 
         state = TensorState.from_quantum_circuit(qc, horizon=self.horizon)
-        root_state, _ = self.state_handler.prune(state)
         
         start_time = time.time()
-        path = bwas.search(root_state)
+        path = bwas.search(qc)
         end_time = time.time()
         
         self.last_time = end_time - start_time

@@ -2,10 +2,9 @@ from multiprocessing.sharedctypes import Value
 from sympy.printing.pytorch import torch
 
 from .state_handler import Batchable, StateHandler
-from .cnot_circuit import CNOTCircuit
+from ..cnot_circuit import CNOTCircuit
 
 from qiskit import QuantumCircuit
-from state_handler import StateHandler
 import random
 import torch
 

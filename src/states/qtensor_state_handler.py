@@ -1,13 +1,11 @@
 from .state_handler import Batchable, StateHandler
-from .Qtensor import Qtensor
+from .qtensor import Qtensor
 
 import random
 import torch
 import random
 
-from state_handler import StateHandler
 from cachetools import LFUCache
-from qtensor import Qtensor
 from qiskit import QuantumCircuit
 
 

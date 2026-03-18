@@ -1,10 +1,10 @@
-from .tensor_state_handler import TensorStateHandler
-from .state_handler import StateHandler
-from .circuit_graph_state_handler import CircuitGraphStateHandler
-from .qtensor_state_handler import QtensorStateHandler
+from .states.tensor_state_handler import TensorStateHandler
+from .states.state_handler import StateHandler
+from .states.circuit_graph_state_handler import CircuitGraphStateHandler
+from .states.qtensor_state_handler import QtensorStateHandler
 from .model import BiCircuitGNN, ValueModel, ValueModelFlat, BiCircuitGNN
-from .Qtensor_state_handler import QtensorStateHandler
 from .routing.bwas_routing import BWASRouting
+from .batch_weighted_astar_search import To
 
 from itertools import product
 from qiskit.transpiler import CouplingMap
@@ -17,13 +17,8 @@ import torch
 import os
 import matplotlib
 
-from typing import Protocol
+
 from .benchmark.benchmarker import Benchmarker
-
-
-class To(Protocol):
-    def to(self, device: torch.device) -> "To": ...
-
 
 matplotlib.use("TkAgg")
 
@@ -162,9 +157,6 @@ def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str
 
     sys.stdout = o
     
-    
-
-
 def qtensor():
     n_qubits = 6
     horizon = 100

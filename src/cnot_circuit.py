@@ -2,8 +2,8 @@ from qiskit.converters import dag_to_circuit
 from qiskit.circuit.library import SwapGate
 from qiskit.circuit import CircuitInstruction
 from qiskit.circuit.quantumcircuit import QuantumCircuit
-from .state_handler import StateHandler
-from .circuit_graph import CircuitGraph
+from .states.state_handler import StateHandler
+from .states.circuit_graph import CircuitGraph
 from collections import defaultdict
 import itertools
 import torch
@@ -12,6 +12,7 @@ import random
 class CNOTCircuit(QuantumCircuit):
     def __init__(self, n_qubits: int):
         super().__init__(n_qubits)
+        self.qubit_layers = [-1 for _ in range(n_qubits)]
         self.layers = defaultdict(list)
 
     def add_cnot(self, q1, q2):

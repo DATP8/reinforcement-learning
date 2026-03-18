@@ -1,11 +1,8 @@
 from qiskit import QuantumCircuit
+from typing import Protocol
 
-from .tensor_state_handler             import TensorStateHandler
-from .model                            import ValueModel
-from .cnot_circuit                     import CNOTCircuit
-from .deep_approximate_value_iteration import To
-from .model                            import BiCircuitGNN
-from .state_handler                    import StateHandler
+from .states.state_handler import StateHandler
+from .model import BiCircuitGNN
 
 import torch
 import heapq
@@ -13,6 +10,9 @@ import random
 import time
 import heapq
 import torch
+
+class To(Protocol):
+    def to(self, device: torch.device) -> "To": ...
 
 
 class BWASNode:
@@ -102,12 +102,10 @@ class BWAS[S: To]:
 if __name__ == "__main__":
     
     random.seed(42)
-    from .model import ValueModel
-    from .tensor_state_handler import TensorStateHandler, CNOTCircuit
-    import random
-    from circuit_graph_state_handler import CircuitGraphStateHandler
-    import time
+    from .states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.qpy import dump
+    import random
+    import time
 
     def generate_random_circuit(n_qubits: int, n_gates: int):
         qc = QuantumCircuit(n_qubits)
