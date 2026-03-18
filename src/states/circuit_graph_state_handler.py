@@ -1,5 +1,4 @@
 from torch_geometric.loader import DataLoader
-from torch_geometric.data import Data
 from torch_geometric.utils import subgraph
 
 from .state_handler import StateHandler, Batchable

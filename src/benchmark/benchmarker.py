@@ -1,13 +1,9 @@
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
-from qiskit.transpiler.basepasses import AnalysisPass
-from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.circuit.random import random_circuit
 from qiskit import QuantumCircuit
 
-from typing import override
 from itertools import product
-import numpy as np
 
 import time 
 import random
@@ -76,7 +72,7 @@ class Benchmarker:
                     
                 key = type(run["initial"]).__name__ if run["forward_backward"] is not None else " " +'_'+ \
                       type(run["forward_backward"]).__name__  if run["forward_backward"] is not None else " " + "_" + \
-                      run["final_router"].get_name() if type(run["final_router"]) == BWASRouting else type(run["final_router"]).__name__ 
+                      run["final_router"].get_name() if type(run["final_router"]) is BWASRouting else type(run["final_router"]).__name__ 
 
                 if key in results:
                     results[key] = self._add_metrics(results[key], run)
@@ -167,39 +163,6 @@ class Benchmarker:
         print(f"  {'Size':<20} {metrics['size']:.2f}")
         print(f"  {'2Q depth':<20} {metrics['two_qubit_depth']:.2f}")
         print(f"{'=' * 50}")
-
-
-
-class RLInitialLayout(AnalysisPass):
-
-    def __init__(self, coupling_map, model):
-        super().__init__()
-        self.coupling_map = coupling_map
-        self.model = model
-
-    @override
-    def run(self, dag):
-        candidates = vf2_candidate_layouts(dag, self.coupling_map)
-
-        best_layout = None
-        best_score = float("inf")
-
-        for layout in candidates:
-
-            tensor = circuit_to_tensor(dag, layout)
-            score = self.model.predict(tensor)
-
-            if score < best_score:
-                best_layout = layout
-                best_score = score
-
-        self.property_set["layout"] = best_layout
-
-class RLForwardBackward(TransformationPass):
-    @override
-    def run(self, dag):
-        pass
-
 
 
 if __name__ == "__main__":

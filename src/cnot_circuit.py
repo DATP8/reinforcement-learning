@@ -1,11 +1,6 @@
-from qiskit.converters import dag_to_circuit
-from qiskit.circuit.library import SwapGate
-from qiskit.circuit import CircuitInstruction
 from qiskit.circuit.quantumcircuit import QuantumCircuit
-from .states.state_handler import StateHandler
 from .states.circuit_graph import CircuitGraph
 from collections import defaultdict
-import itertools
 import torch
 import random
 

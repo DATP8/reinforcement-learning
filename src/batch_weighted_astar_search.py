@@ -8,8 +8,6 @@ import torch
 import heapq
 import random
 import time
-import heapq
-import torch
 
 class To(Protocol):
     def to(self, device: torch.device) -> "To": ...

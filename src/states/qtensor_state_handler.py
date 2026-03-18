@@ -3,7 +3,6 @@ from .qtensor import Qtensor
 
 import random
 import torch
-import random
 
 from cachetools import LFUCache
 from qiskit import QuantumCircuit

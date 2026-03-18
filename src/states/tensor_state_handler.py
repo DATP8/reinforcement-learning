@@ -1,4 +1,3 @@
-from multiprocessing.sharedctypes import Value
 from sympy.printing.pytorch import torch
 
 from .state_handler import Batchable, StateHandler
@@ -6,7 +5,6 @@ from ..cnot_circuit import CNOTCircuit
 
 from qiskit import QuantumCircuit
 import random
-import torch
 
 
 class TensorStateHandler(StateHandler[torch.Tensor]):

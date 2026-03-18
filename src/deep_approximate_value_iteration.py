@@ -2,7 +2,7 @@ from .states.tensor_state_handler import TensorStateHandler
 from .states.state_handler import StateHandler
 from .states.circuit_graph_state_handler import CircuitGraphStateHandler
 from .states.qtensor_state_handler import QtensorStateHandler
-from .model import BiCircuitGNN, ValueModel, ValueModelFlat, BiCircuitGNN
+from .model import ValueModel, BiCircuitGNN
 from .routing.bwas_routing import BWASRouting
 from .batch_weighted_astar_search import To
 
@@ -201,7 +201,7 @@ def graph():
 if __name__ == "__main__":
     set_start_method("spawn", force=True)
 
-    from qiskit.transpiler.passes import TrivialLayout, VF2Layout, SabreLayout, SabreSwap
+    from qiskit.transpiler.passes import TrivialLayout, SabreLayout, SabreSwap
     #graph()
     #qtensor()
 
