@@ -4,49 +4,59 @@ import torch
 from state_handler import StateHandler
 import random
 
+
 class TensorStateHandler(StateHandler[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.horizon = horizon
         self.topology = topology
         self.mask = self.init_mask(n_qubits)
-                
+
     def init_mask(self, n_qubits: int):
         mask = torch.ones((n_qubits, n_qubits), dtype=torch.float32)
-        for (q1, q2) in self.topology:
+        for q1, q2 in self.topology:
             mask[q1, q2] = 0.0
             mask[q2, q1] = 0.0
         return mask
-    
+
     def get_possible_actions(self, state: torch.Tensor) -> list[int]:
         return list(range(len(self.topology)))
-    
+
     def get_restricted_actions(self, state: torch.Tensor):
         pruned_state, _ = self.prune(state)
         frontlayer_qubits, _ = self.get_front_layer_qubits(pruned_state)
-        return [i for i, (q1, q2) in enumerate(self.topology) if (q1 in frontlayer_qubits or q2 in frontlayer_qubits)]    
+        return [
+            i
+            for i, (q1, q2) in enumerate(self.topology)
+            if (q1 in frontlayer_qubits or q2 in frontlayer_qubits)
+        ]
 
     def prune(self, state: torch.Tensor) -> tuple[torch.Tensor, int]:
         new_state = state.clone()
         layers_removed = 0
         new_state[:, :, 0] *= self.mask
-            
-        while layers_removed < self.horizon - 1 and torch.sum(new_state[:, :, layers_removed]) <= 1e-7:
+
+        while (
+            layers_removed < self.horizon - 1
+            and torch.sum(new_state[:, :, layers_removed]) <= 1e-7
+        ):
             if torch.sum(new_state[:, :, layers_removed + 1]) <= 1e-7:
                 break
             new_state[:, :, layers_removed + 1] *= self.mask
             layers_removed += 1
-        
-        new_state[:,:,:self.horizon - layers_removed] = new_state[:, :, layers_removed:]
-        new_state[:,:,self.horizon - layers_removed:] = 0.0
-        
+
+        new_state[:, :, : self.horizon - layers_removed] = new_state[
+            :, :, layers_removed:
+        ]
+        new_state[:, :, self.horizon - layers_removed :] = 0.0
+
         return new_state, layers_removed
 
     def get_next_state(self, state: torch.Tensor, action: int) -> torch.Tensor:
-        # If the first layer is now empty, shift all layers by one  
+        # If the first layer is now empty, shift all layers by one
         new_state, layers_removed = self.prune(state)
         q1, q2 = self.topology[action]
-        
+
         # Swap the qubits in the tensor representation
         new_state_temp = new_state.clone()
         new_state[q1, :, :] = new_state_temp[q2, :, :]
@@ -60,24 +70,28 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
 
     def is_terminal(self, state: torch.Tensor) -> bool:
         pruned_state, _ = self.prune(state)
-        return torch.sum(pruned_state).item() <= 1e-7    
+        return torch.sum(pruned_state).item() <= 1e-7
 
     def get_action_cost(self, state: torch.Tensor, action: int) -> float:
         _, layers_removed = self.prune(state)
-        _, backlayer_gates = self.get_front_layer_qubits(torch.flip(state[:,:,:layers_removed], dims=[-1]))
-        
+        _, backlayer_gates = self.get_front_layer_qubits(
+            torch.flip(state[:, :, :layers_removed], dims=[-1])
+        )
+
         # check if swap is successor of removed cnot gates, if so return lower cost
         q1, q2 = self.topology[action]
         if (q1, q2) in backlayer_gates or (q2, q1) in backlayer_gates:
             return 0.5
-        
+
         return 1.0
-    
-    def get_front_layer_qubits(self, state: torch.Tensor) -> tuple[set[int], set[tuple[int, int]]]:
+
+    def get_front_layer_qubits(
+        self, state: torch.Tensor
+    ) -> tuple[set[int], set[tuple[int, int]]]:
         visited_qubits = set()
         frontlayer_qubits = set()
         frontlayer_gates = set()
-        
+
         for i in range(state.shape[-1]):
             for q in range(self.n_qubits):
                 if state[q, :, i].sum().item() > 1e-7:
@@ -96,13 +110,15 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                         frontlayer_gates.add((q, q2))
                     visited_qubits.add(q)
                     visited_qubits.add(q2)
-                    
+
             if len(visited_qubits) >= self.n_qubits - 1:
                 break
-                
+
         return frontlayer_qubits, frontlayer_gates
-    
-    def get_random_states_in_range(self, batch_size: int, min_difficulty: int, max_difficulty: int):
+
+    def get_random_states_in_range(
+        self, batch_size: int, min_difficulty: int, max_difficulty: int
+    ):
         states = torch.zeros((batch_size, self.n_qubits, self.n_qubits, self.horizon))
         for i in range(batch_size):
             n_gates = random.randint(min_difficulty, max_difficulty)
@@ -118,40 +134,42 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
-                if (not (q1,q2) in self.topology) and (not (q2,q1) in self.topology):
+                if ((q1, q2) not in self.topology) and ((q2, q1) not in self.topology):
                     flag = True
                 qc.add_cnot(q1, q2)
-        
-        state = qc.to_tensor(horizon=self.horizon) #pyrefly: ignore, qc will always be initialized
-            
+
+        state = qc.to_tensor(
+            horizon=self.horizon
+        )  # pyrefly: ignore, qc will always be initialized
+
         return state
-    
+
     def batch_states(self, states: Batchable[torch.Tensor]) -> torch.Tensor:
         if type(states) is torch.Tensor:
             return states
-        
+
         return torch.stack([state for state in states])
 
 
 if __name__ == "__main__":
     n_qubits = 6
     horizon = 10
-    
+
     circuit = CNOTCircuit(n_qubits)
     circuit.add_cnot(0, 2)
     circuit.add_cnot(0, 1)
     circuit.add_cnot(0, 3)
     print(circuit)
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    
+
     game = TensorStateHandler(n_qubits, horizon, topology)
-    
-    root_state = circuit.to_tensor(horizon=horizon)    
-    
+
+    root_state = circuit.to_tensor(horizon=horizon)
+
     next_state = game.get_next_state(root_state, 0)
     print(CNOTCircuit.from_tensor(next_state))
 
-    print(next_state.shape)    
+    print(next_state.shape)
     print(game.get_action_cost(next_state, 0))
     print(game.get_action_cost(next_state, 1))
     print(game.get_possible_actions(next_state))
