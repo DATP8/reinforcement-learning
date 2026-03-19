@@ -30,6 +30,24 @@ class RoutingEnv(gymnasium.Env):
             low=-2, high=2, shape=(len(self.cmap_edges), self.horizon), dtype=np.int8
         )
 
+        self.observation_space = spaces.Dict({
+            "matrix": spaces.Box(
+                low=-2, high=2,
+                shape=(len(self.cmap_edges), self.horizon),
+                dtype=np.int8
+            ),
+            "graph_x": spaces.Box(
+                low=-np.inf, high=np.inf,
+                shape=(self.num_phys_qubits, 3),  # example features
+                dtype=np.float32
+            ),
+            "graph_edge_idx": spaces.Box(
+                low=0, high=self.num_phys_qubits,
+                shape=(2, 100),  # max edges (pad if needed)
+                dtype=np.int64
+            )
+        })
+
         self.locked_actions = set()
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
@@ -57,6 +75,90 @@ class RoutingEnv(gymnasium.Env):
 
         self.locked_actions = set()
         return self._get_obs(), {}
+
+    def _build_graph(self):
+        num_q = self.num_logic_qubits
+    
+        # =========================
+        # Interaction tracking
+        # =========================
+        interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
+    
+        # Iterate over remaining DAG nodes
+        for node in self.dag.op_nodes():
+            qargs = node.qargs
+    
+            if len(qargs) == 2:
+                # q1 = qargs[0].index
+                # q2 = qargs[1].index
+
+                # PERF: This is O(N)
+                q1 = self.dag.qubits.index(qargs[0])
+                q2 = self.dag.qubits.index(qargs[1])
+    
+                interaction_counts[q1, q2] += 1
+                interaction_counts[q2, q1] += 1
+    
+        # =========================
+        # Node features
+        # =========================
+        # Features per logical qubit:
+        # [physical_position, total_interactions, avg_distance_to_partners]
+    
+        # Fill for phys qubits, then just update for logical ones
+        x = np.zeros((self.num_phys_qubits, 3), dtype=np.float32)
+    
+        for q in range(num_q):
+            phys = self.logical_to_physical[q]
+    
+            total_interactions = interaction_counts[q].sum()
+    
+            # Compute avg distance to interacting partners
+            if total_interactions > 0:
+                dists = []
+    
+                for other_q in range(num_q):
+                    if interaction_counts[q, other_q] > 0:
+                        p1 = self.logical_to_physical[q]
+                        p2 = self.logical_to_physical[other_q]
+    
+                        d = self.distance_matrix[p1][p2]
+                        dists.append(d)
+    
+                avg_dist = np.mean(dists) if len(dists) > 0 else 0.0
+            else:
+                avg_dist = 0.0
+    
+            x[q] = [
+                phys,
+                total_interactions,
+                avg_dist,
+            ]
+    
+        # =========================
+        # Edge index
+        # =========================
+    
+        edges = []
+    
+        for q1 in range(num_q):
+            for q2 in range(num_q):
+                if interaction_counts[q1, q2] > 0:
+                    edges.append((q1, q2))
+    
+        # =========================
+        # Padding (IMPORTANT for SB3)
+        # =========================
+    
+        MAX_EDGES = 100  # tune this if needed
+    
+        edge_index = np.zeros((2, MAX_EDGES), dtype=np.int64)
+    
+        for i, (u, v) in enumerate(edges[:MAX_EDGES]):
+            edge_index[0, i] = u
+            edge_index[1, i] = v
+
+        return x, edge_index
 
     def _generate_random_mapping(self):
         chosen = self.np_random.choice(
@@ -175,7 +277,7 @@ class RoutingEnv(gymnasium.Env):
         return total_dist
 
     def _get_obs(self) -> np.ndarray:
-        obs = np.zeros((len(self.cmap_edges), self.horizon), dtype=np.int8)
+        matrix = np.zeros((len(self.cmap_edges), self.horizon), dtype=np.int8)
 
         layers = list(self.dag.layers())
        
@@ -206,9 +308,15 @@ class RoutingEnv(gymnasium.Env):
 
                     layer_delta += (dist_after - dist_before)
                 
-                obs[edge_idx, h] = layer_delta
+                matrix[edge_idx, h] = layer_delta
 
-        return obs
+        graph_x, graph_edge_idx = self._build_graph()
+
+        return {
+            "matrix": matrix,
+            "graph_x": graph_x,
+            "graph_edge_idx": graph_edge_idx,
+        }
 
     def _is_terminal(self) -> bool:
         return not self.dag.op_nodes()

@@ -1843,6 +1843,7 @@ dependencies = [
     { name = "gymnasium" },
     { name = "matplotlib" },
     { name = "networkx" },
+    { name = "pyrefly" },
     { name = "pytest" },
     { name = "qiskit" },
     { name = "qiskit-ibm-runtime" },
@@ -1856,17 +1857,13 @@ dependencies = [
     { name = "tqdm" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pyrefly" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "cachetools", specifier = ">=7.0.5" },
     { name = "gymnasium", specifier = ">=1.2.3" },
     { name = "matplotlib", extras = ["pyplot"], specifier = ">=3.10.8" },
     { name = "networkx", specifier = ">=3.6.1" },
+    { name = "pyrefly", specifier = ">=0.56.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "qiskit", specifier = ">=2.3.0" },
     { name = "qiskit-ibm-runtime", specifier = ">=0.45.1" },
@@ -1879,9 +1876,6 @@ requires-dist = [
     { name = "tornado", specifier = ">=6.5.4" },
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pyrefly", specifier = ">=0.57.1" }]
 
 [[package]]
 name = "requests"
