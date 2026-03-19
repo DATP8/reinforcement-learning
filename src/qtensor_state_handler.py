@@ -52,8 +52,14 @@ class QtensorStateHandler(StateHandler[Qtensor]):
                 front_layer.add(q2)
             if len(front_layer) >= self.n_qubits - 1:
                 break
-        new_state = new_state[:, removed_gates].cat(
-            torch.zeros((self.n_qubits, layers_removed), dtype=torch.float32), dim=1
+
+        # pyrefly:ignore [no-matching-overload]
+        new_state = torch.cat(
+            (
+                new_state[:, removed_gates],
+                torch.zeros((self.n_qubits, layers_removed), dtype=torch.float32),
+            ),
+            dim=1,
         )
         new_state.gates -= layers_removed
         return new_state, layers_removed
@@ -122,10 +128,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         return state
 
     def batch_states(self, states: Batchable[Qtensor]) -> Qtensor:
-        states_new = []
-        for i in range(len(states)):
-            states_new.append(states[i].unwrap())
-        return Qtensor(torch.stack(states_new))
+        # pyrefly: ignore[bad-argument-type]
+        return Qtensor(torch.stack(states))
 
     def state_from(self, circuit: QuantumCircuit) -> Qtensor:
         return Qtensor.from_circuit(circuit, self.horizon)
