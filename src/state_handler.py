@@ -55,10 +55,6 @@ class StateHandler[S](ABC):
 
     @abstractmethod
     def batch_states(self, states: Batchable[S]) -> S:
-        """
-        `batch_size`: None if all states should be combined
-        """
-
         raise NotImplementedError
 
     @abstractmethod
