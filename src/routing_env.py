@@ -12,6 +12,7 @@ class RoutingEnv(gymnasium.Env):
         cmap: CouplingMap,
         horizon: int,
         render_mode: str | None = None,
+        initial_difficulty = 1
     ) -> None:
         super().__init__()
         self.cmap_edges = list({tuple(sorted(edge)) for edge in cmap.get_edges()})
@@ -23,7 +24,7 @@ class RoutingEnv(gymnasium.Env):
         self.render_mode = render_mode
 
         self.num_logic_qubits = None
-        self.current_difficulty = 1
+        self.current_difficulty = initial_difficulty
 
         self.action_space = spaces.Discrete(len(self.cmap_edges))
         self.observation_space = spaces.Box(
@@ -79,9 +80,7 @@ class RoutingEnv(gymnasium.Env):
     def _build_graph(self):
         num_q = self.num_logic_qubits
     
-        # =========================
         # Interaction tracking
-        # =========================
         interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
     
         # Iterate over remaining DAG nodes
@@ -99,9 +98,7 @@ class RoutingEnv(gymnasium.Env):
                 interaction_counts[q1, q2] += 1
                 interaction_counts[q2, q1] += 1
     
-        # =========================
         # Node features
-        # =========================
         # Features per logical qubit:
         # [physical_position, total_interactions, avg_distance_to_partners]
     
@@ -135,25 +132,16 @@ class RoutingEnv(gymnasium.Env):
                 avg_dist,
             ]
     
-        # =========================
         # Edge index
-        # =========================
-    
         edges = []
-    
         for q1 in range(num_q):
             for q2 in range(num_q):
                 if interaction_counts[q1, q2] > 0:
                     edges.append((q1, q2))
     
-        # =========================
         # Padding (IMPORTANT for SB3)
-        # =========================
-    
-        MAX_EDGES = 100  # tune this if needed
-    
+        MAX_EDGES = 100
         edge_index = np.zeros((2, MAX_EDGES), dtype=np.int64)
-    
         for i, (u, v) in enumerate(edges[:MAX_EDGES]):
             edge_index[0, i] = u
             edge_index[1, i] = v

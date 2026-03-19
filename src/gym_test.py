@@ -10,7 +10,7 @@ import numpy as np
 
 from routing_env import RoutingEnv
 
-cmap = CouplingMap.from_line(4)
+cmap = CouplingMap.from_line(10)
 n_envs = mp.cpu_count() - 1
 print(f"Using {n_envs} envs")
 
@@ -18,8 +18,8 @@ def mask_fn(env: gymnasium.Env) -> np.ndarray:
     return env.unwrapped.valid_action_mask()  # pyrefly: ignore
 
 
-def make_env(cmap: CouplingMap, horizon: int, render_mode: str):
-    env = RoutingEnv(cmap, horizon, render_mode)
+def make_env(cmap: CouplingMap, horizon: int, render_mode: str, initial_difficulty = 1):
+    env = RoutingEnv(cmap, horizon, render_mode, initial_difficulty=initial_difficulty)
     env = ActionMasker(env, mask_fn)
     return env
 
@@ -49,7 +49,7 @@ curriculum_callback = CurriculumCallback(threshold=11.0, max_difficulty=20, verb
 
 model.learn(total_timesteps=100000, progress_bar=True, callback=curriculum_callback)
 
-eval_env = make_env(cmap, horizon=6, render_mode="human")
+eval_env = make_env(cmap, horizon=6, render_mode="human", initial_difficulty=20)
 
 for _ in range(10):
     obs, _ = eval_env.reset()
