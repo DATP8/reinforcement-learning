@@ -41,7 +41,7 @@ jobs:
       - uses: ./.github/actions/setup-env
         name: Setup Environment
 
-      - run: uvx --with pytest --with pytest-github-actions-annotate-failures pytest
+      - run: uv run --with pytest --with pytest-github-actions-annotate-failures pytest
         name: Run Unit Tests
 
   ruff-format:
