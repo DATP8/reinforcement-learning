@@ -177,31 +177,36 @@ class RoutingEnv(gymnasium.Env):
     def _get_obs(self) -> np.ndarray:
         obs = np.zeros((len(self.cmap_edges), self.horizon), dtype=np.int8)
 
-        future_gates = []
-        for node in self.dag.topological_op_nodes():
-            if len(node.qargs) == 2:
-                future_gates.append(
-                    (
+        layers = list(self.dag.layers())
+       
+        future_layers_gates = []
+        for i in range(min(len(layers), self.horizon)):
+            layer_gates = []
+            for node in layers[i]["graph"].op_nodes():
+                if len(node.qargs) == 2:
+                    layer_gates.append((
                         self.qubit_indices[node.qargs[0]],
-                        self.qubit_indices[node.qargs[1]],
-                    )
-                )
-            if len(future_gates) == self.horizon:
-                break
+                        self.qubit_indices[node.qargs[1]]
+                    ))
+            future_layers_gates.append(layer_gates)
 
         for edge_idx, (p0, p1) in enumerate(self.cmap_edges):
-            for layer_idx, (l_a, l_b) in enumerate(future_gates):
-                curr_p_a = self.logical_to_physical[l_a]
-                curr_p_b = self.logical_to_physical[l_b]
+            for h, gates_in_layer in enumerate(future_layers_gates):
+                layer_delta = 0
+                for l1, l2 in gates_in_layer:
+                    curr_p_a = self.logical_to_physical[l1]
+                    curr_p_b = self.logical_to_physical[l2]
 
-                dist_before = self.distance_matrix[curr_p_a, curr_p_b]
+                    dist_before = self.distance_matrix[curr_p_a, curr_p_b]
 
-                new_p_a = p1 if curr_p_a == p0 else (p0 if curr_p_a == p1 else curr_p_a)
-                new_p_b = p1 if curr_p_b == p0 else (p0 if curr_p_b == p1 else curr_p_b)
+                    new_p_a = p1 if curr_p_a == p0 else (p0 if curr_p_a == p1 else curr_p_a)
+                    new_p_b = p1 if curr_p_b == p0 else (p0 if curr_p_b == p1 else curr_p_b)
 
-                dist_after = self.distance_matrix[new_p_a, new_p_b]
+                    dist_after = self.distance_matrix[new_p_a, new_p_b]
 
-                obs[edge_idx, layer_idx] = dist_before - dist_after
+                    layer_delta += (dist_after - dist_before)
+                
+                obs[edge_idx, h] = layer_delta
 
         return obs
 
