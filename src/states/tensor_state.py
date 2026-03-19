@@ -1,13 +1,13 @@
 from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
 from collections import defaultdict
-from .state import State
 
 import torch
 
+
 class TensorState(torch.Tensor):
     @classmethod
-    def from_circuit(cls, qc: QuantumCircuit, horizon: int=0):
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
         depth = qc.depth() if horizon is None else horizon
         tensor = torch.zeros((qc.num_qubits, qc.num_qubits, depth), dtype=torch.float32)
 
@@ -60,4 +60,3 @@ class TensorState(torch.Tensor):
                 qc.cx(q1, q2)
 
         return qc
-

@@ -27,7 +27,7 @@ class CircuitGraph(Data, State):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, circuit: QuantumCircuit, horizon: int=0):
+    def from_circuit(cls, circuit: QuantumCircuit, horizon: int = 0):
         n_qubits = circuit.num_qubits
         two_qubit_gates = []
         for gate in circuit.data:

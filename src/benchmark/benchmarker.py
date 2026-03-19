@@ -79,9 +79,13 @@ class Benchmarker:
         elif type(run["final_router"]) is RlRoutingPass:
             return type(run["initial"]).__name__ + "_" + run["final_router"].get_name()
         else:
-            return type(run["initial"]).__name__ + "_" + type(run["final_router"]).__name__
+            return (
+                type(run["initial"]).__name__ + "_" + type(run["final_router"]).__name__
+            )
 
-    def run_rand_benchmarks(self, configs, iterations, is_set_difficulty=False, confidence=0.95):
+    def run_rand_benchmarks(
+        self, configs, iterations, is_set_difficulty=False, confidence=0.95
+    ):
         # Accumulate raw per-iteration metric values per config key
         raw: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
 
@@ -157,12 +161,12 @@ class Benchmarker:
         print(f"  {'-' * 46}")
         labels = {
             "transpile_time": "Transpile time (s)",
-            "swap_count":     "Swap count",
-            "cx_count":       "CX count",
-            "two_qubit_total":"2Q total",
-            "depth":          "Depth",
-            "size":           "Size",
-            "two_qubit_depth":"2Q depth",
+            "swap_count": "Swap count",
+            "cx_count": "CX count",
+            "two_qubit_total": "2Q total",
+            "depth": "Depth",
+            "size": "Size",
+            "two_qubit_depth": "2Q depth",
         }
         for key, label in labels.items():
             mean, ci = summary[key]

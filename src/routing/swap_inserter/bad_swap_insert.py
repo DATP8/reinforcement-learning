@@ -3,11 +3,14 @@ from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap as CM
 from .swap_inserter import SwapInserter
 
+
 class BadSwapINserter(SwapInserter):
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
-        self.coupling_map = CM(coupling_map) if isinstance(coupling_map, list) else coupling_map
+        self.coupling_map = (
+            CM(coupling_map) if isinstance(coupling_map, list) else coupling_map
+        )
         self.num_qubits = num_qubits
-        
+
     def _add_gate(self, dag, g, new_qc, inverse):
         new_qargs = []
         for q in g.qargs:
@@ -30,62 +33,67 @@ class BadSwapINserter(SwapInserter):
 
     def _prune(self, qc, dag, inverse, new_qc, topological_connection_list):
         wait_list = [[] for _ in range(qc.num_qubits)]
-        
+
         for q in range(qc.num_qubits):
             for g in dag.nodes_on_wire(qc.qubits[q], only_ops=True):
                 if g.op.num_qubits == 1:
                     new_qc = self._add_gate(dag, g, new_qc, inverse)
                     dag.remove_op_node(g)
                     continue
-                
-                q1 = dag.find_bit(g.qargs[0]).index 
-                q2 = dag.find_bit(g.qargs[1]).index 
+
+                q1 = dag.find_bit(g.qargs[0]).index
+                q2 = dag.find_bit(g.qargs[1]).index
 
                 q_is_q1 = q1 == q
-                if (not q_is_q1):
+                if not q_is_q1:
                     q2 = q1
                     q1 = q
 
                 q1 = inverse[q1]
                 q2 = inverse[q2]
 
-                if wait_list[q2] and wait_list[q2][0] == q1 :
+                if wait_list[q2] and wait_list[q2][0] == q1:
                     wait_list[q2].pop(0)
                     new_qc = self._add_gate(dag, g, new_qc, inverse)
                     dag.remove_op_node(g)
-                    return self._prune(qc, dag, inverse, new_qc, topological_connection_list)   
+                    return self._prune(
+                        qc, dag, inverse, new_qc, topological_connection_list
+                    )
 
                 elif any(x == q1 for x in topological_connection_list[q2]):
                     wait_list[q1].append(q2)
-               
+
                 break
 
         return new_qc, dag
-        
+
     def build_circuit_from_solution(self, actions: list, input_circuit: QuantumCircuit):
         dag = circuit_to_dag(input_circuit)
         new_qc = QuantumCircuit(input_circuit.num_qubits)
 
         topology = list(self.coupling_map.get_edges())
-        
-        topological_connection_list = self._make_topological_connection_list(input_circuit.num_qubits, topology)
+
+        topological_connection_list = self._make_topological_connection_list(
+            input_circuit.num_qubits, topology
+        )
 
         mapping = list(range(input_circuit.num_qubits))
         inverse = list(range(input_circuit.num_qubits))
-        
+
         while dag.topological_op_nodes():
-            new_qc, dag = self._prune(input_circuit, dag, inverse, new_qc, topological_connection_list)
-            if (not actions):
+            new_qc, dag = self._prune(
+                input_circuit, dag, inverse, new_qc, topological_connection_list
+            )
+            if not actions:
                 break
-            q1, q2 = topology[actions.pop(0)] 
-            new_qc.swap(q1, q2)  
+            q1, q2 = topology[actions.pop(0)]
+            new_qc.swap(q1, q2)
             v1, v2 = mapping[q1], mapping[q2]
-            mapping[q1] = v2 
+            mapping[q1] = v2
             mapping[q2] = v1
-            inverse[v1] = q2 
+            inverse[v1] = q2
             inverse[v2] = q1
         return new_qc, list(range(input_circuit.num_qubits)), inverse
-
 
 
 if __name__ == "__main__":
@@ -98,7 +106,9 @@ if __name__ == "__main__":
     from ...states.tensor_state_handler import TensorStateHandler
     from ...batch_weighted_astar_search import BWAS
 
-    def generate_random_2qubit_circuit(num_qubits: int, num_gates: int) -> QuantumCircuit:
+    def generate_random_2qubit_circuit(
+        num_qubits: int, num_gates: int
+    ) -> QuantumCircuit:
         if num_qubits < 2:
             raise ValueError("Number of qubits must be at least 2 for 2-qubit gates.")
 
@@ -113,7 +123,6 @@ if __name__ == "__main__":
             qc.cx(control, target)
 
         return qc
-
 
     random.seed(42)
 

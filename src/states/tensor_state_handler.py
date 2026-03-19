@@ -162,6 +162,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
 
 if __name__ == "__main__":
     from .tensor_state import TensorState
+
     n_qubits = 6
     horizon = 10
 

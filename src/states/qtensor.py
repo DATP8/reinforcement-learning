@@ -50,7 +50,7 @@ class Qtensor(State):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, qc: QuantumCircuit, horizon: int=0):
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
         c = torch.zeros((qc.num_qubits, horizon))
         i = 0
         for gate in qc.data:
@@ -84,7 +84,7 @@ class Qtensor(State):
     def unwrap(self):
         return self._t
 
-    # !THIS IS NOT IMPLEMENTED 
+    # !THIS IS NOT IMPLEMENTED
     def to_circuit(self):
         raise NotImplementedError
 

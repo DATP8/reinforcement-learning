@@ -1,10 +1,14 @@
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap as CM
+
+
 class SwapInserter:
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
-        self.coupling_map = CM(coupling_map) if isinstance(coupling_map, list) else coupling_map
+        self.coupling_map = (
+            CM(coupling_map) if isinstance(coupling_map, list) else coupling_map
+        )
         self.num_qubits = num_qubits
-        
+
     def build_circuit_from_solution(
         self, actions: list[int], input_circuit: QuantumCircuit
     ) -> tuple[QuantumCircuit, list[int], list[int]]:
@@ -17,7 +21,9 @@ class SwapInserter:
         Returns (routed_circuit, init_layout, final_layout).
         """
 
-        dists = self.coupling_map.distance_matrix.astype(int) #pyrefly: ignore[missing-attribute]
+        dists = self.coupling_map.distance_matrix.astype(
+            int
+        )  # pyrefly: ignore[missing-attribute]
 
         # Build gate list with virtual-qubit indices
         gates: list[tuple[list[int], object]] = []
@@ -41,7 +47,7 @@ class SwapInserter:
         placed = [False] * len(gates)
 
         # Layout tracking (identity start)
-        locations = list(range(self.num_qubits))   # virtual -> physical
+        locations = list(range(self.num_qubits))  # virtual -> physical
         qubits_map = list(range(self.num_qubits))  # physical -> virtual
 
         out = QuantumCircuit(self.num_qubits, input_circuit.num_clbits)
@@ -60,8 +66,12 @@ class SwapInserter:
         def _place(gate_idx: int):
             qs, inst = gates[gate_idx]
             phys_qubits = [out.qubits[locations[q]] for q in qs]
-            clbits = [out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits] #pyrefly: ignore[missing-attribute]
-            out.append(inst.operation, phys_qubits, clbits) #pyrefly: ignore[missing-attribute]
+            clbits = [
+                out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits
+            ]  # pyrefly: ignore[missing-attribute]
+            out.append(
+                inst.operation, phys_qubits, clbits
+            )  # pyrefly: ignore[missing-attribute]
             placed[gate_idx] = True
             _activate_successors(gate_idx)
 
@@ -95,29 +105,27 @@ class SwapInserter:
             qubits_map[l1], qubits_map[l2] = vq2, vq1
 
             _execute_ready()
-            
+
         init_layout = list(range(self.num_qubits))
         final_layout = list(locations)
         return out, init_layout, final_layout
-        
-        
 
-    
-    
+
 if __name__ == "__main__":
     coupling_map = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    router = Router(coupling_map, num_qubits=6)
-    
+    router = SwapInserter(coupling_map, num_qubits=6)
+
     circuit = QuantumCircuit(6)
-    circuit.cx(0,1)
-    circuit.cx(0,2)
-    circuit.cx(0,3)
-    circuit.cx(0,4)
-    
+    circuit.cx(0, 1)
+    circuit.cx(0, 2)
+    circuit.cx(0, 3)
+    circuit.cx(0, 4)
+
     actions = [0, 1, 2]  # Example edge indices to swap
-    routed_circuit, init_layout, final_layout = router.build_circuit_from_solution(actions, circuit)
-    
-    
+    routed_circuit, init_layout, final_layout = router.build_circuit_from_solution(
+        actions, circuit
+    )
+
     print("Original Circuit:")
     print(circuit)
     print("Routed Circuit:")

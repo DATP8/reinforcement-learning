@@ -7,7 +7,9 @@ import time
 from .rl_router import RlRouter
 from .swap_inserter.swap_inserter import SwapInserter
 
-from qiskit.converters import dag_to_circuit 
+from qiskit.converters import dag_to_circuit
+
+
 class RlRoutingPass(TransformationPass):
     def __init__(
         self,
@@ -20,7 +22,6 @@ class RlRoutingPass(TransformationPass):
         self.swap_inserter = swap_inserter
         self.last_time = 0.0
         self.model_name = name
-
 
     def get_name(self):
         return self.model_name
