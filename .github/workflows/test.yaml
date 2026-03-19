@@ -15,7 +15,7 @@ jobs:
       - uses: ./.github/actions/setup-env
         name: Setup Environment
 
-      - run: uv run pyrefly check --output-format=github
+      - run: uvx pyrefly check --output-format=github
         name: Run Pyrefly Check
 
   ruff-lint:
