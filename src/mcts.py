@@ -152,4 +152,3 @@ class MCTS:
         logits = visit_counts ** (1 / temperature)
         probs = logits / logits.sum()
         return probs
-

@@ -137,6 +137,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
     def get_topology(self):
         return self.topology
 
+
 if __name__ == "__main__":
     n_qubits = 6
     horizon = 10

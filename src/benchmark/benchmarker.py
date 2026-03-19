@@ -172,4 +172,3 @@ class Benchmarker:
             mean, ci = summary[key]
             print(f"  {label:<22} {mean:>10.4f}  ±{ci:>10.4f}")
         print(f"{'=' * 60}")
-

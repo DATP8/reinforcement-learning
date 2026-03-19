@@ -34,6 +34,8 @@ output_circuits_actions = [
 ]
 
 actions = [3, 0, 1, 4, 0]
+
+
 class TestTensorStateHandler(unittest.TestCase):
     game = TensorStateHandler(n_qubits, horizon, topology)
 
@@ -49,7 +51,7 @@ class TestTensorStateHandler(unittest.TestCase):
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
-           # self.assertTrue(torch.equal(self.game.state_from(circuit), pruned_state))
+        # self.assertTrue(torch.equal(self.game.state_from(circuit), pruned_state))
 
     def test_tensor_generate_random_circuit(self):
         for _ in range(1000):
@@ -82,6 +84,7 @@ class TestTensorStateHandler(unittest.TestCase):
             self.assertEqual(
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
             )
+
 
 class TestQtensorStateHandler(unittest.TestCase):
     game = QtensorStateHandler(n_qubits, horizon, topology)

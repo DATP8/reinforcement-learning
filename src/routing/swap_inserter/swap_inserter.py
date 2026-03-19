@@ -2,6 +2,7 @@ from qiskit.circuit import CircuitInstruction
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap as CM
 
+
 class SwapInserter:
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
         self.coupling_map = (
@@ -21,7 +22,7 @@ class SwapInserter:
         Returns (routed_circuit, init_layout, final_layout).
         """
 
-        dists = self.coupling_map.distance_matrix.astype( #pyrefly: ignore
+        dists = self.coupling_map.distance_matrix.astype(  # pyrefly: ignore
             int
         )  # pyrefly: ignore[missing-attribute]
 

@@ -45,7 +45,7 @@ class GreedySearch:
         return actions
 
 
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    from model import ValueModel
 #    from cnot_circuit import CNOTCircuit
 #    import random
