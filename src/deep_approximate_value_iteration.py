@@ -230,7 +230,7 @@ if __name__ == "__main__":
     model1.load_state_dict(torch.load(path1, map_location="cpu"))
     model2.load_state_dict(torch.load(path2, map_location="cpu"))
 
-    bench_iterations = 15
+    bench_iterations = 100
     coupling_map = CouplingMap(topology)
 
     initial_layouts = [TrivialLayout(coupling_map)]

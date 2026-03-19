@@ -85,115 +85,60 @@ class TensorState(torch.Tensor):
 
     def _prune(self, qc, dag, inverse, new_qc, topological_connection_list):
         wait_list = [[] for _ in range(qc.num_qubits)]
-
+        
         for q in range(qc.num_qubits):
             for g in dag.nodes_on_wire(qc.qubits[q], only_ops=True):
                 if g.op.num_qubits == 1:
                     new_qc = self._add_gate(dag, g, new_qc, inverse)
                     dag.remove_op_node(g)
                     continue
-
-                q1 = dag.find_bit(g.qargs[0]).index
-                q2 = dag.find_bit(g.qargs[1]).index
+                
+                q1 = dag.find_bit(g.qargs[0]).index 
+                q2 = dag.find_bit(g.qargs[1]).index 
 
                 q_is_q1 = q1 == q
-                if not q_is_q1:
+                if (not q_is_q1):
                     q2 = q1
                     q1 = q
 
                 q1 = inverse[q1]
                 q2 = inverse[q2]
 
-                if wait_list[q2] and wait_list[q2][0] == q1:
+                if wait_list[q2] and wait_list[q2][0] == q1 :
                     wait_list[q2].pop(0)
                     new_qc = self._add_gate(dag, g, new_qc, inverse)
                     dag.remove_op_node(g)
-                    self._prune(qc, dag, inverse, new_qc, topological_connection_list)
+                    return self._prune(qc, dag, inverse, new_qc, topological_connection_list)   
 
                 elif any(x == q1 for x in topological_connection_list[q2]):
                     wait_list[q1].append(q2)
-
+               
                 break
 
         return new_qc, dag
 
-    def insert_swaps(
-        self, qc: QuantumCircuit, path: list, topology: list, game: StateHandler
-    ):
+    def insert_swaps(self, qc: QuantumCircuit, path: list, topology: list, game: StateHandler):
         dag = circuit_to_dag(qc)
         new_qc = QuantumCircuit(qc.num_qubits)
-
-        topological_connection_list = self._make_topological_connection_list(
-            qc.num_qubits, topology
-        )
+        
+        topological_connection_list = self._make_topological_connection_list(qc.num_qubits, topology)
 
         mapping = list(range(qc.num_qubits))
         inverse = list(range(qc.num_qubits))
-
+        
         while dag.topological_op_nodes():
-            new_qc, dag = self._prune(
-                qc, dag, inverse, new_qc, topological_connection_list
-            )
-            if not path:
+            wait_map = []
+            new_qc, dag = self._prune(qc, dag, inverse, new_qc, topological_connection_list)
+            if (not path):
                 break
-            q1, q2 = topology[path.pop(0)]
-            new_qc.swap(q1, q2)
+            q1, q2 = topology[path.pop(0)] 
+            new_qc.swap(q1, q2)  
             v1, v2 = mapping[q1], mapping[q2]
-            mapping[q1] = v2
+            mapping[q1] = v2 
             mapping[q2] = v1
-            inverse[v1] = q2
+            inverse[v1] = q2 
             inverse[v2] = q1
-
         return new_qc, inverse
-
-    def insert_swaps_old(
-        self, qc: QuantumCircuit, path: list, topology: list, game: StateHandler
-    ):
-        if not path:
-            return qc
-
-        state, layers_removed = game.prune(self)
-        depth_list = []
-
-        for action in path:
-            state, temp_layers_removed = game.prune(state)
-            state = game.get_next_state(state, action)
-            layers_removed += temp_layers_removed
-            depth_list.append(layers_removed)
-
-        org_dag = circuit_to_dag(qc)
-        new_qc = QuantumCircuit(qc.num_qubits)
-
-        mapping = list(range(qc.num_qubits))
-        inverse = list(range(qc.num_qubits))
-
-        swap_list = []
-
-        two_gate_count = 0
-        for i, layer in enumerate(org_dag.layers()):
-            while depth_list and i >= depth_list[0]:
-                swap_list.append(topology[path.pop(0)])
-                depth_list.pop(0)
-
-            for org_g in layer["graph"].topological_op_nodes():
-                if org_g.op.num_qubits == 2:
-                    two_gate_count += 1
-                    for swap in swap_list:
-                        q1, q2 = swap
-                        new_qc.swap(q1, q2)
-
-                    for swap in swap_list:
-                        q1, q2 = swap
-                        v1, v2 = mapping[q1], mapping[q2]
-                        mapping[q1] = v2
-                        mapping[q2] = v1
-                        inverse[v1] = q2
-                        inverse[v2] = q1
-                    swap_list = []
-
-                new_qc = self._add_gate(org_dag, org_g, new_qc, inverse)
-
-        return new_qc
 
 
 if __name__ == "__main__":

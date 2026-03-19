@@ -106,9 +106,8 @@ class Benchmarker:
 
             routed_op = Operator.from_circuit(routed)
 
-            if routed_op != org_op:
-                print("\n\n", init, fb, final, " was not eqivivalent\n\n")
-
+            assert routed_op == org_op, f"\n\nFor the following configuration {init, fb, final}\n quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+            
             if printing:
                 print(qc)
                 print(routed)
