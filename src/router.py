@@ -21,7 +21,7 @@ class Router:
         Returns (routed_circuit, init_layout, final_layout).
         """
 
-        dists = self.coupling_map.distance_matrix.astype( # pyrefly: ignore[missing-attribute]
+        dists = self.coupling_map.distance_matrix.astype(  # pyrefly: ignore[missing-attribute]
             int
         )
 
@@ -67,11 +67,14 @@ class Router:
             qs, inst = gates[gate_idx]
             phys_qubits = [out.qubits[locations[q]] for q in qs]
             clbits = [
-                out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits # pyrefly: ignore[missing-attribute]
-            ]  
+                out.clbits[input_circuit.find_bit(c).index]
+                for c in inst.clbits  # pyrefly: ignore[missing-attribute]
+            ]
             out.append(
-                inst.operation, phys_qubits, clbits # pyrefly: ignore[missing-attribute]
-            )  
+                inst.operation,
+                phys_qubits,
+                clbits,  # pyrefly: ignore[missing-attribute]
+            )
             placed[gate_idx] = True
             _activate_successors(gate_idx)
 
