@@ -1,14 +1,13 @@
 from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
 from collections import defaultdict
-
+from .state import State
 
 import torch
 
-
 class TensorState(torch.Tensor):
-    @staticmethod
-    def from_quantum_circuit(qc: QuantumCircuit, horizon=None):
+    @classmethod
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int=0):
         depth = qc.depth() if horizon is None else horizon
         tensor = torch.zeros((qc.num_qubits, qc.num_qubits, depth), dtype=torch.float32)
 
@@ -42,12 +41,12 @@ class TensorState(torch.Tensor):
 
         return tensor
 
-    def to_quantum_circuit(tensor: torch.Tensor):
-        assert tensor.dim() == 3, (
+    def to_circuit(self):
+        assert self.dim() == 3, (
             "Input tensor must be 3-dimensional (n_qubits, n_qubits, depth)."
         )
 
-        n_qubits, n_qubits2, depth = tensor.size()
+        n_qubits, n_qubits2, depth = self.size()
         assert n_qubits == n_qubits2, (
             f"The first two dimensions of the tensor must be equal (square). Got {n_qubits} and {n_qubits2}."
         )
@@ -55,7 +54,7 @@ class TensorState(torch.Tensor):
         qc = QuantumCircuit(n_qubits)
 
         for i in range(depth):
-            lefts, rights = torch.where(tensor[:, :, i] == 1.0)
+            lefts, rights = torch.where(self[:, :, i] == 1.0)
             pairs = list(zip(lefts.tolist(), rights.tolist()))
             for q1, q2 in pairs:
                 qc.cx(q1, q2)

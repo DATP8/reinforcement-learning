@@ -1,10 +1,9 @@
-from sympy.printing.pytorch import torch
-
 from .state_handler import Batchable, StateHandler
-from ..cnot_circuit import CNOTCircuit
+from .tensor_state import TensorState
 
 from qiskit import QuantumCircuit
 import random
+import torch
 
 
 class TensorStateHandler(StateHandler[torch.Tensor]):
@@ -137,17 +136,17 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
     def get_random_state(self, difficulty: int):
         flag = False
         while not flag:
-            qc = CNOTCircuit(self.n_qubits)
+            qc = QuantumCircuit(self.n_qubits)
             for i in range(difficulty):
                 q1, q2 = random.sample(range(self.n_qubits), 2)
                 while q1 == q2:
                     q2 = random.choice(range(self.n_qubits))
                 if ((q1, q2) not in self.topology) and ((q2, q1) not in self.topology):
                     flag = True
-                qc.add_cnot(q1, q2)
+                qc.cx(q1, q2)
 
         # pyrefly: ignore[unbound-name], qc will always be initialized
-        state = qc.to_tensor(horizon=self.horizon)
+        state = TensorState.from_circuit(qc, horizon=self.horizon)
 
         return state
 
@@ -158,33 +157,27 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         return torch.stack([state for state in states])
 
     def state_from(self, circuit: QuantumCircuit) -> torch.Tensor:
-        # todo: This is shit
-        cnot_circuit = CNOTCircuit(circuit.num_qubits)
-        for gate in circuit.data:
-            if gate.operation.num_qubits == 2:
-                q1, q2 = gate.qubits
-                cnot_circuit.add_cnot(q1._index, q2._index)
-
-        return cnot_circuit.to_tensor(horizon=self.horizon)
+        return TensorState.from_circuit(circuit, self.horizon)
 
 
 if __name__ == "__main__":
+    from .tensor_state import TensorState
     n_qubits = 6
     horizon = 10
 
-    circuit = CNOTCircuit(n_qubits)
-    circuit.add_cnot(0, 2)
-    circuit.add_cnot(0, 1)
-    circuit.add_cnot(0, 3)
+    circuit = QuantumCircuit(n_qubits)
+    circuit.cx(0, 2)
+    circuit.cx(0, 1)
+    circuit.cx(0, 3)
     print(circuit)
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
 
     game = TensorStateHandler(n_qubits, horizon, topology)
 
-    root_state = circuit.to_tensor(horizon=horizon)
+    root_state = TensorState.from_circuit(circuit, horizon=horizon)
 
     next_state = game.get_next_state(root_state, 0)
-    print(CNOTCircuit.from_tensor(next_state))
+    print(root_state.to_circuit())
 
     print(next_state.shape)
     print(game.get_action_cost(next_state, 0))

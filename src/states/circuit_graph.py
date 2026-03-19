@@ -1,3 +1,4 @@
+from qiskit_qasm3_import.state import State
 import hashlib
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from torch_geometric.data import Data
@@ -5,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 
-class CircuitGraph(Data):
+class CircuitGraph(Data, State):
     def __init__(self, **args):
         super().__init__(**args)
 
@@ -26,7 +27,7 @@ class CircuitGraph(Data):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, circuit: QuantumCircuit):
+    def from_circuit(cls, circuit: QuantumCircuit, horizon: int=0):
         n_qubits = circuit.num_qubits
         two_qubit_gates = []
         for gate in circuit.data:

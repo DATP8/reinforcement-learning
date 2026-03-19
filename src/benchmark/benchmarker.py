@@ -2,13 +2,25 @@ from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
 from qiskit.circuit.random import random_circuit
 from qiskit import QuantumCircuit
-
 from itertools import product
+from collections import defaultdict
+from scipy import stats
 
+import numpy as np
 import time
 import random
 
-from ..routing.bwas_routing import BWASRouting
+from ..routing.rl_routing_pass import RlRoutingPass
+
+METRIC_KEYS = [
+    "transpile_time",
+    "swap_count",
+    "cx_count",
+    "two_qubit_total",
+    "depth",
+    "size",
+    "two_qubit_depth",
+]
 
 
 class Benchmarker:
@@ -37,9 +49,7 @@ class Benchmarker:
         return metrics
 
     def _build_pass_manager(self, init, fb, final):
-
         passes = [p for p in [init, fb, final] if p is not None]
-
         return PassManager(passes)
 
     def generate_random_2qubit_circuit(
@@ -55,13 +65,26 @@ class Benchmarker:
             target = random.randint(0, num_qubits - 1)
             while target == control:
                 target = random.randint(0, num_qubits - 1)
-
             qc.cx(control, target)
 
         return qc
 
-    def run_rand_benchmarks(self, configs, iterations, is_set_difficulty=False):
-        results = {}
+    def _config_key(self, run):
+        if run["forward_backward"] is not None:
+            return (
+                type(run["initial"]).__name__
+                + "_"
+                + type(run["forward_backward"]).__name__
+            )
+        elif type(run["final_router"]) is RlRoutingPass:
+            return type(run["initial"]).__name__ + "_" + run["final_router"].get_name()
+        else:
+            return type(run["initial"]).__name__ + "_" + type(run["final_router"]).__name__
+
+    def run_rand_benchmarks(self, configs, iterations, is_set_difficulty=False, confidence=0.95):
+        # Accumulate raw per-iteration metric values per config key
+        raw: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+
         for i in range(iterations):
             if is_set_difficulty:
                 qc = self.generate_random_2qubit_circuit(self.qubits, self.max_depth)
@@ -70,23 +93,21 @@ class Benchmarker:
 
             runs = self.run_bench(qc, configs)
             for run in runs:
-                key = (
-                    type(run["initial"]).__name__
-                    if run["forward_backward"] is not None
-                    else " " + "_" + type(run["forward_backward"]).__name__
-                    if run["forward_backward"] is not None
-                    else " " + "_" + run["final_router"].get_name()
-                    if type(run["final_router"]) is BWASRouting
-                    else type(run["final_router"]).__name__
-                )
+                key = self._config_key(run)
+                for metric in METRIC_KEYS:
+                    raw[key][metric].append(run[metric])
 
-                if key in results:
-                    results[key] = self._add_metrics(results[key], run)
-                else:
-                    results[key] = run
-
-        for key, val in results.items():
-            self._pretty_print(key, self._scalar_divide_metrics(val, iterations))
+        # Compute mean and confidence intervals using numpy + scipy
+        for key, metric_lists in raw.items():
+            summary = {}
+            for metric, values in metric_lists.items():
+                arr = np.array(values, dtype=float)
+                mean = arr.mean()
+                n = len(arr)
+                se = stats.sem(arr)  # standard error
+                ci = se * stats.t.ppf((1 + confidence) / 2, df=n - 1)  # t-based CI
+                summary[metric] = (mean, ci)
+            self._pretty_print(key, summary, confidence)
 
     def run_bench(self, qc, configs, printing=False):
         rows = []
@@ -106,8 +127,11 @@ class Benchmarker:
 
             routed_op = Operator.from_circuit(routed)
 
-            assert routed_op == org_op, f"\n\nFor the following configuration {init, fb, final}\n quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
-            
+            assert routed_op == org_op, (
+                f"\n\nFor the following configuration {init, fb, final}\n"
+                f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+            )
+
             if printing:
                 print(qc)
                 print(routed)
@@ -124,40 +148,26 @@ class Benchmarker:
             rows.append(row)
         return rows
 
-    def _add_metrics(self, metric1, metric2):
-        return {
-            "transpile_time": metric1["transpile_time"] + metric2["transpile_time"],
-            "swap_count": metric1["swap_count"] + metric2["swap_count"],
-            "cx_count": metric1["cx_count"] + metric2["cx_count"],
-            "two_qubit_total": metric1["two_qubit_total"] + metric2["two_qubit_total"],
-            "depth": metric1["depth"] + metric2["depth"],
-            "size": metric1["size"] + metric2["size"],
-            "two_qubit_depth": metric1["two_qubit_depth"] + metric2["two_qubit_depth"],
-        }
-
-    def _scalar_divide_metrics(self, metric, scalar):
-        return {
-            "transpile_time": metric["transpile_time"] / scalar,
-            "swap_count": metric["swap_count"] / scalar,
-            "cx_count": metric["cx_count"] / scalar,
-            "two_qubit_total": metric["two_qubit_total"] / scalar,
-            "depth": metric["depth"] / scalar,
-            "size": metric["size"] / scalar,
-            "two_qubit_depth": metric["two_qubit_depth"] / scalar,
-        }
-
-    def _pretty_print(self, name, metrics):
-        print(f"\n{'=' * 50}")
+    def _pretty_print(self, name, summary, confidence):
+        pct = int(confidence * 100)
+        print(f"\n{'=' * 60}")
         print(f"  {name}")
-        print(f"{'=' * 50}")
-        print(f"  {'Transpile time':<20} {metrics['transpile_time']:.4f} s")
-        print(f"  {'Swap count':<20} {metrics['swap_count']:.2f}")
-        print(f"  {'CX count':<20} {metrics['cx_count']:.2f}")
-        print(f"  {'2Q total':<20} {metrics['two_qubit_total']:.2f}")
-        print(f"  {'Depth':<20} {metrics['depth']:.2f}")
-        print(f"  {'Size':<20} {metrics['size']:.2f}")
-        print(f"  {'2Q depth':<20} {metrics['two_qubit_depth']:.2f}")
-        print(f"{'=' * 50}")
+        print(f"{'=' * 60}")
+        print(f"  {'Metric':<22} {'Mean':>10}  {'±CI ({pct}%)':>12}".format(pct=pct))
+        print(f"  {'-' * 46}")
+        labels = {
+            "transpile_time": "Transpile time (s)",
+            "swap_count":     "Swap count",
+            "cx_count":       "CX count",
+            "two_qubit_total":"2Q total",
+            "depth":          "Depth",
+            "size":           "Size",
+            "two_qubit_depth":"2Q depth",
+        }
+        for key, label in labels.items():
+            mean, ci = summary[key]
+            print(f"  {label:<22} {mean:>10.4f}  ±{ci:>10.4f}")
+        print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":
@@ -176,5 +186,5 @@ if __name__ == "__main__":
     coupling_map = CouplingMap([[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]])
     path = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt"
     bench = Benchmarker(path, qubits, max_gates, coupling_map)
-    # Run each combination
-    rows = bench.run_rand_benchmarks(configs, 50)
+
+    bench.run_rand_benchmarks(configs, 50)

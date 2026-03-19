@@ -1,19 +1,14 @@
 from qiskit import QuantumCircuit
-from typing import Protocol
 
-from .routing.router import Router
-from .states.state_handler import StateHandler
-from .model import BiCircuitGNN
+from .rl_router import RlRouter
+from ..routing.swap_inserter.swap_inserter import SwapInserter
+from ..model import BiCircuitGNN
 
 import qiskit
 import torch
 import heapq
 import random
 import time
-
-
-class To(Protocol):
-    def to(self, device: torch.device) -> "To": ...
 
 
 class BWASNode:
@@ -29,12 +24,8 @@ class BWASNode:
         child_node.action = action
         return child_node
 
-class BWAS[S: To]:
-    def __init__(self, model, state_handler: StateHandler[S]):
-        self.model = model
-        self.state_handler = state_handler
-    
-    def search(self, root_state: S, batch_size=64, weight=0.3) -> list[int]:
+class BWASRouter[S, To](RlRouter): 
+    def search(self, root_state: S) -> list[int]:
         device = next(self.model.parameters()).device
         with torch.no_grad():
             h = self.model(self.state_handler.batch_states([root_state]).to(device)).item()
@@ -48,7 +39,7 @@ class BWAS[S: To]:
         closed_set = set()
 
         while open_set:
-            nodes_to_expand = [heapq.heappop(open_set)[-1] for _ in range(min(batch_size, len(open_set)))]
+            nodes_to_expand = [heapq.heappop(open_set)[-1] for _ in range(min(self.batch_size, len(open_set)))]
             closed_set.update(node.state.__hash__() for node in nodes_to_expand)
             new_nodes = []
             for parent_node in nodes_to_expand:
@@ -65,7 +56,7 @@ class BWAS[S: To]:
                 h_values = self.model(states.to(device))
             
             for node, h in zip(new_nodes, h_values):
-                f = weight * node.g +  h.item()
+                f = self.weight * node.g +  h.item()
                 if node.state.__hash__() in closed_set and f >= f_lookup[node.state.__hash__()]:
                     continue
                 
@@ -84,14 +75,13 @@ class BWAS[S: To]:
     
     
 if __name__ == "__main__":
-    from model import ValueModel
-    from states.tensor_state_handler import TensorStateHandler, CNOTCircuit
     random.seed(42)
-    from .states.circuit_graph_state_handler import CircuitGraphStateHandler
+    from ..model import ValueModel, BiCircuitGNN
+    from qiskit.transpiler.coupling import CouplingMap as CM
+    from ..states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.qpy import dump
     import random
     import time
-    from qiskit.qpy import dump
 
     def generate_random_circuit(n_qubits: int, n_gates: int):
         qc = QuantumCircuit(n_qubits)
@@ -134,8 +124,8 @@ if __name__ == "__main__":
     # model.load_state_dict(torch.load("models/davi_diff_tensor/difficulty17_iteration95270.pt", map_location=device))
     
     
-    bwas = BWAS(model.to(device), state_handler)
-    router = Router(topology, num_qubits=n_qubits)
+    bwas = BWASRouter(model.to(device), state_handler)
+    swap_inserter = SwapInserter(topology, num_qubits=n_qubits)
         
     # circuit = generate_random_circuit(n_qubits, n_gates=30)
     # with open("circuits/dud2.qpy", "wb") as f:
@@ -156,10 +146,10 @@ if __name__ == "__main__":
     print(circuit)
     t0 = time.time()
     state = state_handler.state_from(circuit)
-    actions = bwas.search(state, batch_size=64, weight=0.3)
+    actions = bwas.search(state)
     t1 = time.time()
     
-    routed_circuit, init_layout, final_layout = router.build_circuit_from_solution(actions, circuit)
+    routed_circuit, init_layout, final_layout = swap_inserter.build_circuit_from_solution(actions, circuit)
     
     optimized_circuit = qiskit.transpile(routed_circuit, optimization_level=3, coupling_map=CM(topology))
     

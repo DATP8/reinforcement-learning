@@ -1,10 +1,11 @@
+from .routing.swap_inserter.swap_inserter import SwapInserter
 from .states.tensor_state_handler import TensorStateHandler
 from .states.state_handler import StateHandler
 from .states.circuit_graph_state_handler import CircuitGraphStateHandler
 from .states.qtensor_state_handler import QtensorStateHandler
 from .model import ValueModel, BiCircuitGNN
-from .routing.bwas_routing import BWASRouting
-from .batch_weighted_astar_search import To
+from .routing.rl_routing_pass import RlRoutingPass
+from .routing.bwas_router import BWASRouter
 
 from itertools import product
 from qiskit.transpiler import CouplingMap
@@ -232,15 +233,20 @@ if __name__ == "__main__":
 
     bench_iterations = 100
     coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
 
     initial_layouts = [TrivialLayout(coupling_map)]
 
     forward_backward = [SabreLayout(coupling_map)]
 
+    swap_inserter = SwapInserter(coupling_map, n_qubits)
+    router1 = BWASRouter(model1, game1)
+    router2 = BWASRouter(model2, game2)
+
     final_routers = [
         SabreSwap(coupling_map),
-        BWASRouting(coupling_map, horizon, model1, game1, "diff17"),
-        BWASRouting(coupling_map, horizon, model2, game2, "incr14"),
+        RlRoutingPass(router1, swap_inserter, "diff17"),
+        RlRoutingPass(router2, swap_inserter, "incr14"),
     ]
 
     configs = list(product(initial_layouts, [None], final_routers))

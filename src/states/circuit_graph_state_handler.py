@@ -214,7 +214,6 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
 if __name__ == "__main__":
     from qiskit import QuantumCircuit
-    from .cnot_circuit import CNOTCircuit
 
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     n_qubits = 6
@@ -233,7 +232,5 @@ if __name__ == "__main__":
     print(new_state.x)
     print(new_state.edge_index)
     print(new_state.edge_attr)
-    new_circuit = CNOTCircuit.from_circuit_graph(new_state)
-    print(new_circuit)
 
     print("new_state is terminal:", game.is_terminal(new_state))

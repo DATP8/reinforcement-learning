@@ -1,10 +1,9 @@
-from qiskit.transpiler import CouplingMap
 from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
-from typing import List, Tuple
 from qiskit.transpiler import CouplingMap as CM
+from .swap_inserter import SwapInserter
 
-class BadRouter:
+class BadSwapINserter(SwapInserter):
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
         self.coupling_map = CM(coupling_map) if isinstance(coupling_map, list) else coupling_map
         self.num_qubits = num_qubits
@@ -62,30 +61,30 @@ class BadRouter:
                 break
 
         return new_qc, dag
-
-    def build_circuit_from_solution(self, qc: QuantumCircuit, path: list):
-        dag = circuit_to_dag(qc)
-        new_qc = QuantumCircuit(qc.num_qubits)
+        
+    def build_circuit_from_solution(self, actions: list, input_circuit: QuantumCircuit):
+        dag = circuit_to_dag(input_circuit)
+        new_qc = QuantumCircuit(input_circuit.num_qubits)
 
         topology = list(self.coupling_map.get_edges())
         
-        topological_connection_list = self._make_topological_connection_list(qc.num_qubits, topology)
+        topological_connection_list = self._make_topological_connection_list(input_circuit.num_qubits, topology)
 
-        mapping = list(range(qc.num_qubits))
-        inverse = list(range(qc.num_qubits))
+        mapping = list(range(input_circuit.num_qubits))
+        inverse = list(range(input_circuit.num_qubits))
         
         while dag.topological_op_nodes():
-            new_qc, dag = self._prune(qc, dag, inverse, new_qc, topological_connection_list)
-            if (not path):
+            new_qc, dag = self._prune(input_circuit, dag, inverse, new_qc, topological_connection_list)
+            if (not actions):
                 break
-            q1, q2 = topology[path.pop(0)] 
+            q1, q2 = topology[actions.pop(0)] 
             new_qc.swap(q1, q2)  
             v1, v2 = mapping[q1], mapping[q2]
             mapping[q1] = v2 
             mapping[q2] = v1
             inverse[v1] = q2 
             inverse[v2] = q1
-        return new_qc, list(range(qc.num_qubits)), inverse
+        return new_qc, list(range(input_circuit.num_qubits)), inverse
 
 
 
@@ -94,11 +93,10 @@ if __name__ == "__main__":
     import torch
     import time
 
-    from .router import Router
-    from ..model import ValueModel
-    from ..states.tensor_state import TensorState
-    from ..states.tensor_state_handler import TensorStateHandler
-    from ..batch_weighted_astar_search import BWAS
+    from ...model import ValueModel
+    from ...states.tensor_state import TensorState
+    from ...states.tensor_state_handler import TensorStateHandler
+    from ...batch_weighted_astar_search import BWAS
 
     def generate_random_2qubit_circuit(num_qubits: int, num_gates: int) -> QuantumCircuit:
         if num_qubits < 2:
@@ -149,8 +147,8 @@ if __name__ == "__main__":
 
     bwas = BWAS(model, game)
 
-    my_router = BadRouter(coupling_map, n_qubits)
-    ibm_router = Router(coupling_map, n_qubits)
+    my_router = BadSwapINserter(coupling_map, n_qubits)
+    ibm_router = SwapInserter(coupling_map, n_qubits)
     for _ in range(100):
         qc = generate_random_2qubit_circuit(6, 14)
 
@@ -159,7 +157,7 @@ if __name__ == "__main__":
         path = bwas.search(state, 1)
 
         start_time = time.time()
-        new_qc, _, _ = my_router.build_circuit_from_solution(qc, path)
+        new_qc, _, _ = my_router.build_circuit_from_solution(path, qc)
         end_time = time.time()
         my_time_list.append(end_time - start_time)
 
