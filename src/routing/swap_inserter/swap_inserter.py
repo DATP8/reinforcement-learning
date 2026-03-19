@@ -1,6 +1,6 @@
+from qiskit.circuit import CircuitInstruction
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap as CM
-
 
 class SwapInserter:
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
@@ -21,7 +21,7 @@ class SwapInserter:
         Returns (routed_circuit, init_layout, final_layout).
         """
 
-        dists = self.coupling_map.distance_matrix.astype(
+        dists = self.coupling_map.distance_matrix.astype( #pyrefly: ignore
             int
         )  # pyrefly: ignore[missing-attribute]
 
@@ -65,6 +65,7 @@ class SwapInserter:
 
         def _place(gate_idx: int):
             qs, inst = gates[gate_idx]
+            inst: CircuitInstruction
             phys_qubits = [out.qubits[locations[q]] for q in qs]
             clbits = [
                 out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits

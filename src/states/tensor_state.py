@@ -39,7 +39,7 @@ class TensorState(torch.Tensor):
         if horizon is None:
             tensor = tensor[:, :, :layer]
 
-        return tensor
+        return tensor.as_subclass(TensorState)
 
     def to_circuit(self):
         assert self.dim() == 3, (

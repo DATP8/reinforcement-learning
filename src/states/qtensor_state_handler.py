@@ -131,6 +131,11 @@ class QtensorStateHandler(StateHandler[Qtensor]):
     def state_from(self, circuit: QuantumCircuit) -> Qtensor:
         return Qtensor.from_circuit(circuit, self.horizon)
 
+    def get_qubits(self) -> int:
+        return self.n_qubits
+
+    def get_topology(self):
+        return self.topology
 
 if __name__ == "__main__":
     n_qubits = 6

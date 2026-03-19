@@ -141,25 +141,41 @@ class DAVI[S: To]:
 def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str=""):
 
     o = sys.stdout
+    cwd = os.getcwd()
+    out_path = os.path.join(
+        cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md"
+    )
 
-    bench_iterations = 1
+    bench_iterations = 10
 
-    initial_layouts = ["qiskit"]
-    forward_backward = ["none", "sabre"]
-    final_routers = ["sabre", "rl"]
+    game = TensorStateHandler(n_qubits, horizon, topology)
+    model = ValueModel(n_qubits, horizon, len(topology))
+
+    model_path = os.path.join(cwd, rel_model_path)
+    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+
+    bench_iterations = 100
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
+    initial_layouts = [TrivialLayout(coupling_map)]
+
+    forward_backward = [SabreLayout(coupling_map)]
+
+    swap_inserter = SwapInserter(coupling_map, n_qubits)
+    router = BWASRouter(model, game)
+
+    final_routers = [
+        SabreSwap(coupling_map),
+        RlRoutingPass(router, swap_inserter, "rl_model"),
+    ]
 
     configs = list(product(initial_layouts, forward_backward, final_routers))
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
-    cwd = os.getcwd()
-    model_path = os.path.join(cwd, rel_model_path)
-    out_path = os.path.join(
-        cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md"
-    )
-
-    bench = Benchmarker(model_path, n_qubits, difficulty, coupling_map)
+    bench = Benchmarker(n_qubits, difficulty, coupling_map)
 
     with open(out_path, "a") as f:
         sys.stdout = f

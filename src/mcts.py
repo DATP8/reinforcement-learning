@@ -153,32 +153,3 @@ class MCTS:
         probs = logits / logits.sum()
         return probs
 
-
-if __name__ == "__main__":
-    from cnot_circuit import CNOTCircuit
-
-    n_qubits = 4
-    horizon = 10
-
-    circuit = CNOTCircuit(n_qubits)
-    circuit.add_cnot(0, 2)
-
-    topology = [(0, 1), (1, 2), (2, 3)]
-
-    # model = Model(n_qubits=n_qubits, horizon=horizon, n_actions=len(topology))
-    # model = RetardModel(n_qubits=n_qubits, horizon=horizon, n_actions=len(topology))
-    # game = SwapOptimizer(circuit.to_tensor(horizon=horizon), topology)
-    # mcts = MCTS(game, model, cache_size=100)
-    #
-    # policy = mcts.run(num_simulations=100, exploration_factor=1.0)
-    ##action = torch.multinomial(policy, num_samples=1).item()
-    # action = 2
-    # print(CNOTCircuit.from_tensor(game.get_initial_state()))
-    # print("MCTS Policy:", policy)
-    #
-    ##new_state = mcts.get_state(mcts.root.children[action])
-    # new_state = mcts.update_root(action)
-    # is_terminal = mcts.is_terminal(mcts.root)
-    #
-    # print(CNOTCircuit.from_tensor(new_state))
-    # print("Is terminal:", is_terminal)

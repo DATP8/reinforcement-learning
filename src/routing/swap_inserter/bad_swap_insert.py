@@ -104,7 +104,7 @@ if __name__ == "__main__":
     from ...model import ValueModel
     from ...states.tensor_state import TensorState
     from ...states.tensor_state_handler import TensorStateHandler
-    from ...batch_weighted_astar_search import BWAS
+    from ..bwas_router import BWASRouter
 
     def generate_random_2qubit_circuit(
         num_qubits: int, num_gates: int
@@ -154,16 +154,16 @@ if __name__ == "__main__":
     my_time_list = []
     ibm_time_list = []
 
-    bwas = BWAS(model, game)
+    bwas = BWASRouter(model, game, 1)
 
     my_router = BadSwapINserter(coupling_map, n_qubits)
     ibm_router = SwapInserter(coupling_map, n_qubits)
     for _ in range(100):
         qc = generate_random_2qubit_circuit(6, 14)
 
-        state = TensorState.from_quantum_circuit(qc, horizon=horizon)
+        state = TensorState.from_circuit(qc, horizon=horizon)
 
-        path = bwas.search(state, 1)
+        path = bwas.search(state)
 
         start_time = time.time()
         new_qc, _, _ = my_router.build_circuit_from_solution(path, qc)

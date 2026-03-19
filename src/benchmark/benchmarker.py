@@ -173,22 +173,3 @@ class Benchmarker:
             print(f"  {label:<22} {mean:>10.4f}  ±{ci:>10.4f}")
         print(f"{'=' * 60}")
 
-
-if __name__ == "__main__":
-    import multiprocessing as mp
-
-    mp.set_start_method("spawn", force=True)
-
-    initial_layouts = ["qiskit"]
-    forward_backward = ["none", "sabre"]
-    final_routers = ["sabre", "rl"]
-
-    configs = list(product(initial_layouts, forward_backward, final_routers))
-
-    qubits = 6
-    max_gates = 9
-    coupling_map = CouplingMap([[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]])
-    path = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty9_iteration6500.pt"
-    bench = Benchmarker(path, qubits, max_gates, coupling_map)
-
-    bench.run_rand_benchmarks(configs, 50)

@@ -60,3 +60,11 @@ class StateHandler[S](ABC):
     @abstractmethod
     def state_from(self, circuit) -> S:
         raise NotImplementedError
+
+    @abstractmethod
+    def get_qubits(self) -> int:
+        raise NotImplementedError
+    
+    @abstractmethod
+    def get_topology(self):
+        raise NotImplementedError

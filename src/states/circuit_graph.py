@@ -1,4 +1,4 @@
-from qiskit_qasm3_import.state import State
+from .state import State
 import hashlib
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from torch_geometric.data import Data
@@ -27,10 +27,10 @@ class CircuitGraph(Data, State):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, circuit: QuantumCircuit, horizon: int = 0):
-        n_qubits = circuit.num_qubits
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
+        n_qubits = qc.num_qubits
         two_qubit_gates = []
-        for gate in circuit.data:
+        for gate in qc.data:
             if gate.operation.num_qubits == 2:
                 q1, q2 = gate.qubits
                 two_qubit_gates.append((q1._index, q2._index))
@@ -71,6 +71,9 @@ class CircuitGraph(Data, State):
         edge_attr = torch.stack(edge_attr)
 
         return cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+
+    def to_circuit(self):
+        raise NotImplementedError
 
 
 if __name__ == "__main__":
