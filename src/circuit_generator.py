@@ -58,14 +58,14 @@ class CircuitGenerator:
         (standard_gates.RC3XGate, 4, 0),
     ]
 
-    _gate_map = {cls.__name__: (cls, q, p) for cls, q, p in _gate_registry}
+    _gate_map = {cls.__name__.lower(): (cls, q, p) for cls, q, p in _gate_registry}
 
     @staticmethod
     def generate_random_circuit(
         num_qubits: int, num_gates: int, gateset: list[str], seed: int | None = None
     ) -> QuantumCircuit:
         """
-        Modified from qiskit's qiskit.circuit.random.random_circuit
+        Modified from qiskit's qiskit.circuit.random.random_circuit implementation
         """
         if num_qubits == 0:
             return QuantumCircuit()
@@ -74,9 +74,11 @@ class CircuitGenerator:
             seed = np.random.randint(0, np.iinfo(np.int32).max)
         rng = np.random.default_rng(seed)
 
+        gate_names = [gate_name + "gate" for gate_name in gateset]
+        print(gate_names)
         filtered_gates = [
             CircuitGenerator._gate_map[name]
-            for name in gateset
+            for name in gate_names
             if name in CircuitGenerator._gate_map
         ]
 
