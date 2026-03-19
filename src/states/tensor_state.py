@@ -1,3 +1,4 @@
+from qiskit.transpiler import CouplingMap
 from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
 from collections import defaultdict
@@ -34,7 +35,7 @@ class TensorState(torch.Tensor):
             layer += 1
             if layer > depth:
                 assert horizon is not None, (
-                    f"Reached depth {layer} which exceeds circuit depth {depth()} without hitting specified horizon {horizon}."
+                    f"Reached depth {layer} which exceeds circuit depth {depth} without hitting specified horizon {horizon}."
                 )
                 break
 
@@ -117,7 +118,7 @@ class TensorState(torch.Tensor):
 
         return new_qc, dag
 
-    def insert_swaps(self, qc: QuantumCircuit, path: list, topology: list, game: StateHandler):
+    def insert_swaps(self, qc: QuantumCircuit, path: list, topology: list):
         dag = circuit_to_dag(qc)
         new_qc = QuantumCircuit(qc.num_qubits)
         
@@ -127,7 +128,6 @@ class TensorState(torch.Tensor):
         inverse = list(range(qc.num_qubits))
         
         while dag.topological_op_nodes():
-            wait_map = []
             new_qc, dag = self._prune(qc, dag, inverse, new_qc, topological_connection_list)
             if (not path):
                 break
@@ -140,15 +140,130 @@ class TensorState(torch.Tensor):
             inverse[v2] = q1
         return new_qc, inverse
 
+    def insert_swaps2(
+        self, actions: list[int], qc: QuantumCircuit, coupling_map: CouplingMap
+    ) -> tuple[QuantumCircuit, list[int], list[int]] | None:
+        """Reconstruct a routed circuit from the solution (coupling-map edge indices).
+
+        The solution records which coupling-map edge was swapped at each step.
+        This method replays those SWAPs, placing original gates whenever their
+        qubits become adjacent, and returns the routed circuit plus layouts.
+
+        Returns (routed_circuit, init_layout, final_layout) or None on failure.
+        """
+      
+        num_qubits = qc.num_qubits
+        from qiskit.transpiler import CouplingMap as CM
+
+        dists = coupling_map.distance_matrix.astype(int)
+
+        # Build gate list with virtual-qubit indices
+        gates: list[tuple[list[int], object]] = []
+        for inst in qc.data:
+            qubits = [qc.find_bit(q).index for q in inst.qubits]
+            gates.append((qubits, inst))
+
+        # Per-qubit chains: ordered gate indices touching each virtual qubit
+        qubit_chains: list[list[int]] = [[] for _ in range(num_qubits)]
+        for gate_idx, (qubits, _) in enumerate(gates):
+            for q in qubits:
+                qubit_chains[q].append(gate_idx)
+
+        # Predecessor count for each gate (dependency = same qubit, earlier gate)
+        remaining = [0] * len(gates)
+        for chain in qubit_chains:
+            for i in range(1, len(chain)):
+                remaining[chain[i]] += 1
+
+        front = {i for i in range(len(gates)) if remaining[i] == 0}
+        placed = [False] * len(gates)
+
+        # Layout tracking (identity start)
+        locations = list(range(num_qubits))   # virtual -> physical
+        qubits_map = list(range(num_qubits))  # physical -> virtual
+
+        out = QuantumCircuit(num_qubits, qc.num_clbits)
+
+        def _activate_successors(gate_idx: int):
+            qs, _ = gates[gate_idx]
+            for q in qs:
+                chain = qubit_chains[q]
+                pos = chain.index(gate_idx)
+                if pos + 1 < len(chain):
+                    succ = chain[pos + 1]
+                    remaining[succ] -= 1
+                    if remaining[succ] == 0:
+                        front.add(succ)
+
+        def _place(gate_idx: int):
+            qs, inst = gates[gate_idx]
+            phys_qubits = [out.qubits[locations[q]] for q in qs]
+            clbits = [out.clbits[qc.find_bit(c).index] for c in inst.clbits]
+            out.append(inst.operation, phys_qubits, clbits)
+            placed[gate_idx] = True
+            _activate_successors(gate_idx)
+
+        def _execute_ready():
+            changed = True
+            while changed:
+                changed = False
+                to_place = []
+                for gidx in list(front):
+                    qs, _ = gates[gidx]
+                    if len(qs) <= 1:
+                        to_place.append(gidx)
+                    elif len(qs) == 2:
+                        if dists[locations[qs[0]]][locations[qs[1]]] <= 1:
+                            to_place.append(gidx)
+                for gidx in to_place:
+                    front.discard(gidx)
+                    _place(gidx)
+                    changed = True
+
+        # Execute initially adjacent gates
+        _execute_ready()
+
+        # Process SWAPs from the solution
+        for edge_idx in actions:
+            l1, l2 = coupling_map[edge_idx]
+            out.swap(l1, l2)
+
+            vq1, vq2 = qubits_map[l1], qubits_map[l2]
+            locations[vq1], locations[vq2] = l2, l1
+            qubits_map[l1], qubits_map[l2] = vq2, vq1
+
+            _execute_ready()
+
+        init_layout = list(range(num_qubits))
+        final_layout = list(locations)
+        return out, init_layout, final_layout
+
 
 if __name__ == "__main__":
     import random
 
     import time
 
-    from .model import ValueModel
+    from ..model import ValueModel
     from .tensor_state_handler import TensorStateHandler
-    from .batch_weighted_astar_search import BWAS
+    from ..batch_weighted_astar_search import BWAS
+
+    def generate_random_2qubit_circuit(num_qubits: int, num_gates: int) -> QuantumCircuit:
+        if num_qubits < 2:
+            raise ValueError("Number of qubits must be at least 2 for 2-qubit gates.")
+
+        qc = QuantumCircuit(num_qubits)
+
+        for _ in range(num_gates):
+            control = random.randint(0, num_qubits - 1)
+            target = random.randint(0, num_qubits - 1)
+            while target == control:
+                target = random.randint(0, num_qubits - 1)
+
+            qc.cx(control, target)
+
+        return qc
+
 
     random.seed(42)
 
@@ -172,18 +287,42 @@ if __name__ == "__main__":
         )
     )
     model.to("cpu")
-    bwas = BWAS(model, game, batch_size=1)
+    bwas = BWAS(model, game)
 
-    print(qc)
 
     state = TensorState.from_quantum_circuit(qc, horizon=horizon)
-    root_state, _ = game.prune(state)
 
-    start_time = time.time()
-    path = bwas.search(root_state)
-    end_time = time.time()
-
+    path = bwas.search(qc)
     state = TensorState(state)
 
-    new_qc, _ = state.as_subclass(TensorState).insert_swaps(qc, path, topology, game)
-    print(new_qc)
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
+
+    iterations = 100
+    my_time_list = []
+    ibm_time_list = []
+
+    bwas = BWAS(model, game)
+    for _ in range(100):
+        qc = generate_random_2qubit_circuit(6, 14)
+        #print(qc)
+
+        state = TensorState.from_quantum_circuit(qc, horizon=horizon)
+
+        path = bwas.search(qc)
+
+        start_time = time.time()
+        new_qc, _ = state.as_subclass(TensorState).insert_swaps(qc, path, topology)
+        end_time = time.time()
+        my_time_list.append(end_time - start_time)
+
+        start_time = time.time()
+        new_qc2 = state.as_subclass(TensorState).insert_swaps2(path, qc, coupling_map)
+        end_time = time.time()
+        ibm_time_list.append(end_time - start_time)
+        #print(new_qc)
+        #print(new_qc2)
+
+    print(f"my method takes on average {sum(my_time_list) / len(my_time_list)} s")
+    print(f"IBM method takes on average {sum(ibm_time_list) / len(ibm_time_list)} s")
