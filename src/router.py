@@ -1,5 +1,4 @@
 from qiskit import QuantumCircuit
-from typing import List, Tuple
 from qiskit.transpiler import CouplingMap as CM
 class Router:
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
@@ -7,8 +6,8 @@ class Router:
         self.num_qubits = num_qubits
         
     def build_circuit_from_solution(
-        self, actions: List[int], input_circuit: QuantumCircuit
-    ) -> Tuple[QuantumCircuit, List[int], List[int]]:
+        self, actions: list[int], input_circuit: QuantumCircuit
+    ) -> tuple[QuantumCircuit, list[int], list[int]]:
         """Reconstruct a routed circuit from the solution (coupling-map edge indices).
 
         The solution records which coupling-map edge was swapped at each step.
@@ -21,13 +20,13 @@ class Router:
         dists = self.coupling_map.distance_matrix.astype(int) #pyrefly: ignore[missing-attribute]
 
         # Build gate list with virtual-qubit indices
-        gates: List[Tuple[List[int], object]] = []
+        gates: list[tuple[list[int], object]] = []
         for inst in input_circuit.data:
             qubits = [input_circuit.find_bit(q).index for q in inst.qubits]
             gates.append((qubits, inst))
 
         # Per-qubit chains: ordered gate indices touching each virtual qubit
-        qubit_chains: List[List[int]] = [[] for _ in range(self.num_qubits)]
+        qubit_chains: list[list[int]] = [[] for _ in range(self.num_qubits)]
         for gate_idx, (qubits, _) in enumerate(gates):
             for q in qubits:
                 qubit_chains[q].append(gate_idx)
@@ -106,7 +105,6 @@ class Router:
     
     
 if __name__ == "__main__":
-    import qiskit
     coupling_map = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     router = Router(coupling_map, num_qubits=6)
     
