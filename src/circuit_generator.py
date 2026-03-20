@@ -130,8 +130,8 @@ class CircuitGenerator:
                 seed = seed + i
             circuits.append(
                 CircuitGenerator.generate_random_circuit(
-                    num_qubits, num_gates, gateset, seed 
+                    num_qubits, num_gates, gateset, seed
                 )
             )
-        
+
         return circuits
