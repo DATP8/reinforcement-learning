@@ -13,7 +13,7 @@ class TestCircuitGenerator(unittest.TestCase):
         seed = int(time.time())
         print(f"Seed is: {seed}")
         rng = np.random.default_rng(seed)
-   
+
         num_gates = rng.choice(range(self._MAX_GATES))
         gateset = set()
         num_qubits = 0
@@ -23,8 +23,8 @@ class TestCircuitGenerator(unittest.TestCase):
             num_qubits = rng.choice(range(self._MAX_QUBITS))
             gateset = self._make_random_gateset(rng, num_qubits)
 
-        rqcs = CircuitGenerator.generate_n_random_circuits(self._NUM_TESTS,
-            num_qubits, num_gates, gateset, seed
+        rqcs = CircuitGenerator.generate_n_random_circuits(
+            self._NUM_TESTS, num_qubits, num_gates, gateset, seed
         )
         for rqc in rqcs:
             self.assertEqual(num_qubits, rqc.num_qubits)
