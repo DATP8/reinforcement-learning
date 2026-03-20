@@ -71,9 +71,9 @@ class Router:
                 for c in inst.clbits  # pyrefly: ignore[missing-attribute]
             ]
             out.append(
-                inst.operation,
+                inst.operation,  # pyrefly: ignore[missing-attribute]
                 phys_qubits,
-                clbits,  # pyrefly: ignore[missing-attribute]
+                clbits,
             )
             placed[gate_idx] = True
             _activate_successors(gate_idx)
