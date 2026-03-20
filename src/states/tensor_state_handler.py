@@ -23,7 +23,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
     def get_topology(self):
         return self.topology
 
-    def get_qubits(self):
+    def get_num_qubits(self):
         return self.n_qubits
 
     def get_possible_actions(self, state: torch.Tensor) -> list[int]:

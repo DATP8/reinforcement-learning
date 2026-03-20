@@ -1,8 +1,9 @@
 from qiskit import QuantumCircuit
 
-from .rl_router import RlRouter
+from ..states.state_handler import StateHandler
 from ..routing.swap_inserter.swap_inserter import SwapInserter
 from ..model import BiCircuitGNN
+from ..utils.to import To
 
 import qiskit
 import torch
@@ -25,12 +26,20 @@ class BWASNode:
         return child_node
 
 
-class BWASRouter[S, To](RlRouter):
+class BWASRouter[S, To]:
+    def __init__(
+        self, model, state_handler: StateHandler[S], batch_size=64, weight=0.3
+    ):
+        self.model = model
+        self.state_handler = state_handler
+        self.batch_size = batch_size
+        self.weight = weight
+
     def search(self, root_state: S) -> list[int]:
         device = next(self.model.parameters()).device
         with torch.no_grad():
-            h = self.model(
-                self.state_handler.batch_states([root_state]).to(device)
+            h = self.model( 
+                self.state_handler.batch_states([root_state]).to(device)  #pyrefly: ignore
             ).item()
 
         counter = 0
@@ -67,7 +76,7 @@ class BWASRouter[S, To](RlRouter):
 
             states = self.state_handler.batch_states([node.state for node in new_nodes])
             with torch.no_grad():
-                h_values = self.model(states.to(device))
+                h_values = self.model(states.to(device)) #pyrefly: ignore
 
             for node, h in zip(new_nodes, h_values):
                 f = self.weight * node.g + h.item()

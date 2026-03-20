@@ -4,7 +4,6 @@ from qiskit.transpiler.basepasses import TransformationPass
 
 import time
 
-from .rl_router import RlRouter
 from .swap_inserter.swap_inserter import SwapInserter
 
 from qiskit.converters import dag_to_circuit
@@ -13,14 +12,13 @@ from qiskit.converters import dag_to_circuit
 class RlRoutingPass(TransformationPass):
     def __init__(
         self,
-        router: RlRouter,
+        router,
         swap_inserter: SwapInserter,
         name: str,
     ):
         super().__init__()
         self.router = router
         self.swap_inserter = swap_inserter
-        self.last_time = 0.0
         self.model_name = name
 
     def get_name(self):
@@ -32,11 +30,8 @@ class RlRoutingPass(TransformationPass):
         state = self.router.state_handler.state_from(qc)
         root_state, _ = self.router.state_handler.prune(state)
 
-        start_time = time.time()
         path = self.router.search(root_state)
-        end_time = time.time()
 
-        self.last_time = end_time - start_time
         new_qc, init, final = self.swap_inserter.build_circuit_from_solution(path, qc)
 
         self.property_set["final_layout"] = Layout(

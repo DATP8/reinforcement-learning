@@ -21,7 +21,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def get_topology(self):
         return self.topology
 
-    def get_qubits(self):
+    def get_num_qubits(self):
         return self.n_qubits
 
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:

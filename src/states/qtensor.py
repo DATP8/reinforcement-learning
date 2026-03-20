@@ -1,4 +1,3 @@
-from .state import State
 import hashlib
 import torch
 from qiskit.circuit.quantumcircuit import QuantumCircuit
@@ -6,7 +5,7 @@ from qiskit.circuit.quantumcircuit import QuantumCircuit
 accepted_mult_funcs = ["torch.cat", "torch.stack"]
 
 
-class Qtensor(State):
+class Qtensor():
     def __init__(self, data, gates=None, **kwargs):
         self._t = torch.as_tensor(data, **kwargs)
         if gates is None:

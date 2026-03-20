@@ -172,3 +172,55 @@ class Benchmarker:
             mean, ci = summary[key]
             print(f"  {label:<22} {mean:>10.4f}  ±{ci:>10.4f}")
         print(f"{'=' * 60}")
+
+
+
+if __name__ == "__main__":
+    from ..routing.swap_inserter.swap_inserter import SwapInserter
+    from ..states.tensor_state_handler import TensorStateHandler
+    from ..model import ValueModel
+    from ..routing.rl_routing_pass import RlRoutingPass
+    from ..routing.bwas_router import BWASRouter
+    
+    import torch
+
+    from qiskit.transpiler.passes import TrivialLayout, SabreLayout, SabreSwap
+
+    n_qubits = 6
+    horizon = 100
+    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    game1 = TensorStateHandler(n_qubits, horizon, topology)
+    model1 = ValueModel(n_qubits, horizon, len(topology))
+
+    game2 = TensorStateHandler(n_qubits, horizon, topology)
+    model2 = ValueModel(n_qubits, horizon, len(topology))
+
+    path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
+    path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
+    model1.load_state_dict(torch.load(path1, map_location="cpu"))
+    model2.load_state_dict(torch.load(path2, map_location="cpu"))
+
+    bench_iterations = 10
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
+    initial_layouts = [TrivialLayout(coupling_map)]
+
+    forward_backward = [SabreLayout(coupling_map)]
+
+    swap_inserter = SwapInserter(coupling_map, n_qubits)
+    router1 = BWASRouter(model1, game1)
+    router2 = BWASRouter(model2, game2)
+
+    final_routers = [
+        SabreSwap(coupling_map),
+        RlRoutingPass(router1, swap_inserter, "diff17"),
+        RlRoutingPass(router2, swap_inserter, "incr14"),
+    ]
+
+    configs = list(product(initial_layouts, [None], final_routers))
+
+    coupling_map.make_symmetric()
+
+    bench = Benchmarker(n_qubits, 14, coupling_map)
+    bench.run_rand_benchmarks(configs, bench_iterations, True)

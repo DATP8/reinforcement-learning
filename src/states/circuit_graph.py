@@ -1,4 +1,3 @@
-from .state import State
 import hashlib
 from qiskit.circuit.quantumcircuit import QuantumCircuit
 from torch_geometric.data import Data
@@ -6,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 
-class CircuitGraph(Data, State):
+class CircuitGraph(Data):
     def __init__(self, **args):
         super().__init__(**args)
 

@@ -62,9 +62,9 @@ class StateHandler[S](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_qubits(self) -> int:
+    def get_num_qubits(self) -> int:
         raise NotImplementedError
 
     @abstractmethod
-    def get_topology(self):
+    def get_topology(self) -> list[tuple[int, int]]:
         raise NotImplementedError
