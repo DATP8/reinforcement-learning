@@ -17,7 +17,9 @@ class TestCircuitGenerator(unittest.TestCase):
             num_gates = rng.choice(range(self._MAX_GATES))
             gateset = set()
             num_qubits = 0
-            while len(gateset) == 0 and num_gates != 0:
+            while (
+                len(gateset) == 0 and num_gates != 0
+            ):  # Reroll until we get valid combination
                 num_qubits = rng.choice(range(self._MAX_QUBITS))
                 gateset = self._make_random_gateset(rng, num_qubits)
 

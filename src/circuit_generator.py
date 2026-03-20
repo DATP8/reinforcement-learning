@@ -64,6 +64,9 @@ class CircuitGenerator:
         gateset: set[str] | None = None,
         seed: int | None = None,
     ) -> QuantumCircuit:
+        """
+        Generates a random quantum circuits based on number of qubits, number of gates, and gateset.
+        """
         if num_qubits < 0:
             raise ValueError("Number of qubits can not be negative.")
         elif num_gates < 0:
@@ -110,3 +113,23 @@ class CircuitGenerator:
             qc.append(operation, qubits)
 
         return qc
+
+    def generate_n_random_circuits(
+        n: int,
+        num_qubits: int,
+        num_gates: int,
+        gateset: set[str] | None = None,
+        seed: int | None = None,
+    ) -> list[QuantumCircuit]:
+        """
+        Generates n random quantum circuits based on number of qubits, number of gates, and gateset.
+        """
+        circuits = []
+        for _ in range(n):
+            circuits.append(
+                CircuitGenerator.generate_random_circuit(
+                    num_qubits, num_gates, gateset, seed
+                )
+            )
+
+        return circuits
