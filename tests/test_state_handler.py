@@ -1,10 +1,11 @@
-import torch
-from cnot_circuit import CNOTCircuit
-from tensor_state_handler import TensorStateHandler
-from qiskit import QuantumCircuit
-from qtensor import Qtensor
-from qtensor_state_handler import QtensorStateHandler
 import unittest
+import torch
+
+from qiskit import QuantumCircuit
+
+from states.tensor_state_handler import TensorStateHandler
+from states.qtensor import Qtensor
+from states.qtensor_state_handler import QtensorStateHandler
 
 n_qubits = 6
 horizon = 10
@@ -41,16 +42,16 @@ class TestTensorStateHandler(unittest.TestCase):
     def test_tensor_prune(self):
         circuits = []
         for gate_list in input_circuits:
-            circuit = CNOTCircuit(n_qubits)
+            circuit = QuantumCircuit(n_qubits)
             for q1, q2 in gate_list:
-                circuit.add_cnot(q1, q2)
-            circuits.append(circuit.to_tensor(horizon))
+                circuit.cx(q1, q2)
+            circuits.append(self.game.state_from(circuit))
         for i, state in enumerate(circuits):
             pruned_state, _ = self.game.prune(state)
-            pruned_circuit = CNOTCircuit(n_qubits)
+            pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
-                pruned_circuit.add_cnot(q1, q2)
-            # self.assertTrue(torch.equal(pruned_circuit.to_tensor(horizon), pruned_state))
+                pruned_circuit.cx(q1, q2)
+        # self.assertTrue(torch.equal(self.game.state_from(circuit), pruned_state))
 
     def test_tensor_generate_random_circuit(self):
         for _ in range(1000):
@@ -61,24 +62,24 @@ class TestTensorStateHandler(unittest.TestCase):
     def test_tensor_get_next_state(self):
         states = []
         for gate_list in input_circuits:
-            circuit = CNOTCircuit(n_qubits)
+            circuit = QuantumCircuit(n_qubits)
             for q1, q2 in gate_list:
-                circuit.add_cnot(q1, q2)
-            states.append(circuit.to_tensor(horizon))
+                circuit.cx(q1, q2)
+            states.append(self.game.state_from(circuit))
         for i, state in enumerate(states):
             # next_state = self.game.get_next_state(state, actions[i])
-            pruned_circuit = CNOTCircuit(n_qubits)
+            pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_actions[i]:
-                pruned_circuit.add_cnot(q1, q2)
+                pruned_circuit.cx(q1, q2)
             # self.assertTrue(torch.equal(pruned_circuit.to_tensor(horizon), next_state))
 
     def test_tensor_is_terminal(self):
         states = []
         for gate_list in input_circuits:
-            circuit = CNOTCircuit(n_qubits)
+            circuit = QuantumCircuit(n_qubits)
             for q1, q2 in gate_list:
-                circuit.add_cnot(q1, q2)
-            states.append(circuit.to_tensor(horizon))
+                circuit.cx(q1, q2)
+            states.append(self.game.state_from(circuit))
         for i, state in enumerate(states):
             self.assertEqual(
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)

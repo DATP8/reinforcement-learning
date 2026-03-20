@@ -1,5 +1,5 @@
 from qiskit import QuantumCircuit
-from qtensor import Qtensor
+from states.qtensor import Qtensor
 import unittest
 import random
 import torch

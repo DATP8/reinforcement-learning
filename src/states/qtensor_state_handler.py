@@ -1,9 +1,10 @@
-from cachetools import LFUCache
-from state_handler import Batchable
-import torch
+from .state_handler import Batchable, StateHandler
+from .qtensor import Qtensor
+
 import random
-from qtensor import Qtensor
-from state_handler import StateHandler
+import torch
+
+from cachetools import LFUCache
 from qiskit import QuantumCircuit
 
 
@@ -133,6 +134,12 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def state_from(self, circuit: QuantumCircuit) -> Qtensor:
         return Qtensor.from_circuit(circuit, self.horizon)
+
+    def get_num_qubits(self) -> int:
+        return self.n_qubits
+
+    def get_topology(self):
+        return self.topology
 
 
 if __name__ == "__main__":

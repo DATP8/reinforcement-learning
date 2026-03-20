@@ -2,6 +2,8 @@
 models
 circuits
 !.gitignore
+*.pyc
+src/benchmark/results
 !.github
 pyproject.toml
 uv.lock

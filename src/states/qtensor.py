@@ -65,15 +65,15 @@ class Qtensor:
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, circuit: QuantumCircuit, horizon: int):
-        c = torch.zeros((circuit.num_qubits, horizon))
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
+        c = torch.zeros((qc.num_qubits, horizon))
         i = 0
-        for gate in circuit.data:
+        for gate in qc.data:
             if gate.operation.num_qubits == 2:
                 for qubit in gate.qubits:
                     c[qubit._index, i] = 1
                 i += 1
-        return cls(c, gates=len(circuit.data))
+        return cls(c, gates=len(qc.data))
 
     def to(self, device: torch.device):
         return self._t.to(device)
@@ -95,6 +95,10 @@ class Qtensor:
 
     def unwrap(self):
         return self._t
+
+    # !THIS IS NOT IMPLEMENTED
+    def to_circuit(self):
+        raise NotImplementedError
 
 
 if __name__ == "__main__":

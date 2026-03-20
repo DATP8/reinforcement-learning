@@ -1,5 +1,5 @@
 from torch_geometric.loader import DataLoader
-from circuit_graph import CircuitGraph
+from .states.circuit_graph import CircuitGraph
 from qiskit import QuantumCircuit
 from abc import abstractmethod
 import torch.nn as nn
