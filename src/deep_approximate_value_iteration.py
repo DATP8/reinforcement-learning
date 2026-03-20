@@ -53,9 +53,6 @@ class DAVI[S: To]:
         self.train_model.to(device)
         self.evaluation_model.to(device).eval()
 
-        now = datetime.now()
-        start_time = now.strftime("%Y-%m-%dT%H:%M:%S")
-
         optimizer = torch.optim.Adam(self.train_model.parameters())
         mse_loss = nn.MSELoss()
 
@@ -110,22 +107,6 @@ class DAVI[S: To]:
                 )
                 tmp = last_model_path + ".tmp"
                 torch.save(self.train_model.state_dict(), tmp)
-                os.rename(tmp, last_model_path)
-
-                topology = self.state_handler.get_topology()
-                p_list.append(
-                    Process(
-                        target=bench_process,
-                        args=(
-                            self.state_handler.get_qubits(),
-                            last_model_path,
-                            difficulty,
-                            topology,
-                            start_time,
-                        ),
-                    )
-                )
-                p_list[-1].start()
 
         for p in p_list:
             p.join()
@@ -136,54 +117,6 @@ class DAVI[S: To]:
         )
 
         return last_model_path
-
-
-def bench_process(n_qubits, rel_model_path, difficulty, topology, start_time_str=""):
-
-    o = sys.stdout
-    cwd = os.getcwd()
-    out_path = os.path.join(
-        cwd, BENCHMARK_PATH_RESULTS, f"benchmark{start_time_str}.md"
-    )
-
-    bench_iterations = 10
-
-    game = TensorStateHandler(n_qubits, horizon, topology)
-    model = ValueModel(n_qubits, horizon, len(topology))
-
-    model_path = os.path.join(cwd, rel_model_path)
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
-
-    bench_iterations = 100
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
-
-    initial_layouts = [TrivialLayout(coupling_map)]
-
-    forward_backward = [SabreLayout(coupling_map)]
-
-    swap_inserter = SwapInserter(coupling_map, n_qubits)
-    router = BWASRouter(model, game)
-
-    final_routers = [
-        SabreSwap(coupling_map),
-        RlRoutingPass(router, swap_inserter, "rl_model"),
-    ]
-
-    configs = list(product(initial_layouts, forward_backward, final_routers))
-
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
-
-    bench = Benchmarker(n_qubits, difficulty, coupling_map)
-
-    with open(out_path, "a") as f:
-        sys.stdout = f
-        print("\n#", rel_model_path)
-        bench.run_rand_benchmarks(configs, bench_iterations)
-
-    sys.stdout = o
-
 
 def qtensor():
     n_qubits = 6
