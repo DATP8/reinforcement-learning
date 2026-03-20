@@ -110,7 +110,7 @@ class CircuitGenerator:
             params = rng.uniform(0, 2 * np.pi, size=p_count)
             operation = gate_cls(*params)
 
-            qc.append(operation, qubits)
+            qc._append(operation, qubits) # pyrefly: ignore
 
         return qc
 
