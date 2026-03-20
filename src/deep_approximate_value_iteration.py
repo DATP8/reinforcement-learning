@@ -118,6 +118,7 @@ class DAVI[S: To]:
 
         return last_model_path
 
+
 def qtensor():
     n_qubits = 6
     horizon = 100
