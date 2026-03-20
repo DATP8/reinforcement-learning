@@ -22,9 +22,9 @@ class SwapInserter:
         Returns (routed_circuit, init_layout, final_layout).
         """
 
-        dists = self.coupling_map.distance_matrix.astype(  # pyrefly: ignore
+        dists = self.coupling_map.distance_matrix.astype(  # pyrefly: ignore[missing-attribute]
             int
-        )  # pyrefly: ignore[missing-attribute]
+        )
 
         # Build gate list with virtual-qubit indices
         gates: list[tuple[list[int], object]] = []
@@ -69,11 +69,14 @@ class SwapInserter:
             inst: CircuitInstruction
             phys_qubits = [out.qubits[locations[q]] for q in qs]
             clbits = [
-                out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits
-            ]  # pyrefly: ignore[missing-attribute]
+                out.clbits[input_circuit.find_bit(c).index]
+                for c in inst.clbits  # pyrefly: ignore[missing-attribute]
+            ]
             out.append(
-                inst.operation, phys_qubits, clbits
-            )  # pyrefly: ignore[missing-attribute]
+                inst.operation,  # pyrefly: ignore[missing-attribute]
+                phys_qubits,
+                clbits,
+            )
             placed[gate_idx] = True
             _activate_successors(gate_idx)
 
