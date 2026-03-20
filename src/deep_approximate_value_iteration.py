@@ -11,6 +11,7 @@ from .utils.to import To
 
 matplotlib.use("TkAgg")
 
+
 class DAVI[S: To]:
     def __init__(
         self,
@@ -129,7 +130,6 @@ def graph():
         max_difficulty=1000,
         loss_threshold=0.08,
     )
-
 
 
 if __name__ == "__main__":

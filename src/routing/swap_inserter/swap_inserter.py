@@ -68,12 +68,9 @@ class SwapInserter:
             qs, inst = gates[gate_idx]
             inst: CircuitInstruction
             phys_qubits = [out.qubits[locations[q]] for q in qs]
-            clbits = [
-                out.clbits[input_circuit.find_bit(c).index]
-                for c in inst.clbits  
-            ]
+            clbits = [out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits]
             out.append(
-                inst.operation,  
+                inst.operation,
                 phys_qubits,
                 clbits,
             )

@@ -38,8 +38,8 @@ class BWASRouter[S, To]:
     def search(self, root_state: S) -> list[int]:
         device = next(self.model.parameters()).device
         with torch.no_grad():
-            h = self.model( 
-                self.state_handler.batch_states([root_state]).to(device)  #pyrefly: ignore
+            h = self.model(
+                self.state_handler.batch_states([root_state]).to(device)  # pyrefly: ignore
             ).item()
 
         counter = 0
@@ -76,7 +76,7 @@ class BWASRouter[S, To]:
 
             states = self.state_handler.batch_states([node.state for node in new_nodes])
             with torch.no_grad():
-                h_values = self.model(states.to(device)) #pyrefly: ignore
+                h_values = self.model(states.to(device))  # pyrefly: ignore
 
             for node, h in zip(new_nodes, h_values):
                 f = self.weight * node.g + h.item()

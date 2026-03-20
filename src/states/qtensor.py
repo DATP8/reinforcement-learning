@@ -5,7 +5,7 @@ from qiskit.circuit.quantumcircuit import QuantumCircuit
 accepted_mult_funcs = ["torch.cat", "torch.stack"]
 
 
-class Qtensor():
+class Qtensor:
     def __init__(self, data, gates=None, **kwargs):
         self._t = torch.as_tensor(data, **kwargs)
         if gates is None:

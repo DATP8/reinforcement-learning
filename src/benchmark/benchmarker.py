@@ -174,14 +174,13 @@ class Benchmarker:
         print(f"{'=' * 60}")
 
 
-
 if __name__ == "__main__":
     from ..routing.swap_inserter.swap_inserter import SwapInserter
     from ..states.tensor_state_handler import TensorStateHandler
     from ..model import ValueModel
     from ..routing.rl_routing_pass import RlRoutingPass
     from ..routing.bwas_router import BWASRouter
-    
+
     import torch
 
     from qiskit.transpiler.passes import TrivialLayout, SabreLayout, SabreSwap
