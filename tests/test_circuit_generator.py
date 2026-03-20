@@ -9,23 +9,24 @@ class TestCircuitGenerator(unittest.TestCase):
     _MAX_GATES = 100
     _NUM_TESTS = 100
 
-    def test_generate_random_circuit(self):
+    def test_generate_n_random_circuits(self):
         seed = int(time.time())
         print(f"Seed is: {seed}")
         rng = np.random.default_rng(seed)
-        for _ in range(self._NUM_TESTS):
-            num_gates = rng.choice(range(self._MAX_GATES))
-            gateset = set()
-            num_qubits = 0
-            while (
-                len(gateset) == 0 and num_gates != 0
-            ):  # Reroll until we get valid combination
-                num_qubits = rng.choice(range(self._MAX_QUBITS))
-                gateset = self._make_random_gateset(rng, num_qubits)
+   
+        num_gates = rng.choice(range(self._MAX_GATES))
+        gateset = set()
+        num_qubits = 0
+        while (
+            len(gateset) == 0 and num_gates != 0
+        ):  # Reroll until we get valid combination
+            num_qubits = rng.choice(range(self._MAX_QUBITS))
+            gateset = self._make_random_gateset(rng, num_qubits)
 
-            rqc = CircuitGenerator.generate_random_circuit(
-                num_qubits, num_gates, gateset, seed
-            )
+        rqcs = CircuitGenerator.generate_n_random_circuits(self._NUM_TESTS,
+            num_qubits, num_gates, gateset, seed
+        )
+        for rqc in rqcs:
             self.assertEqual(num_qubits, rqc.num_qubits)
 
             gate_dict = rqc.count_ops()
