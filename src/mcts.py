@@ -7,6 +7,7 @@ import uuid
 from model import PVModel
 from states.state_handler import StateHandler
 
+
 class MCTSNode:
     def __init__(self):
         self.parent: None | MCTSNode = None

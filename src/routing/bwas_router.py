@@ -1,8 +1,8 @@
 from qiskit import QuantumCircuit
 
-from src.states.state_handler import StateHandler #pyrefly: ignore
-from src.routing.swap_inserter.swap_inserter import SwapInserter #pyrefly: ignore
-from src.model import BiCircuitGNN #pyrefly: ignore
+from src.states.state_handler import StateHandler  # pyrefly: ignore
+from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
+from src.model import BiCircuitGNN  # pyrefly: ignore
 
 import qiskit
 import torch
