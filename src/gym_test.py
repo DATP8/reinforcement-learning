@@ -18,14 +18,16 @@ print(f"Using {n_envs} envs")
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
+
 def mask_fn(env: gymnasium.Env) -> np.ndarray:
     return env.unwrapped.valid_action_mask()  # pyrefly: ignore
 
 
-def make_env(cmap: CouplingMap, horizon: int, render_mode: str, initial_difficulty = 1):
+def make_env(cmap: CouplingMap, horizon: int, render_mode: str, initial_difficulty=1):
     env = RoutingEnv(cmap, horizon, render_mode, initial_difficulty=initial_difficulty)
     env = ActionMasker(env, mask_fn)
     return env
+
 
 train_env = make_vec_env(
     lambda: make_env(cmap, horizon=6, render_mode="human"),
@@ -47,7 +49,9 @@ policy_kwargs = dict(
 )
 
 # model = MaskablePPO("MlpPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1)
-model = MaskablePPO("MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1)
+model = MaskablePPO(
+    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
+)
 
 curriculum_callback = CurriculumCallback(threshold=9.4, max_difficulty=10, verbose=1)
 

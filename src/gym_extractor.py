@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import GCNConv, global_mean_pool
 
+
 class SimpleExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim=128):
         super().__init__(observation_space, features_dim)
@@ -21,44 +22,43 @@ class SimpleExtractor(BaseFeaturesExtractor):
         return self.net(obs)
 
 
-
 class SimpleGNN(nn.Module):
     def __init__(self, in_dim, hidden_dim):
         super().__init__()
-    
+
         self.conv1 = GCNConv(in_dim, hidden_dim)
         self.conv2 = GCNConv(hidden_dim, hidden_dim)
-    
+
     def forward(self, x, edge_index, batch):
         # x: (B, N, F)
         # edge_index: (B, 2, E)
-    
+
         B, N, F = x.shape
-    
+
         # Flatten nodes
         x = x.view(B * N, F)
-    
+
         # Fix edge indices
         edge_index_list = []
         for i in range(B):
             ei = edge_index[i]  # (2, E)
             ei = ei + i * N
             edge_index_list.append(ei)
-    
+
         edge_index = torch.cat(edge_index_list, dim=1)
 
         valid = (edge_index[0] != 0) | (edge_index[1] != 0)
         edge_index = edge_index[:, valid]
-    
-    
+
         # Build batch vector
         batch = torch.arange(B, device=x.device).repeat_interleave(N)
-    
+
         # GNN
         x = self.conv1(x, edge_index).relu()
         x = self.conv2(x, edge_index).relu()
-    
+
         return global_mean_pool(x, batch)
+
 
 class HybridExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim=128):

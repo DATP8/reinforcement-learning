@@ -4,20 +4,19 @@
 #         num_qubits: int, num_gates: int, gateset: set[str], seed: int | None = None
 #     ) -> QuantumCircuit:
 
-from curriculum_helper import RoutedCircuitMetrics
-from curriculum_helper import CircuitMetrics
-from curriculum_helper import CurriculumHelper
-import csv
+from curriculum.curriculum_helper import RoutedCircuitMetrics
+from curriculum.curriculum_helper import CircuitMetrics
+from curriculum.curriculum_helper import CurriculumHelper
 import random
 import numpy as np
-from typing import List, Dict
 from tqdm import tqdm
 
 from qiskit import transpile, QuantumCircuit
 from qiskit.transpiler import CouplingMap
 from qiskit.providers.fake_provider import GenericBackendV2
 
-def generate_random_circuit(num_qubits, num_gates, gateset, seed = None):
+
+def generate_random_circuit(num_qubits, num_gates, gateset, seed=None):
     qc = QuantumCircuit(num_qubits)
     gate_set = ["cx"]
     for _ in range(num_gates):
@@ -31,18 +30,16 @@ def generate_random_circuit(num_qubits, num_gates, gateset, seed = None):
             qc.s(int(np.random.choice(num_qubits)))
     return qc
 
+
 def run_experiment(
     num_circuits: int,
     num_qubits: int,
     num_gates: int,
     gateset: set[str],
     cmap: CouplingMap,
-    helper: CurriculumHelper
+    helper: CurriculumHelper,
 ):
-    backend = GenericBackendV2(
-        num_qubits=num_qubits,
-        coupling_map=cmap
-    )
+    backend = GenericBackendV2(num_qubits=num_qubits, coupling_map=cmap)
 
     result = []
 
@@ -60,7 +57,7 @@ def run_experiment(
             num_qubits=num_qubits,
             depth=qc.depth(),
             gate_set=gateset,
-            routed=[]
+            routed=[],
         )
         for opt_level in range(4):
             routed = transpile(
@@ -72,7 +69,7 @@ def run_experiment(
             routed_circuit = RoutedCircuitMetrics(
                 optimization_level=opt_level,
                 depth=routed.depth(),
-                num_gates=routed.size()
+                num_gates=routed.size(),
             )
             metrics.routed.append(routed_circuit)
         result.append(metrics)
@@ -91,7 +88,7 @@ if __name__ == "__main__":
     qubits = 10
     cmap = CouplingMap.from_line(qubits)
     cmap_name = "10-L"
-    gateset = { "cx" }
+    gateset = {"cx"}
 
     helper = CurriculumHelper(cmap_name, qubits, gateset)
 
@@ -99,8 +96,8 @@ if __name__ == "__main__":
         run_experiment(
             num_circuits=1000,
             num_qubits=10,
-            num_gates=d+1,
+            num_gates=d + 1,
             gateset=gateset,
             cmap=cmap,
-            helper=helper
+            helper=helper,
         )

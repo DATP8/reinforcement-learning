@@ -12,7 +12,7 @@ class RoutingEnv(gymnasium.Env):
         cmap: CouplingMap,
         horizon: int,
         render_mode: str | None = None,
-        initial_difficulty = 1
+        initial_difficulty=1,
     ) -> None:
         super().__init__()
         self.cmap_edges = list({tuple(sorted(edge)) for edge in cmap.get_edges()})
@@ -23,35 +23,36 @@ class RoutingEnv(gymnasium.Env):
         self.horizon = horizon
         self.render_mode = render_mode
 
-        self.num_logic_qubits = None
+        self.num_logic_qubits = 0
         self.current_difficulty = initial_difficulty
 
         self.action_space = spaces.Discrete(len(self.cmap_edges))
-        # self.observation_space = spaces.Box(
-        #     low=-2, high=2, shape=(len(self.cmap_edges), self.horizon), dtype=np.int8
-        # )
+        self.observation_space = spaces.Dict(
+            {
+                "matrix": spaces.Box(
+                    low=-2,
+                    high=2,
+                    shape=(len(self.cmap_edges), self.horizon),
+                    dtype=np.int8,
+                ),
+                "graph_x": spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=(self.num_phys_qubits, 3),  # example features
+                    dtype=np.float32,
+                ),
+                "graph_edge_idx": spaces.Box(
+                    low=0,
+                    high=self.num_phys_qubits,
+                    shape=(2, 100),  # max edges (pad if needed)
+                    dtype=np.int64,
+                ),
+            }
+        )
 
         self.completion_reward = 10
         self.gate_cost = -0.1
         self.reduced_gate_cost = -0.1
-
-        self.observation_space = spaces.Dict({
-            "matrix": spaces.Box(
-                low=-2, high=2,
-                shape=(len(self.cmap_edges), self.horizon),
-                dtype=np.int8
-            ),
-            "graph_x": spaces.Box(
-                low=-np.inf, high=np.inf,
-                shape=(self.num_phys_qubits, 3),  # example features
-                dtype=np.float32
-            ),
-            "graph_edge_idx": spaces.Box(
-                low=0, high=self.num_phys_qubits,
-                shape=(2, 100),  # max edges (pad if needed)
-                dtype=np.int64
-            )
-        })
 
         self.locked_actions = set()
 
@@ -83,63 +84,63 @@ class RoutingEnv(gymnasium.Env):
 
     def _build_graph(self):
         num_q = self.num_logic_qubits
-    
+
         # Interaction tracking
         interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
-    
+
         # Iterate over remaining DAG nodes
         for node in self.dag.op_nodes():
             qargs = node.qargs
-    
+
             if len(qargs) == 2:
                 # PERF: This is O(N)
                 q1 = self.dag.qubits.index(qargs[0])
                 q2 = self.dag.qubits.index(qargs[1])
-    
+
                 interaction_counts[q1, q2] += 1
                 interaction_counts[q2, q1] += 1
-    
+
         # Node features
         # Features per logical qubit:
         # [physical_position, total_interactions, avg_distance_to_partners]
-    
+
         # Fill for phys qubits, then just update for logical ones
         x = np.zeros((self.num_phys_qubits, 3), dtype=np.float32)
-    
+
         for q in range(num_q):
             phys = self.logical_to_physical[q]
-    
+
             total_interactions = interaction_counts[q].sum()
-    
+
             # Compute avg distance to interacting partners
             if total_interactions > 0:
                 dists = []
-    
+
                 for other_q in range(num_q):
                     if interaction_counts[q, other_q] > 0:
                         p1 = self.logical_to_physical[q]
                         p2 = self.logical_to_physical[other_q]
-    
+
                         d = self.distance_matrix[p1][p2]
                         dists.append(d)
-    
+
                 avg_dist = np.mean(dists) if len(dists) > 0 else 0.0
             else:
                 avg_dist = 0.0
-    
+
             x[q] = [
                 phys,
                 total_interactions,
                 avg_dist,
             ]
-    
+
         # Edge index
         edges = []
         for q1 in range(num_q):
             for q2 in range(num_q):
                 if interaction_counts[q1, q2] > 0:
                     edges.append((q1, q2))
-    
+
         # Padding (IMPORTANT for SB3)
         MAX_EDGES = 100
         edge_index = np.zeros((2, MAX_EDGES), dtype=np.int64)
@@ -179,31 +180,28 @@ class RoutingEnv(gymnasium.Env):
 
     def step(self, action: int | np.ndarray):
         action = int(action)
-        # dist_before = self._get_total_distance_to_next_gates()
 
         self._apply_swap(action)
         gates_executed, active_qubits = self._execute_front_layer()
-        # dist_after = self._get_total_distance_to_next_gates()
 
         obs = self._get_obs()
         terminated = self._is_terminal()
 
-        if (terminated):
+        if terminated:
             reward = self.completion_reward
         else:
             reward = self.gate_cost
 
-        # if gates_executed > 0:
-        #     reward = gates_executed * 10.0
-        #     to_unlock = {
-        #         act
-        #         for act in self.locked_actions
-        #         if any(q in active_qubits for q in self.cmap_edges[act])
-        #     }
-        #     self.locked_actions -= to_unlock
-        # else:
-        #     reward = (dist_before - dist_after) - 0.1
-        #     self.locked_actions.add(action)
+        if gates_executed > 0:
+            to_unlock = {
+                act
+                for act in self.locked_actions
+                if any(q in active_qubits for q in self.cmap_edges[act])
+            }
+            self.locked_actions -= to_unlock
+        else:
+            self.locked_actions.add(action)
+        self.last_action = action
 
         return obs, reward, terminated, False, {}
 
@@ -231,7 +229,7 @@ class RoutingEnv(gymnasium.Env):
 
                 if len(indices) == 1:
                     p0 = self.logical_to_physical[indices[0]]
-                    self.routed_circuit.append(node.op, [p0])
+                    self.routed_circuit._append(node.op, [p0])  # pyrefly: ignore
                     self.dag.remove_op_node(node)
 
                     active_qubits.add(p0)
@@ -253,38 +251,22 @@ class RoutingEnv(gymnasium.Env):
 
         return gates_done, active_qubits
 
-    def _get_total_distance_to_next_gates(self) -> float:
-        total_dist = 0.0
-        count = 0
-        for node in self.dag.topological_op_nodes():
-            if len(node.qargs) == 2:
-                l0 = self.qubit_indices[node.qargs[0]]
-                l1 = self.qubit_indices[node.qargs[1]]
-                p0 = self.logical_to_physical[l0]
-                p1 = self.logical_to_physical[l1]
-
-                total_dist += self.distance_matrix[p0, p1].item()
-                count += 1
-
-                if count >= self.horizon:
-                    break
-
-        return total_dist
-
-    def _get_obs(self) -> np.ndarray:
+    def _get_obs(self) -> dict:
         matrix = np.zeros((len(self.cmap_edges), self.horizon), dtype=np.int8)
 
         layers = list(self.dag.layers())
-       
+
         future_layers_gates = []
         for i in range(min(len(layers), self.horizon)):
             layer_gates = []
             for node in layers[i]["graph"].op_nodes():
                 if len(node.qargs) == 2:
-                    layer_gates.append((
-                        self.qubit_indices[node.qargs[0]],
-                        self.qubit_indices[node.qargs[1]]
-                    ))
+                    layer_gates.append(
+                        (
+                            self.qubit_indices[node.qargs[0]],
+                            self.qubit_indices[node.qargs[1]],
+                        )
+                    )
             future_layers_gates.append(layer_gates)
 
         for edge_idx, (p0, p1) in enumerate(self.cmap_edges):
@@ -296,13 +278,17 @@ class RoutingEnv(gymnasium.Env):
 
                     dist_before = self.distance_matrix[curr_p_a, curr_p_b]
 
-                    new_p_a = p1 if curr_p_a == p0 else (p0 if curr_p_a == p1 else curr_p_a)
-                    new_p_b = p1 if curr_p_b == p0 else (p0 if curr_p_b == p1 else curr_p_b)
+                    new_p_a = (
+                        p1 if curr_p_a == p0 else (p0 if curr_p_a == p1 else curr_p_a)
+                    )
+                    new_p_b = (
+                        p1 if curr_p_b == p0 else (p0 if curr_p_b == p1 else curr_p_b)
+                    )
 
                     dist_after = self.distance_matrix[new_p_a, new_p_b]
 
-                    layer_delta += (dist_after - dist_before)
-                
+                    layer_delta += dist_after - dist_before
+
                 matrix[edge_idx, h] = layer_delta
 
         graph_x, graph_edge_idx = self._build_graph()
@@ -327,27 +313,25 @@ class RoutingEnv(gymnasium.Env):
     def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(len(self.cmap_edges), dtype=bool)
 
-        front_physical_qubits = set()
-        for node in self.dag.front_layer():
-            for q in node.qargs:
-                l_idx = self.qubit_indices[q]
-                p_idx = self.logical_to_physical[l_idx]
-                front_physical_qubits.add(p_idx)
+        front_physical_qubits = {
+            self.logical_to_physical[self.qubit_indices[q]]
+            for node in self.dag.front_layer()
+            for q in node.qargs
+        }
 
         for i, (p0, p1) in enumerate(self.cmap_edges):
             if p0 in front_physical_qubits or p1 in front_physical_qubits:
                 mask[i] = True
 
-        for act in self.locked_actions:
-            mask[act] = False
+        if self.locked_actions:
+            mask[list(self.locked_actions)] = False
 
         if not mask.any():
-            mask.fill(True)
-            for act in self.locked_actions:
-                mask[act] = False
-
-        if not mask.any():
-            mask.fill(True)
             self.locked_actions.clear()
+            for i, (p0, p1) in enumerate(self.cmap_edges):
+                if p0 in front_physical_qubits or p1 in front_physical_qubits:
+                    mask[i] = True
+
+        assert mask.any(), "No valid action in mask"
 
         return mask
