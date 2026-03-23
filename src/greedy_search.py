@@ -1,4 +1,4 @@
-from states.state_handler import StateHandler
+from src.states.state_handler import StateHandler
 import torch
 
 

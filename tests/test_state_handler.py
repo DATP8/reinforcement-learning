@@ -3,9 +3,9 @@ import torch
 
 from qiskit import QuantumCircuit
 
-from states.tensor_state_handler import TensorStateHandler
-from states.qtensor import Qtensor
-from states.qtensor_state_handler import QtensorStateHandler
+from src.states.tensor_state_handler import TensorStateHandler
+from src.states.qtensor import Qtensor
+from src.states.qtensor_state_handler import QtensorStateHandler
 
 n_qubits = 6
 horizon = 10

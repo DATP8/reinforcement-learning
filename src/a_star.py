@@ -1,5 +1,5 @@
-from model import PVModel
-from states.state_handler import StateHandler
+from src.model import PVModel
+from src.states.state_handler import StateHandler
 import torch
 
 

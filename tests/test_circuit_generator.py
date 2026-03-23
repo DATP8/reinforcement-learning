@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 import time
-from circuit_generator import CircuitGenerator
+from src.circuit_generator import CircuitGenerator
 
 
 class TestCircuitGenerator(unittest.TestCase):
