@@ -1,8 +1,8 @@
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
-from .state_handler import StateHandler, Batchable
-from .circuit_graph import CircuitGraph
+from src.states.state_handler import StateHandler, Batchable
+from src.states.circuit_graph import CircuitGraph
 
 import torch
 import random

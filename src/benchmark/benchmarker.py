@@ -10,7 +10,7 @@ import numpy as np
 import time
 import random
 
-from ..routing.rl_routing_pass import RlRoutingPass
+from src.routing.rl_routing_pass import RlRoutingPass
 
 METRIC_KEYS = [
     "transpile_time",
@@ -175,11 +175,11 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from ..routing.swap_inserter.swap_inserter import SwapInserter
-    from ..states.tensor_state_handler import TensorStateHandler
-    from ..model import ValueModel
-    from ..routing.rl_routing_pass import RlRoutingPass
-    from ..routing.bwas_router import BWASRouter
+    from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
+    from src.states.tensor_state_handler import TensorStateHandler  # pyrefly: ignore
+    from src.model import ValueModel  # pyrefly: ignore
+    from src.routing.rl_routing_pass import RlRoutingPass  # pyrefly: ignore
+    from src.routing.bwas_router import BWASRouter  # pyrefly: ignore
 
     import torch
 

@@ -1,13 +1,13 @@
-from .states.state_handler import StateHandler
-from .states.circuit_graph_state_handler import CircuitGraphStateHandler
-from .states.qtensor_state_handler import QtensorStateHandler
-from .model import ValueModel, BiCircuitGNN
+from src.states.state_handler import StateHandler
+from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.model import ValueModel, BiCircuitGNN
 from torch import nn
 
 import torch
 import matplotlib
 
-from .utils.to import To
+from utils.to import To
 
 matplotlib.use("TkAgg")
 
