@@ -75,11 +75,11 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
         for i, att in enumerate(new_state.edge_attr):
             if att[q1] > 0:
-                new_state.edge_attr[i][q1] = 0
                 new_state.edge_attr[i][q2] = att[q1]
+                new_state.edge_attr[i][q1] = 0
             elif att[q2] > 0:
-                new_state.edge_attr[i][q2] = 0
                 new_state.edge_attr[i][q1] = att[q2]
+                new_state.edge_attr[i][q2] = 0
 
         self.next_state_cache[(state_hash, action)] = new_state
 
@@ -92,12 +92,15 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         if state_hash in self.is_terminal_cache:
             return self.is_terminal_cache[state_hash]
 
-        removed_gates = self.get_removed_gates(state)
-        is_terminal = (
-            len(removed_gates) == state.x.shape[0] - 1
-        )  # all gates removed, only global node left
-        self.is_terminal_cache[state_hash] = is_terminal
-        return is_terminal
+        for gate_index in range(state.x.shape[0] - 1):  # Exclude global node
+            q1 = torch.where(state.x[gate_index, : state.x.shape[1] // 2] > 0)[0].item()
+            q2 = torch.where(state.x[gate_index, state.x.shape[1] // 2 :] > 0)[0].item()
+            if not ((q1, q2) in self.topology or (q2, q1) in self.topology):
+                self.is_terminal_cache[state_hash] = False
+                return False
+        
+        self.is_terminal_cache[state_hash] = True
+        return True
 
     def get_action_cost(self, state: CircuitGraph, action: int) -> float:
         state_hash = hash(state)
