@@ -38,7 +38,9 @@ class BWASRouter[S, To]:
         device = next(self.model.parameters()).device
         with torch.no_grad():
             h = self.model(
-                self.state_handler.batch_states([root_state]).to(device)  # pyrefly: ignore
+                self.state_handler.batch_states([root_state]).to(  # pyrefly: ignore
+                    device
+                )
             ).item()
 
         counter = 0

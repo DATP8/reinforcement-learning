@@ -127,7 +127,7 @@ class CircuitGenerator:
         circuits = []
         for i in range(n):
             if seed is not None:
-                seed = seed + i
+                np.random.randint(0, np.iinfo(int).max)
             circuits.append(
                 CircuitGenerator.generate_random_circuit(
                     num_qubits, num_gates, gateset, seed
