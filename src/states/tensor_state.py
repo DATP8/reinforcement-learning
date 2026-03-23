@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import torch
 
+
 class TensorState(torch.Tensor):
     @classmethod
     def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):

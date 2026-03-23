@@ -8,6 +8,7 @@ from src.model import PVModel
 from src.states.state_handler import StateHandler
 
 
+
 class MCTSNode:
     def __init__(self):
         self.parent: None | MCTSNode = None

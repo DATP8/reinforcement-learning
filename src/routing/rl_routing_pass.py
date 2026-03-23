@@ -2,7 +2,7 @@ from qiskit.transpiler import Layout
 from qiskit.converters import circuit_to_dag
 from qiskit.transpiler.basepasses import TransformationPass
 
-from src.routing.swap_inserter.swap_inserter import SwapInserter #pyrefly: ignore
+from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
 
 from qiskit.converters import dag_to_circuit
 
