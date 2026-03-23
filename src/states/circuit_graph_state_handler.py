@@ -75,11 +75,11 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
         for i, att in enumerate(new_state.edge_attr):
             if att[q1] > 0:
-                new_state.edge_attr[i][q1] = 0
                 new_state.edge_attr[i][q2] = att[q1]
+                new_state.edge_attr[i][q1] = 0
             elif att[q2] > 0:
-                new_state.edge_attr[i][q2] = 0
                 new_state.edge_attr[i][q1] = att[q2]
+                new_state.edge_attr[i][q2] = 0
 
         self.next_state_cache[(state_hash, action)] = new_state
 
