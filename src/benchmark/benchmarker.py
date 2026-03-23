@@ -175,11 +175,11 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter #pyrefly: ignore
-    from src.states.tensor_state_handler import TensorStateHandler #pyrefly: ignore
-    from src.model import ValueModel #pyrefly: ignore
-    from src.routing.rl_routing_pass import RlRoutingPass #pyrefly: ignore
-    from src.routing.bwas_router import BWASRouter #pyrefly: ignore
+    from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
+    from src.states.tensor_state_handler import TensorStateHandler  # pyrefly: ignore
+    from src.model import ValueModel  # pyrefly: ignore
+    from src.routing.rl_routing_pass import RlRoutingPass  # pyrefly: ignore
+    from src.routing.bwas_router import BWASRouter  # pyrefly: ignore
 
     import torch
 
