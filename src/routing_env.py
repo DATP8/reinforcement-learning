@@ -27,9 +27,13 @@ class RoutingEnv(gymnasium.Env):
         self.current_difficulty = initial_difficulty
 
         self.action_space = spaces.Discrete(len(self.cmap_edges))
-        self.observation_space = spaces.Box(
-            low=-2, high=2, shape=(len(self.cmap_edges), self.horizon), dtype=np.int8
-        )
+        # self.observation_space = spaces.Box(
+        #     low=-2, high=2, shape=(len(self.cmap_edges), self.horizon), dtype=np.int8
+        # )
+
+        self.completion_reward = 10
+        self.gate_cost = -0.1
+        self.reduced_gate_cost = -0.1
 
         self.observation_space = spaces.Dict({
             "matrix": spaces.Box(
@@ -88,9 +92,6 @@ class RoutingEnv(gymnasium.Env):
             qargs = node.qargs
     
             if len(qargs) == 2:
-                # q1 = qargs[0].index
-                # q2 = qargs[1].index
-
                 # PERF: This is O(N)
                 q1 = self.dag.qubits.index(qargs[0])
                 q2 = self.dag.qubits.index(qargs[1])
@@ -162,7 +163,8 @@ class RoutingEnv(gymnasium.Env):
         self, num_qubits: int, num_gates: int
     ) -> QuantumCircuit:
         qc = QuantumCircuit(num_qubits)
-        gate_set = ["h", "s", "cx"]
+        # gate_set = ["h", "s", "cx"]
+        gate_set = ["cx"]
         for _ in range(num_gates):
             gate = self.np_random.choice(gate_set)
             if gate == "cx" and num_qubits > 1:
@@ -177,26 +179,31 @@ class RoutingEnv(gymnasium.Env):
 
     def step(self, action: int | np.ndarray):
         action = int(action)
-        dist_before = self._get_total_distance_to_next_gates()
+        # dist_before = self._get_total_distance_to_next_gates()
 
         self._apply_swap(action)
         gates_executed, active_qubits = self._execute_front_layer()
-        dist_after = self._get_total_distance_to_next_gates()
+        # dist_after = self._get_total_distance_to_next_gates()
 
         obs = self._get_obs()
         terminated = self._is_terminal()
 
-        if gates_executed > 0:
-            reward = gates_executed * 10.0
-            to_unlock = {
-                act
-                for act in self.locked_actions
-                if any(q in active_qubits for q in self.cmap_edges[act])
-            }
-            self.locked_actions -= to_unlock
+        if (terminated):
+            reward = self.completion_reward
         else:
-            reward = (dist_before - dist_after) - 0.1
-            self.locked_actions.add(action)
+            reward = self.gate_cost
+
+        # if gates_executed > 0:
+        #     reward = gates_executed * 10.0
+        #     to_unlock = {
+        #         act
+        #         for act in self.locked_actions
+        #         if any(q in active_qubits for q in self.cmap_edges[act])
+        #     }
+        #     self.locked_actions -= to_unlock
+        # else:
+        #     reward = (dist_before - dist_after) - 0.1
+        #     self.locked_actions.add(action)
 
         return obs, reward, terminated, False, {}
 

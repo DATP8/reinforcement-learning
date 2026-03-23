@@ -14,6 +14,10 @@ cmap = CouplingMap.from_line(10)
 n_envs = mp.cpu_count() - 1
 print(f"Using {n_envs} envs")
 
+### INFO
+### When reporting results, take mean and standard deviation
+### of at least 5 runs. Report the seeds for reproducability.
+
 def mask_fn(env: gymnasium.Env) -> np.ndarray:
     return env.unwrapped.valid_action_mask()  # pyrefly: ignore
 
@@ -45,9 +49,9 @@ policy_kwargs = dict(
 # model = MaskablePPO("MlpPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1)
 model = MaskablePPO("MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1)
 
-curriculum_callback = CurriculumCallback(threshold=11.0, max_difficulty=20, verbose=1)
+curriculum_callback = CurriculumCallback(threshold=9.4, max_difficulty=10, verbose=1)
 
-model.learn(total_timesteps=100000, progress_bar=True, callback=curriculum_callback)
+model.learn(total_timesteps=200000, progress_bar=True, callback=curriculum_callback)
 
 eval_env = make_env(cmap, horizon=6, render_mode="human", initial_difficulty=20)
 

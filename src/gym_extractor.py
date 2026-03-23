@@ -29,15 +29,6 @@ class SimpleGNN(nn.Module):
         self.conv1 = GCNConv(in_dim, hidden_dim)
         self.conv2 = GCNConv(hidden_dim, hidden_dim)
     
-    # def forward(self, x, edge_index, batch):
-    #     print("x shape", x.shape)
-    #     print("edge_index shape", edge_index.shape)
-    #     print("batch shape", batch.shape)
-    #     x = self.conv1(x, edge_index).relu()
-    #     x = self.conv2(x, edge_index).relu()
-    #
-    #     return global_mean_pool(x, batch)
-
     def forward(self, x, edge_index, batch):
         # x: (B, N, F)
         # edge_index: (B, 2, E)
