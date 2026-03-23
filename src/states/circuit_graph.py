@@ -67,7 +67,7 @@ class CircuitGraph(Data):
             edge_attr.append(torch.zeros(n_qubits, dtype=torch.float))
 
         edge_index = torch.tensor(edge_index).t()
-        edge_attr = torch.stack(edge_attr)
+        edge_attr = torch.stack(edge_attr) if len(edge_attr) > 0 else torch.empty((0, n_qubits), dtype=torch.float)
 
         return cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
