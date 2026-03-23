@@ -53,7 +53,7 @@ model = MaskablePPO(
     "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
 )
 
-curriculum_callback = CurriculumCallback(threshold=9.4, max_difficulty=10, verbose=1)
+curriculum_callback = CurriculumCallback(threshold=0.85, max_difficulty=10, verbose=1)
 
 model.learn(total_timesteps=200000, progress_bar=True, callback=curriculum_callback)
 

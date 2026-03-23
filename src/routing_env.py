@@ -226,7 +226,6 @@ class RoutingEnv(gymnasium.Env):
             progress = False
             for node in list(self.dag.front_layer()):
                 indices = [self.qubit_indices[q] for q in node.qargs]
-
                 if len(indices) == 1:
                     p0 = self.logical_to_physical[indices[0]]
                     self.routed_circuit._append(node.op, [p0])  # pyrefly: ignore
