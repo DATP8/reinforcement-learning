@@ -1,4 +1,4 @@
-from deep_approximate_value_iteration import To
+from utils.to import To
 from batch_weighted_astar_search import BWAS
 from state_handler import StateHandler
 from torch import nn
@@ -14,7 +14,7 @@ class PolicyTrainer[S: To]:
         self.bwas = BWAS(heurisitic_model, state_handler)
         
     def search(self, state: S) -> tuple[S, list[int]]:
-        return state, self.bwas.search(state, batch_size=64, weight=0.3)
+        return state, self.bwas.search(state)
         
     def train(self, policy_model: nn.Module, batch_size=64, num_iterations=100000, weight=0.3, max_difficulty=43):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
