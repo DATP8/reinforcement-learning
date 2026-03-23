@@ -1,8 +1,9 @@
+from qiskit.circuit import CircuitInstruction
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap as CM
 
 
-class Router:
+class SwapInserter:
     def __init__(self, coupling_map: list[tuple[int, int]] | CM, num_qubits: int):
         self.coupling_map = (
             CM(coupling_map) if isinstance(coupling_map, list) else coupling_map
@@ -65,13 +66,11 @@ class Router:
 
         def _place(gate_idx: int):
             qs, inst = gates[gate_idx]
+            inst: CircuitInstruction
             phys_qubits = [out.qubits[locations[q]] for q in qs]
-            clbits = [
-                out.clbits[input_circuit.find_bit(c).index]
-                for c in inst.clbits  # pyrefly: ignore[missing-attribute]
-            ]
+            clbits = [out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits]
             out.append(
-                inst.operation,  # pyrefly: ignore[missing-attribute]
+                inst.operation,
                 phys_qubits,
                 clbits,
             )
@@ -116,7 +115,7 @@ class Router:
 
 if __name__ == "__main__":
     coupling_map = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    router = Router(coupling_map, num_qubits=6)
+    router = SwapInserter(coupling_map, num_qubits=6)
 
     circuit = QuantumCircuit(6)
     circuit.cx(0, 1)

@@ -1,9 +1,14 @@
-from deep_approximate_value_iteration import To
-from model import BiCircuitGNN
-from state_handler import StateHandler
 from qiskit import QuantumCircuit
-import heapq
+
+from src.states.state_handler import StateHandler  # pyrefly: ignore
+from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
+from src.model import BiCircuitGNN  # pyrefly: ignore
+
+import qiskit
 import torch
+import heapq
+import random
+import time
 
 
 class BWASNode:
@@ -20,16 +25,20 @@ class BWASNode:
         return child_node
 
 
-class BWAS[S: To]:
-    def __init__(self, model, state_handler: StateHandler[S]):
+class BWASRouter[S, To]:
+    def __init__(
+        self, model, state_handler: StateHandler[S], batch_size=64, weight=0.3
+    ):
         self.model = model
         self.state_handler = state_handler
+        self.batch_size = batch_size
+        self.weight = weight
 
-    def search(self, root_state: S, batch_size=64, weight=0.3) -> list[int]:
+    def search(self, root_state: S) -> list[int]:
         device = next(self.model.parameters()).device
         with torch.no_grad():
             h = self.model(
-                self.state_handler.batch_states([root_state]).to(device)
+                self.state_handler.batch_states([root_state]).to(device)  # pyrefly: ignore
             ).item()
 
         counter = 0
@@ -43,7 +52,7 @@ class BWAS[S: To]:
         while open_set:
             nodes_to_expand = [
                 heapq.heappop(open_set)[-1]
-                for _ in range(min(batch_size, len(open_set)))
+                for _ in range(min(self.batch_size, len(open_set)))
             ]
             closed_set.update(node.state.__hash__() for node in nodes_to_expand)
             new_nodes = []
@@ -66,10 +75,10 @@ class BWAS[S: To]:
 
             states = self.state_handler.batch_states([node.state for node in new_nodes])
             with torch.no_grad():
-                h_values = self.model(states.to(device))
+                h_values = self.model(states.to(device))  # pyrefly: ignore
 
             for node, h in zip(new_nodes, h_values):
-                f = weight * node.g + h.item()
+                f = self.weight * node.g + h.item()
                 if (
                     node.state.__hash__() in closed_set
                     and f >= f_lookup[node.state.__hash__()]
@@ -91,13 +100,12 @@ class BWAS[S: To]:
 
 
 if __name__ == "__main__":
-    import random
-    from circuit_graph_state_handler import CircuitGraphStateHandler
-    import time
+    random.seed(42)
+    from qiskit.transpiler.coupling import CouplingMap as CM
+    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.qpy import load
-    from router import Router
-    import qiskit
-    from qiskit.transpiler import CouplingMap as CM
+    import random
+    import time
 
     def generate_random_circuit(n_qubits: int, n_gates: int):
         qc = QuantumCircuit(n_qubits)
@@ -110,6 +118,16 @@ if __name__ == "__main__":
             qc.cx(q1, q2)
 
         return qc
+
+    qc = QuantumCircuit(6)
+    qc.cz(2, 3)  # 4
+    qc.cx(3, 4)  # 5
+    qc.cz(4, 5)  # 6
+    qc.cx(5, 0)  # 7
+    qc.cx(1, 3)  # 8
+    qc.cz(2, 4)  # 9
+    qc.cx(3, 5)  # 10
+    qc.h(2)  # 11
 
     n_qubits = 6
     horizon = 100
@@ -133,8 +151,8 @@ if __name__ == "__main__":
     # model = ValueModel(n_qubits, horizon, len(topology))
     # model.load_state_dict(torch.load("models/davi_diff_tensor/difficulty17_iteration95270.pt", map_location=device))
 
-    bwas = BWAS(model.to(device), state_handler)
-    router = Router(topology, num_qubits=n_qubits)
+    bwas = BWASRouter(model.to(device), state_handler)
+    swap_inserter = SwapInserter(topology, num_qubits=n_qubits)
 
     # circuit = generate_random_circuit(n_qubits, n_gates=30)
     # with open("circuits/dud2.qpy", "wb") as f:
@@ -155,11 +173,11 @@ if __name__ == "__main__":
     print(circuit)
     t0 = time.time()
     state = state_handler.state_from(circuit)
-    actions = bwas.search(state, batch_size=64, weight=0.3)
+    actions = bwas.search(state)
     t1 = time.time()
 
-    routed_circuit, init_layout, final_layout = router.build_circuit_from_solution(
-        actions, circuit
+    routed_circuit, init_layout, final_layout = (
+        swap_inserter.build_circuit_from_solution(actions, circuit)
     )
 
     optimized_circuit = qiskit.transpile(

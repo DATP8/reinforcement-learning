@@ -26,10 +26,10 @@ class CircuitGraph(Data):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, circuit: QuantumCircuit):
-        n_qubits = circuit.num_qubits
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
+        n_qubits = qc.num_qubits
         two_qubit_gates = []
-        for gate in circuit.data:
+        for gate in qc.data:
             if gate.operation.num_qubits == 2:
                 q1, q2 = gate.qubits
                 two_qubit_gates.append((q1._index, q2._index))
@@ -70,6 +70,9 @@ class CircuitGraph(Data):
         edge_attr = torch.stack(edge_attr)
 
         return cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+
+    def to_circuit(self):
+        raise NotImplementedError
 
 
 if __name__ == "__main__":

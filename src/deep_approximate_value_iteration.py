@@ -1,16 +1,15 @@
-from circuit_graph_state_handler import CircuitGraphStateHandler
-from model import BiCircuitGNN
-from model import ValueModel
-from state_handler import StateHandler
-from qtensor_state_handler import QtensorStateHandler
+from src.states.state_handler import StateHandler
+from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.model import ValueModel, BiCircuitGNN
 from torch import nn
+
 import torch
+import matplotlib
 
-from typing import Protocol
+from utils.to import To
 
-
-class To(Protocol):
-    def to(self, device: torch.device) -> "To": ...
+matplotlib.use("TkAgg")
 
 
 class DAVI[S: To]:
@@ -134,5 +133,5 @@ def graph():
 
 
 if __name__ == "__main__":
-    # graph()
-    qtensor()
+    graph()
+    # qtensor()

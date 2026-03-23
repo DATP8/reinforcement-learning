@@ -1,8 +1,9 @@
-from torch_geometric.utils import subgraph
-from state_handler import Batchable
 from torch_geometric.loader import DataLoader
-from state_handler import StateHandler
-from circuit_graph import CircuitGraph
+from torch_geometric.utils import subgraph
+
+from src.states.state_handler import StateHandler, Batchable
+from src.states.circuit_graph import CircuitGraph
+
 import torch
 import random
 from cachetools import LFUCache
@@ -16,6 +17,12 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](maxsize=10000)
         self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
         self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
+
+    def get_topology(self):
+        return self.topology
+
+    def get_num_qubits(self):
+        return self.n_qubits
 
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
@@ -206,7 +213,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
 
 if __name__ == "__main__":
-    from cnot_circuit import CNOTCircuit
+    from qiskit import QuantumCircuit
 
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     n_qubits = 6
@@ -225,7 +232,5 @@ if __name__ == "__main__":
     print(new_state.x)
     print(new_state.edge_index)
     print(new_state.edge_attr)
-    new_circuit = CNOTCircuit.from_circuit_graph(new_state)
-    print(new_circuit)
 
     print("new_state is terminal:", game.is_terminal(new_state))

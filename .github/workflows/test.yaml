@@ -8,6 +8,7 @@ on:
 jobs:
   pyrefly-check:
     runs-on: ubuntu-latest
+    needs: [ruff-format]
     steps:
       - uses: actions/checkout@v6.0.2
         name: Checkout Repository
@@ -15,7 +16,7 @@ jobs:
       - uses: ./.github/actions/setup-env
         name: Setup Environment
 
-      - run: uv run pyrefly check --output-format=github
+      - run: uvx pyrefly check --output-format=github
         name: Run Pyrefly Check
 
   ruff-lint:
@@ -46,7 +47,7 @@ jobs:
 
   ruff-format:
     runs-on: ubuntu-latest
-    needs: [pyrefly-check, ruff-lint, unit-tests]
+    needs: [ruff-lint, unit-tests]
     permissions:
       contents: write
     steps:
