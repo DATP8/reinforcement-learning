@@ -109,7 +109,7 @@ class Benchmarker:
                 mean = arr.mean()
                 n = len(arr)
                 se = stats.sem(arr)  # standard error
-                ci = se * stats.t.ppf((1 + confidence) / 2, df=n - 1)  # t-based CI
+                ci = se * stats.t.ppf((1 + confidence) / 2, df=n - 1)  # pyrefly: ignore
                 summary[metric] = (mean, ci)
             self._pretty_print(key, summary, confidence)
 
