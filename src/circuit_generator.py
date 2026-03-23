@@ -65,7 +65,7 @@ class CircuitGenerator:
         seed: int | None = None,
     ) -> QuantumCircuit:
         """
-        Generates a random quantum circuits based on number of qubits, number of gates, and gateset.
+        Generates a random quantum circuit based on number of qubits, number of gates, and gateset.
         """
         if num_qubits < 0:
             raise ValueError("Number of qubits can not be negative.")
