@@ -125,7 +125,7 @@ class CircuitGenerator:
         Generates n random quantum circuits based on number of qubits, number of gates, and gateset.
         """
         circuits = []
-        for i in range(n):
+        for _ in range(n):
             if seed is not None:
                 np.random.randint(0, np.iinfo(int).max)
             circuits.append(
