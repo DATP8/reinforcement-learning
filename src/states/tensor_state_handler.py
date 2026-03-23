@@ -1,10 +1,9 @@
-from .state_handler import Batchable, StateHandler
-from .tensor_state import TensorState
+from src.states.state_handler import Batchable, StateHandler #pyrefly: ignore
+from src.states.tensor_state import TensorState #pyrefly: ignore
 
 from qiskit import QuantumCircuit
 import random
 import torch
-
 
 class TensorStateHandler(StateHandler[torch.Tensor]):
     def __init__(self, n_qubits: int, horizon: int, topology: list[tuple[int, int]]):
@@ -161,8 +160,6 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
 
 
 if __name__ == "__main__":
-    from .tensor_state import TensorState
-
     n_qubits = 6
     horizon = 10
 
