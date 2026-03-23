@@ -120,8 +120,9 @@ class TestQtensorStateHandler(unittest.TestCase):
                 pruned_circuit.cx(q1, q2)
             self.assertTrue(
                 torch.equal(
-                    #pyrefly: ignore[bad-argument-type]
-                    Qtensor.from_circuit(pruned_circuit, horizon), pruned_state
+                    # pyrefly: ignore[bad-argument-type]
+                    Qtensor.from_circuit(pruned_circuit, horizon),
+                    pruned_state,
                 )
             )
 
@@ -147,8 +148,9 @@ class TestQtensorStateHandler(unittest.TestCase):
                 pruned_circuit.cx(q1, q2)
             self.assertTrue(
                 torch.equal(
-                    #pyrefly: ignore[bad-argument-type]
-                    Qtensor.from_circuit(pruned_circuit, horizon), next_state
+                    # pyrefly: ignore[bad-argument-type]
+                    Qtensor.from_circuit(pruned_circuit, horizon),
+                    next_state,
                 )
             )
 
@@ -164,9 +166,10 @@ class TestQtensorStateHandler(unittest.TestCase):
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
             )
 
+
 class TestCircuitGraphStateHandler(unittest.TestCase):
     game = CircuitGraphStateHandler(n_qubits, topology)
-    
+
     def test_graph_prune(self):
         circuits = []
         for gate_list in input_circuits:
@@ -180,9 +183,10 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
             self.assertEqual(
-                hash(CircuitGraph.from_circuit(pruned_circuit, horizon)), hash(pruned_state)
+                hash(CircuitGraph.from_circuit(pruned_circuit, horizon)),
+                hash(pruned_state),
             )
-    
+
     def test_graph_generate_random_circuit(self):
         for _ in range(1000):
             state = self.game.get_random_state(10)
@@ -204,9 +208,10 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             for q1, q2 in output_circuits_actions[i]:
                 pruned_circuit.cx(q1, q2)
             self.assertEqual(
-                hash(CircuitGraph.from_circuit(pruned_circuit, horizon)), hash(next_state)
+                hash(CircuitGraph.from_circuit(pruned_circuit, horizon)),
+                hash(next_state),
             )
-    
+
     def test_graph_is_terminal(self):
         circuits = []
         for gate_list in input_circuits:
@@ -218,6 +223,7 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             self.assertEqual(
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
             )
+
 
 if __name__ == "__main__":
     unittest.main()

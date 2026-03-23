@@ -1,16 +1,17 @@
 import unittest
 import torch
 
-from model import BiCircuitGNN#, ValueModel, ValueModelFlat
+from model import BiCircuitGNN  # , ValueModel, ValueModelFlat
 from routing.bwas_router import BWASRouter
 from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 from routing.swap_inserter.swap_inserter import SwapInserter
 from src.states.circuit_graph import CircuitGraph
 from circuit_generator import CircuitGenerator
-#from src.states.qtensor_state_handler import QtensorStateHandler
-#from src.states.qtensor import Qtensor
-#from src.states.tensor_state import TensorState
-#from src.states.tensor_state_handler import TensorStateHandler
+# from src.states.qtensor_state_handler import QtensorStateHandler
+# from src.states.qtensor import Qtensor
+# from src.states.tensor_state import TensorState
+# from src.states.tensor_state_handler import TensorStateHandler
+
 
 class TestBWAS(unittest.TestCase):
     n_qubits = 6
@@ -18,28 +19,31 @@ class TestBWAS(unittest.TestCase):
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     swap_inserter = SwapInserter(topology, n_qubits)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+
     def test_bwas_graph(self):
         state_handler = CircuitGraphStateHandler(self.n_qubits, self.topology)
         model = BiCircuitGNN(self.n_qubits)
         model.load_state_dict(
             torch.load(
-                "test_models/graph/difficulty62_updates7_iteration25150.pt", map_location=self.device
+                "test_models/graph/difficulty62_updates7_iteration25150.pt",
+                map_location=self.device,
             )
         )
         bwas = BWASRouter(model.to(self.device), state_handler)
-        circuits = CircuitGenerator.generate_n_random_circuits(1, self.n_qubits, 8, {"cx"})
+        circuits = CircuitGenerator.generate_n_random_circuits(
+            1, self.n_qubits, 8, {"cx"}
+        )
         for circuit in circuits:
             state = state_handler.state_from(circuit)
             actions = bwas.search(state)
-            routed_circuit, _, _ = (
-                self.swap_inserter.build_circuit_from_solution(actions, circuit)
+            routed_circuit, _, _ = self.swap_inserter.build_circuit_from_solution(
+                actions, circuit
             )
             circuit_graph = CircuitGraph.from_circuit(routed_circuit)
             if not state_handler.is_terminal(circuit_graph):
                 print(routed_circuit)
             self.assertTrue(state_handler.is_terminal(circuit_graph))
-            
+
     """
     def test_bwas_qtensor(self):
         state_handler = QtensorStateHandler(self.n_qubits, self.horizon, self.topology)

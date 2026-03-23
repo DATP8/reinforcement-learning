@@ -98,7 +98,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
             if not ((q1, q2) in self.topology or (q2, q1) in self.topology):
                 self.is_terminal_cache[state_hash] = False
                 return False
-        
+
         self.is_terminal_cache[state_hash] = True
         return True
 
