@@ -1,9 +1,3 @@
-# class CircuitGenerator:
-#    @staticmethod
-#     def generate_random_circuit(
-#         num_qubits: int, num_gates: int, gateset: set[str], seed: int | None = None
-#     ) -> QuantumCircuit:
-
 from curriculum.curriculum_helper import RoutedCircuitMetrics
 from curriculum.curriculum_helper import CircuitMetrics
 from curriculum.curriculum_helper import CurriculumHelper
@@ -75,13 +69,6 @@ def run_experiment(
         result.append(metrics)
 
     helper.save_circuits(result)
-
-    # Save to CSV
-    # with open(output_file, "w", newline="") as f:
-    #     writer = csv.DictWriter(f, fieldnames=results[0].keys())
-    #     writer.writeheader()
-    #     writer.writerows(results)
-
 
 if __name__ == "__main__":
     max_difficulty = 200
