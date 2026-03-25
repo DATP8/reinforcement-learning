@@ -1,14 +1,22 @@
-from curriculum.curriculum_helper import RoutedCircuitMetrics
-from curriculum.curriculum_helper import CircuitMetrics
-from curriculum.curriculum_helper import CurriculumHelper
+from qiskit.transpiler import PassManager
+from qiskit.transpiler.passes import ApplyLayout
+from qiskit.converters import dag_to_circuit
+from qiskit.converters import circuit_to_dag
+from qiskit.transpiler.passes import SabreSwap
+from qiskit.transpiler.passes import SabreLayout
+from src.circuit_generator import CircuitGenerator
+from src.curriculum.curriculum_helper import RoutedCircuitMetrics
+from src.curriculum.curriculum_helper import CircuitMetrics
+from src.curriculum.curriculum_helper import CurriculumHelper
 import random
 import numpy as np
 from tqdm import tqdm
 
-from qiskit import transpile, QuantumCircuit
+from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap
-from qiskit.providers.fake_provider import GenericBackendV2
 
+from qiskit.transpiler import TransformationPass
+from qiskit.passmanager.flow_controllers import ConditionalController, DoWhileController
 
 def generate_random_circuit(num_qubits, num_gates, gateset, seed=None):
     qc = QuantumCircuit(num_qubits)
@@ -24,6 +32,17 @@ def generate_random_circuit(num_qubits, num_gates, gateset, seed=None):
             qc.s(int(np.random.choice(num_qubits)))
     return qc
 
+def extract_passes(tasks):
+    passes = []
+    for task in tasks:
+        if isinstance(task, list):
+            passes + extract_passes(task)
+        elif isinstance(task, (ConditionalController, DoWhileController)):
+            passes + extract_passes(task.tasks)
+        elif isinstance(task, TransformationPass):
+            print("Found pass", task.__class__.__name__)
+            passes.append((task.__class__.__name__, task))
+    return passes
 
 def run_experiment(
     num_circuits: int,
@@ -33,14 +52,15 @@ def run_experiment(
     cmap: CouplingMap,
     helper: CurriculumHelper,
 ):
-    backend = GenericBackendV2(num_qubits=num_qubits, coupling_map=cmap)
-
     result = []
 
     for i in tqdm(range(num_circuits)):
-        seed = np.random.randint(0, np.iinfo(int).max)
-        qc = generate_random_circuit(
-            num_qubits=num_qubits,
+        seed = random.randint(0, 1_000_000_000)
+        # rng = np.random.default_rng(seed)
+        # num_logical_qubits = rng.integers(2, num_qubits + 1)
+        num_logical_qubits = num_qubits
+        qc = CircuitGenerator.generate_random_circuit(
+            num_qubits=num_logical_qubits,
             num_gates=num_gates,
             gateset=gateset,
             seed=seed,
@@ -49,30 +69,33 @@ def run_experiment(
             seed=seed,
             difficulty=num_gates,
             num_qubits=num_qubits,
+            num_logical_qubits=num_logical_qubits,
             depth=qc.depth(),
             gate_set=gateset,
             routed=[],
         )
-        for opt_level in range(4):
-            routed = transpile(
-                qc,
-                backend=backend,
-                optimization_level=opt_level,
-                seed_transpiler=seed,
-            )
-            routed_circuit = RoutedCircuitMetrics(
-                optimization_level=opt_level,
-                depth=routed.depth(),
-                num_gates=routed.size(),
-            )
-            metrics.routed.append(routed_circuit)
+        # Testing on pass managers across all optimization levels showed they always just use SabreLayout and SabreSwap
+        # IBM routing models according to their paper used VF2Layout instead of SabreLayout, so we may try that instead
+        pm = PassManager([
+            SabreLayout(cmap, seed=seed),
+            SabreSwap(cmap, seed=seed),
+            ApplyLayout(),
+        ])
+        routed = pm.run(qc)
+        # print(routed)
+        routed_circuit = RoutedCircuitMetrics(
+            optimization_level=2, # Arbitrary number now
+            depth=routed.depth(),
+            num_gates=routed.size(),
+        )
+        metrics.routed.append(routed_circuit)
         result.append(metrics)
 
     helper.save_circuits(result)
 
 
 if __name__ == "__main__":
-    max_difficulty = 200
+    max_difficulty = 20
     qubits = 10
     cmap = CouplingMap.from_line(qubits)
     cmap_name = "10-L"

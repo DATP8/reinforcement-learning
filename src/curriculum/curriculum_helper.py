@@ -1,8 +1,15 @@
+from qiskit.transpiler.passes import ApplyLayout
+from qiskit.transpiler import PassManager
+from qiskit.transpiler import CouplingMap
+from qiskit.transpiler.passes import SabreLayout
+from qiskit.converters import dag_to_circuit
+from qiskit.converters import circuit_to_dag
 import os
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass
 from qiskit import QuantumCircuit
+from src.circuit_generator import CircuitGenerator
 
 
 def generate_random_circuit(num_qubits, num_gates, gateset, seed=None):
@@ -33,6 +40,7 @@ class CircuitMetrics:
     difficulty: int
     depth: int
     num_qubits: int
+    num_logical_qubits: int
     gate_set: set[str]
     routed: list[RoutedCircuitMetrics]
 
@@ -41,13 +49,33 @@ class CircuitMetrics:
         return f"{self.difficulty}-{self.seed}"
 
     @property
+    def num_gates(self):
+        return self.difficulty
+
+    @property
     def gate_set_str(self):
         return "-".join(sorted(self.gate_set))
 
     def get_circuit(self):
-        return generate_random_circuit(
-            self.num_qubits, self.difficulty, self.gate_set, self.seed
+        """
+        Returns the corresponding QuantumCircuit after applying an initial mapping
+        Currently just uses SabreLayout, but intention is to use VF2Layout later on
+        """
+        cmap = CouplingMap.from_line(10)
+        qc = CircuitGenerator.generate_random_circuit(
+            num_qubits=self.num_qubits,
+            num_gates=self.num_gates,
+            gateset=self.gate_set,
+            seed=self.seed,
         )
+        pm = PassManager([
+            SabreLayout(cmap, seed=self.seed),
+            ApplyLayout()
+        ])
+        qc = pm.run(qc)
+        layout = pm.property_set["layout"]
+
+        return qc, layout
 
     def to_df(self):
         rows = []
@@ -58,6 +86,7 @@ class CircuitMetrics:
                     "seed": self.seed,
                     "difficulty": self.difficulty,
                     "num_qubits": self.num_qubits,
+                    "num_logical_qubits": self.num_qubits,
                     "orig_depth": self.depth,
                     "opt_level": r.optimization_level,
                     "routed_depth": r.depth,
@@ -89,6 +118,7 @@ class CircuitMetrics:
                     difficulty=first.difficulty,
                     depth=first.orig_depth,
                     num_qubits=first.num_qubits,
+                    num_logical_qubits=first.num_logical_qubits,
                     routed=routed,
                     gate_set={
                         item.strip()
@@ -107,6 +137,7 @@ class CircuitMetrics:
                 "seed": self.seed,
                 "difficulty": self.difficulty,
                 "num_qubits": self.num_qubits,
+                "num_logical_qubits": self.num_logical_qubits,
                 "orig_depth": self.depth,
                 "opt_level": r.optimization_level,
                 "routed_depth": r.depth,
@@ -139,6 +170,7 @@ class CurriculumHelper:
         df = pd.read_csv(self.get_file_path())
         df = df[df["id"] == id]
         (circuit,) = CircuitMetrics.from_df(df)
+
         return circuit
 
     def save_circuits(self, circuits: list[CircuitMetrics]):

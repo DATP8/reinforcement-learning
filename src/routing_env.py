@@ -4,13 +4,14 @@ from qiskit.transpiler import CouplingMap
 from qiskit.converters import circuit_to_dag
 import numpy as np
 import gymnasium
-
+from src.curriculum.curriculum_helper import CurriculumHelper
 
 class RoutingEnv(gymnasium.Env):
     def __init__(
         self,
         cmap: CouplingMap,
         horizon: int,
+        curriculum_helper: CurriculumHelper,
         render_mode: str | None = None,
         initial_difficulty=1,
     ) -> None:
@@ -18,6 +19,7 @@ class RoutingEnv(gymnasium.Env):
         self.cmap_edges = list({tuple(sorted(edge)) for edge in cmap.get_edges()})
         self.edge_set = frozenset(self.cmap_edges)
         self.distance_matrix: np.ndarray = cmap.distance_matrix  # pyrefly: ignore
+        self.curriculum_helper = curriculum_helper
 
         self.num_phys_qubits = cmap.size()
         self.horizon = horizon
@@ -60,20 +62,33 @@ class RoutingEnv(gymnasium.Env):
         super().reset(seed=seed)
 
         while True:
-            self.num_logic_qubits = int(
-                self.np_random.integers(2, self.num_phys_qubits + 1)
-            )
+            # self.num_logic_qubits = int(
+            #     self.np_random.integers(2, self.num_phys_qubits + 1)
+            # )
 
-            self.circuit = self._generate_random_circuit(
-                self.num_logic_qubits, self.current_difficulty
-            )
+            # self.circuit = self._generate_random_circuit(
+            #     self.num_logic_qubits, self.current_difficulty
+            # )
+            self.circuitInfo = self.curriculum_helper.get_random_circuit(self.current_difficulty)
+            self.num_logic_qubits = self.circuitInfo.num_logical_qubits
+            # self.circuit = self.circuitInfo.get_circuit()
+            circuit, layout = self.circuitInfo.get_circuit()
+            self.circuit = circuit
 
+            # Physical qubits are just integers
+            # Logical qubits are Qubit objects
+            # Qubit indices will just map a qubit object (logical qubit) to a number representing that logical qubit
             self.qubit_indices = {q: i for i, q in enumerate(self.circuit.qubits)}
+
+            self.logical_to_physical = [-1] * self.num_phys_qubits
+            self.physical_to_logical = [-1] * self.num_phys_qubits
+            for logical, physical_index in layout.get_virtual_bits().items():
+                logical_index = self.qubit_indices[logical]
+                self.logical_to_physical[logical_index] = physical_index
+                self.physical_to_logical[physical_index] = logical_index
+
             self.dag = circuit_to_dag(self.circuit)
             self.routed_circuit = QuantumCircuit(self.num_phys_qubits)
-            self.logical_to_physical, self.physical_to_logical = (
-                self._generate_random_mapping()
-            )
 
             self._execute_front_layer()
             if not self._is_terminal():

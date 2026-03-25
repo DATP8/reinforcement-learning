@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 from stable_baselines3.common.vec_env import SubprocVecEnv
+=======
+from curriculum.curriculum_helper import CurriculumHelper
+>>>>>>> 2748ae5 (apply layout before getting circuit)
 from gym_extractor import HybridExtractor, SimpleExtractor
 from curriculum_callback import CurriculumCallback
 import gymnasium
@@ -11,9 +15,14 @@ import numpy as np
 
 from routing_env import RoutingEnv
 
-cmap = CouplingMap.from_line(10)
+num_qubits = 10
+cmap = CouplingMap.from_line(num_qubits)
+cmap_name = "10-L"
+gateset = { "cx" }
 n_envs = mp.cpu_count() - 1
 print(f"Using {n_envs} envs")
+
+helper = CurriculumHelper(cmap_name, num_qubits, gateset)
 
 ### INFO
 ### When reporting results, take mean and standard deviation
@@ -25,7 +34,7 @@ def mask_fn(env: gymnasium.Env) -> np.ndarray:
 
 
 def make_env(cmap: CouplingMap, horizon: int, render_mode: str | None = None, initial_difficulty=1):
-    env = RoutingEnv(cmap, horizon, render_mode, initial_difficulty)
+    env = RoutingEnv(cmap, horizon, helper, render_mode, initial_difficulty=initial_difficulty)
     env = ActionMasker(env, mask_fn)
     return env
 
