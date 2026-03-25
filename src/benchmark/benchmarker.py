@@ -1,3 +1,4 @@
+from qiskit.transpiler.passes import FilterOpNodes, SabreLayout, ApplyLayout, BarrierBeforeFinalMeasurements
 from tqdm import tqdm
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
@@ -180,13 +181,22 @@ if __name__ == "__main__":
         ("diff17", PathRlRoutingPass(router1, swap_inserter)),
     ]
 
-    def _make_staged_pass_manager(transPass):
-        pm = generate_preset_pass_manager(
-            optimization_level=1, coupling_map=coupling_map
-        )
-        pm.routing = PassManager([transPass])
-        return pm
+    def _make_staged_pass_manager(routingPass):
+        pm = generate_preset_pass_manager(optimization_level=1, coupling_map=coupling_map)
 
+        pm.layout = PassManager([
+            BarrierBeforeFinalMeasurements(),
+            SabreLayout(coupling_map, routing_pass=routingPass)
+        ])
+
+        pm.routing = PassManager([
+            BarrierBeforeFinalMeasurements(),
+            routingPass,
+            ApplyLayout(),
+            FilterOpNodes(lambda node: node.label != "qiskit.transpiler.internal.routing.protection.barrier")
+        ])
+
+        return pm
     #### Standard qiskit pass manager inserted router
     configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
     configs.append(
