@@ -1,4 +1,4 @@
-from routing.router import Router
+from src.routing.router import Router
 from qiskit import QuantumCircuit
 
 from src.states.state_handler import StateHandler  # pyrefly: ignore
