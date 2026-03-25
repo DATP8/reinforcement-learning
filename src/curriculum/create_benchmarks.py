@@ -38,7 +38,7 @@ def run_experiment(
     result = []
 
     for i in tqdm(range(num_circuits)):
-        seed = random.randint(0, 1_000_000_000)
+        seed = np.random.randint(0, np.iinfo(int).max)
         qc = generate_random_circuit(
             num_qubits=num_qubits,
             num_gates=num_gates,
