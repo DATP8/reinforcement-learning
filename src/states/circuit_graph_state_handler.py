@@ -92,15 +92,10 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         if state_hash in self.is_terminal_cache:
             return self.is_terminal_cache[state_hash]
 
-        for gate_index in range(state.x.shape[0] - 1):  # Exclude global node
-            q1 = torch.where(state.x[gate_index, : state.x.shape[1] // 2] > 0)[0].item()
-            q2 = torch.where(state.x[gate_index, state.x.shape[1] // 2 :] > 0)[0].item()
-            if not ((q1, q2) in self.topology or (q2, q1) in self.topology):
-                self.is_terminal_cache[state_hash] = False
-                return False
-
-        self.is_terminal_cache[state_hash] = True
-        return True
+        pruned_state = self.prune(state)
+        is_terminal = pruned_state[0].x is not None and pruned_state[0].x.shape[0] == 1
+        self.is_terminal_cache[state_hash] = is_terminal
+        return is_terminal
 
     def get_action_cost(self, state: CircuitGraph, action: int) -> float:
         state_hash = hash(state)
