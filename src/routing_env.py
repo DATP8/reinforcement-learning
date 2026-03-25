@@ -302,7 +302,7 @@ class RoutingEnv(gymnasium.Env):
         return not self.dag.op_nodes()
 
     def render(self) -> None:
-        if self.render_mode == "human":
+        if self.render_mode == "ansi":
             print("--- Original ---")
             print(self.circuit)
             print("\n--- Routed ---")
