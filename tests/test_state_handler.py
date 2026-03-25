@@ -68,7 +68,22 @@ class TestTensorStateHandler(unittest.TestCase):
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
-        # self.assertTrue(torch.equal(self.game.state_from(circuit), pruned_state))
+                # pyrefly: ignore[unbound-name]
+            print(self.game.state_from(pruned_circuit), "\n", pruned_state)
+
+            self.assertTrue(
+                torch.equal(self.game.state_from(pruned_circuit), pruned_state)
+            )
+            if i < len(input_circuits) - 1:
+                pruned_circuit_2 = QuantumCircuit(n_qubits)
+                for q1, q2 in output_circuits_pruned[i + 1]:
+                    pruned_circuit_2.cx(q1, q2)
+                    # pyrefly: ignore[unbound-name]
+                self.assertTrue(
+                    not torch.equal(
+                        self.game.state_from(pruned_circuit_2), pruned_state
+                    )
+                )
 
     def test_tensor_generate_random_circuit(self):
         for _ in range(1000):
@@ -84,11 +99,21 @@ class TestTensorStateHandler(unittest.TestCase):
                 circuit.cx(q1, q2)
             states.append(self.game.state_from(circuit))
         for i, state in enumerate(states):
-            # next_state = self.game.get_next_state(state, actions[i])
+            next_state = self.game.get_next_state(state, actions[i])
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_actions[i]:
                 pruned_circuit.cx(q1, q2)
-            # self.assertTrue(torch.equal(pruned_circuit.to_tensor(horizon), next_state))
+            self.assertTrue(
+                torch.equal(self.game.state_from(pruned_circuit), next_state)
+            )
+            if i < len(input_circuits) - 1:
+                pruned_circuit_2 = QuantumCircuit(n_qubits)
+                for q1, q2 in output_circuits_actions[i + 1]:
+                    pruned_circuit_2.cx(q1, q2)
+                    # pyrefly: ignore[unbound-name]
+                self.assertTrue(
+                    not torch.equal(self.game.state_from(pruned_circuit_2), next_state)
+                )
 
     def test_tensor_is_terminal(self):
         states = []
@@ -122,9 +147,22 @@ class TestQtensorStateHandler(unittest.TestCase):
                 torch.equal(
                     # pyrefly: ignore[bad-argument-type]
                     Qtensor.from_circuit(pruned_circuit, horizon),
+                    # pyrefly: ignore[bad-argument-type]
                     pruned_state,
                 )
             )
+            if i < len(input_circuits) - 1:
+                pruned_circuit_2 = QuantumCircuit(n_qubits)
+                for q1, q2 in output_circuits_pruned[i + 1]:
+                    pruned_circuit_2.cx(q1, q2)
+                self.assertTrue(
+                    not torch.equal(
+                        # pyrefly: ignore[bad-argument-type]
+                        Qtensor.from_circuit(pruned_circuit_2, horizon),
+                        # pyrefly: ignore[bad-argument-type]
+                        pruned_state,
+                    )
+                )
 
     def test_Qtensor_generate_random_circuit(self):
         for _ in range(1000):
@@ -150,9 +188,22 @@ class TestQtensorStateHandler(unittest.TestCase):
                 torch.equal(
                     # pyrefly: ignore[bad-argument-type]
                     Qtensor.from_circuit(pruned_circuit, horizon),
+                    # pyrefly: ignore[bad-argument-type]
                     next_state,
                 )
             )
+            if i < len(input_circuits) - 1:
+                pruned_circuit_2 = QuantumCircuit(n_qubits)
+                for q1, q2 in output_circuits_actions[i + 1]:
+                    pruned_circuit_2.cx(q1, q2)
+                self.assertTrue(
+                    not torch.equal(
+                        # pyrefly: ignore[bad-argument-type]
+                        Qtensor.from_circuit(pruned_circuit_2, horizon),
+                        # pyrefly: ignore[bad-argument-type]
+                        next_state,
+                    )
+                )
 
     def test_Qtensor_is_terminal(self):
         circuits = []
