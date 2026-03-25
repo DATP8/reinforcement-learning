@@ -87,8 +87,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         if state_hash in self.is_terminal_cache:
             return self.is_terminal_cache[state_hash]
         next_state, _ = self.prune(state)
-        # pyrefly: ignore[no-matching-overload]
-        is_terminal = torch.sum(next_state).item() <= 1e-7
+        is_terminal = torch.sum(next_state.unwrap()).item() <= 1e-7
         self.is_terminal_cache[state_hash] = is_terminal
         return is_terminal
 

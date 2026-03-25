@@ -1,26 +1,19 @@
 from qiskit.transpiler import Layout
-from qiskit.converters import circuit_to_dag
+from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler.basepasses import TransformationPass
 
-from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
-
-from qiskit.converters import dag_to_circuit
+from src.routing.swap_inserter.swap_inserter import SwapInserter
 
 
-class RlRoutingPass(TransformationPass):
+class PathRlRoutingPass(TransformationPass):
     def __init__(
         self,
         router,
         swap_inserter: SwapInserter,
-        name: str,
     ):
         super().__init__()
         self.router = router
         self.swap_inserter = swap_inserter
-        self.model_name = name
-
-    def get_name(self):
-        return self.model_name
 
     def run(self, dag):
         qc = dag_to_circuit(dag)
@@ -31,8 +24,16 @@ class RlRoutingPass(TransformationPass):
         path = self.router.search(root_state)
 
         new_qc, init, final = self.swap_inserter.build_circuit_from_solution(path, qc)
+        new_dag = circuit_to_dag(new_qc)
 
-        self.property_set["final_layout"] = Layout(
+        layout = Layout(
             {dag.qubits[org_q]: final_q for org_q, final_q in enumerate(final)}
         )
-        return circuit_to_dag(new_qc)
+
+        self.property_set["final_layout"] = (
+            layout
+            if (prev := self.property_set["final_layout"]) is None
+            else prev.compose(layout, new_dag.qubits)
+        )
+
+        return new_dag

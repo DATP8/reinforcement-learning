@@ -1,8 +1,8 @@
 from qiskit import QuantumCircuit
 
-from src.states.state_handler import StateHandler  # pyrefly: ignore
-from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
-from src.model import BiCircuitGNN  # pyrefly: ignore
+from src.states.state_handler import StateHandler
+from src.routing.swap_inserter.swap_inserter import SwapInserter
+from src.model import BiCircuitGNN
 
 import qiskit
 import torch
@@ -103,6 +103,7 @@ class BWASRouter[S, To]:
 
 if __name__ == "__main__":
     random.seed(42)
+    from src.model import BiCircuitGNN
     from qiskit.transpiler.coupling import CouplingMap as CM
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.qpy import load

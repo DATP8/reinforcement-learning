@@ -122,6 +122,7 @@ class TestQtensorStateHandler(unittest.TestCase):
                 torch.equal(
                     # pyrefly: ignore[bad-argument-type]
                     Qtensor.from_circuit(pruned_circuit, horizon),
+                    # pyrefly: ignore[bad-argument-type]
                     pruned_state,
                 )
             )
@@ -150,6 +151,7 @@ class TestQtensorStateHandler(unittest.TestCase):
                 torch.equal(
                     # pyrefly: ignore[bad-argument-type]
                     Qtensor.from_circuit(pruned_circuit, horizon),
+                    # pyrefly: ignore[bad-argument-type]
                     next_state,
                 )
             )
