@@ -18,11 +18,11 @@ class CurriculumCallback(BaseCallback):
                 and current_diff < self.max_difficulty
                 and (performance := self._eval_episode_performance()) > self.threshold
             ):
-                new_diff = current_diff + 1
-                self.training_env.set_attr("current_difficulty", new_diff)
+                current_diff += 1
+                self.training_env.set_attr("current_difficulty", current_diff)
                 if self.verbose > 0:
                     print(
-                        f"\nDifficulty increased to {new_diff} (Episode performance: {performance:.2f})"
+                        f"\nDifficulty increased to {current_diff} (Episode performance: {performance:.2f})"
                     )
         return True
 
