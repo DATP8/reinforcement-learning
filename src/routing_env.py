@@ -53,8 +53,9 @@ class RoutingEnv(gymnasium.Env):
         self.completion_reward = 10
         self.gate_cost = -0.1
         self.reduced_gate_cost = -0.1
-
+        
         self.locked_actions = set()
+        self.inserted_swaps = 0
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         super().reset(seed=seed)
@@ -80,6 +81,7 @@ class RoutingEnv(gymnasium.Env):
                 break
 
         self.locked_actions = set()
+        self.inserted_swaps = 0
         return self._get_obs(), {}
 
     def _build_graph(self):
@@ -203,7 +205,10 @@ class RoutingEnv(gymnasium.Env):
             self.locked_actions.add(action)
         self.last_action = action
 
-        return obs, reward, terminated, False, {}
+        max_swaps = min(2*self.current_difficulty,128)
+        truncated = self.inserted_swaps == max_swaps
+
+        return obs, reward, terminated, truncated, {}
 
     def _apply_swap(self, action: int) -> None:
         p0, p1 = self.cmap_edges[action]
@@ -216,6 +221,8 @@ class RoutingEnv(gymnasium.Env):
             self.logical_to_physical[l0] = p1
         if l1 != -1:
             self.logical_to_physical[l1] = p0
+            
+        self.inserted_swaps += 1
 
     def _execute_front_layer(self) -> tuple[int, set[int]]:
         progress = True

@@ -11,7 +11,7 @@ import numpy as np
 
 from routing_env import RoutingEnv
 
-cmap = CouplingMap.from_line(10)
+cmap = CouplingMap.from_ring(6)
 n_envs = mp.cpu_count() - 1
 print(f"Using {n_envs} envs")
 
@@ -51,14 +51,14 @@ policy_kwargs = dict(
 
 # model = MaskablePPO("MlpPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1)
 model = MaskablePPO(
-    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log="./ppo_routing"
+    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1, learning_rate=0.003
 )
 
-curriculum_callback = CurriculumCallback(threshold=0.85, max_difficulty=10, verbose=1)
+eval_env = make_env(cmap, horizon=6, render_mode="ansi", initial_difficulty=1)
+curriculum_callback = CurriculumCallback(threshold=0.85, max_difficulty=100, verbose=1, eval_env=eval_env)
 
 model.learn(total_timesteps=200000, progress_bar=True, callback=curriculum_callback)
 
-eval_env = make_env(cmap, horizon=6, render_mode="ansi", initial_difficulty=1)
 
 for _ in range(10):
     obs, _ = eval_env.reset()
