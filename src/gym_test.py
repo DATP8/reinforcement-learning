@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-from stable_baselines3.common.vec_env import SubprocVecEnv
-=======
 from curriculum.curriculum_helper import CurriculumHelper
->>>>>>> 2748ae5 (apply layout before getting circuit)
 from gym_extractor import HybridExtractor, SimpleExtractor
 from curriculum_callback import CurriculumCallback
 import gymnasium
