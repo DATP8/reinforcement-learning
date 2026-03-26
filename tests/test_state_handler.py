@@ -176,14 +176,14 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             circuit = QuantumCircuit(n_qubits)
             for q1, q2 in gate_list:
                 circuit.cx(q1, q2)
-            circuits.append(CircuitGraph.from_circuit(circuit, horizon))
+            circuits.append(CircuitGraph.from_circuit(circuit))
         for i, state in enumerate(circuits):
             pruned_state, _ = self.game.prune(state)
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
             self.assertEqual(
-                hash(CircuitGraph.from_circuit(pruned_circuit, horizon)),
+                hash(CircuitGraph.from_circuit(pruned_circuit)),
                 hash(pruned_state),
             )
 
@@ -201,14 +201,14 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             circuit = QuantumCircuit(n_qubits)
             for q1, q2 in gate_list:
                 circuit.cx(q1, q2)
-            states.append(CircuitGraph.from_circuit(circuit, horizon))
+            states.append(CircuitGraph.from_circuit(circuit))
         for i, state in enumerate(states):
             next_state = self.game.get_next_state(state, actions[i])
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_actions[i]:
                 pruned_circuit.cx(q1, q2)
             self.assertEqual(
-                hash(CircuitGraph.from_circuit(pruned_circuit, horizon)),
+                hash(CircuitGraph.from_circuit(pruned_circuit)),
                 hash(next_state),
             )
 
@@ -218,7 +218,7 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             circuit = QuantumCircuit(n_qubits)
             for q1, q2 in gate_list:
                 circuit.cx(q1, q2)
-            circuits.append(CircuitGraph.from_circuit(circuit, horizon))
+            circuits.append(CircuitGraph.from_circuit(circuit))
         for i, state in enumerate(circuits):
             self.assertEqual(
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
