@@ -2,7 +2,7 @@ import unittest
 import torch
 
 from qiskit.quantum_info import Operator
-from src.model import BiCircuitGNN#, ValueModel, ValueModelFlat
+from src.model import BiCircuitGNN  # , ValueModel, ValueModelFlat
 from src.routing.bwas_chunck_router import ChunkRouter
 from src.routing.bwas_router import BWASRouter
 from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
@@ -13,6 +13,7 @@ from src.circuit_generator import CircuitGenerator
 # from src.states.qtensor import Qtensor
 # from src.states.tensor_state import TensorState
 # from src.states.tensor_state_handler import TensorStateHandler
+
 
 class TestBWAS(unittest.TestCase):
     n_qubits = 6
@@ -97,7 +98,8 @@ class TestBWAS(unittest.TestCase):
             self.assertTrue(state_handler.is_terminal(circuit_tensor))
             self.assertTrue(pre_operator == post_operator)
             """
-            
+
+
 class TestBWASChunking(unittest.TestCase):
     n_qubits = 6
     horizon = 100
