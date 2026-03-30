@@ -1,3 +1,5 @@
+from qiskit.circuit import QuantumCircuit
+from qiskit.transpiler.layout import Layout
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from gym_extractor import HybridExtractor, SimpleExtractor
 from curriculum_callback import CurriculumCallback
@@ -29,6 +31,20 @@ def make_env(cmap: CouplingMap, horizon: int, render_mode: str | None = None, in
     env = ActionMasker(env, mask_fn)
     return env
 
+def route_circuit(env: ActionMasker, model: MaskablePPO, circuit: QuantumCircuit, layout: Layout) -> QuantumCircuit:
+    obs, _ = env.reset(options={"circuit": circuit, "layout": layout})
+    env: RoutingEnv = env.unwrapped # pyrefly: ignore
+    
+    if env.is_terminal():
+        return env.routed_circuit
+
+    terminated = False
+    while not terminated:
+        mask = env.valid_action_mask()
+        action, _ = model.predict(obs, action_masks=mask, deterministic=True)
+        obs, _, terminated, truncated, _ = env.step(action)
+        
+    return env.routed_circuit
 
 train_env = make_vec_env(
     lambda: make_env(cmap, horizon=6),
