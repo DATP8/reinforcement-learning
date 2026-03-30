@@ -31,7 +31,7 @@ class TestBWAS(unittest.TestCase):
         )
         bwas = BWASRouter(model.to(self.device), state_handler)
         circuits = CircuitGenerator.generate_n_random_circuits(
-            1, self.n_qubits, 8, {"cx"}
+            100, self.n_qubits, 8, {"cx"}
         )
         for circuit in circuits:
             state = state_handler.state_from(circuit)

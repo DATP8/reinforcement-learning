@@ -34,7 +34,7 @@ def make_env(cmap: CouplingMap, horizon: int, render_mode: str | None = None, in
 def route_circuit(env: ActionMasker, model: MaskablePPO, circuit: QuantumCircuit, layout: Layout) -> QuantumCircuit:
     obs, _ = env.reset(options={"circuit": circuit, "layout": layout})
     env: RoutingEnv = env.unwrapped # pyrefly: ignore
-    
+
     if env.is_terminal():
         return env.routed_circuit
 
