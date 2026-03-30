@@ -1,3 +1,5 @@
+from qiskit.transpiler import Layout
+from qiskit.converters import circuit_to_dag
 import unittest
 import torch
 
@@ -39,10 +41,14 @@ class TestBWAS(unittest.TestCase):
             pre_operator = Operator.from_circuit(circuit)
             state = state_handler.state_from(circuit)
             actions = bwas.search(state)
-            routed_circuit, _, _ = self.swap_inserter.build_circuit_from_solution(
+            routed_circuit, _, final = self.swap_inserter.build_circuit_from_solution(
                 actions, circuit
             )
-            post_operator = Operator.from_circuit(circuit)
+            routed_dag = circuit_to_dag(routed_circuit)
+            post_operator = Operator.from_circuit(
+                routed_circuit, 
+                final_layout= Layout({routed_dag.qubits[org_q]: final_q for org_q, final_q in enumerate(final)})
+            )
             circuit_graph = CircuitGraph.from_circuit(routed_circuit)
             if not state_handler.is_terminal(circuit_graph):
                 print(routed_circuit)
