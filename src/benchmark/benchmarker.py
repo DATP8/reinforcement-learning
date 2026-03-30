@@ -207,25 +207,22 @@ if __name__ == "__main__":
 
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
-    router2 = ChunkRouter(chunk_size=2, model=model, state_handler=state_handler)
-    router4 = ChunkRouter(chunk_size=4, model=model, state_handler=state_handler)
-    router8 = ChunkRouter(chunk_size=8, model=model, state_handler=state_handler)
-    router12 = ChunkRouter(chunk_size=12, model=model, state_handler=state_handler)
+    #router2 = ChunkRouter(chunk_size=2, model=model, state_handler=state_handler)
+    #router4 = ChunkRouter(chunk_size=4, model=model, state_handler=state_handler)
+    #router8 = ChunkRouter(chunk_size=8, model=model, state_handler=state_handler)
+    #router12 = ChunkRouter(chunk_size=12, model=model, state_handler=state_handler)
     router16 = ChunkRouter(chunk_size=16, model=model, state_handler=state_handler)
-    router20 = ChunkRouter(chunk_size=20, model=model, state_handler=state_handler)
-    router32 = ChunkRouter(chunk_size=32, model=model, state_handler=state_handler)
-    # router62 = ChunkRouter(chunk_size=62, model=model, state_handler=state_handler)
-    #router = BWASRouter(model, state_handler)
+    #router20 = ChunkRouter(chunk_size=20, model=model, state_handler=state_handler)
+    #router32 = ChunkRouter(chunk_size=32, model=model, state_handler=state_handler)
+
+    router16_pass = RlRoutingPass(router16, swap_inserter, "ChunkRouter 16")
 
     initial_layouts = [TrivialLayout(coupling_map)]
-    forward_backward = [SabreLayout(coupling_map)]
+    forward_backward = [SabreLayout(coupling_map, routing_pass=router16_pass, skip_routing=True)]
     
     final_routers = [
         SabreSwap(coupling_map),
-        #RlRoutingPass(router8, swap_inserter, "ChunkRouter 8"),
-        # RlRoutingPass(router12, swap_inserter, "ChunkRouter 12"),
-        RlRoutingPass(router16, swap_inserter, "ChunkRouter 16"),
-        # RlRoutingPass(router20, swap_inserter, "ChunkRouter 20"),
+        router16_pass,
     ]
 
     configs = list(product(initial_layouts, [None], final_routers))
