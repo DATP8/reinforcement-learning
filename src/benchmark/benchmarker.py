@@ -200,7 +200,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(path, map_location=device))
     model.to(device)
 
-    bench_iterations = 10
+    bench_iterations = 2
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
@@ -225,9 +225,9 @@ if __name__ == "__main__":
         router16_pass,
     ]
 
-    configs = list(product(initial_layouts, [None], final_routers))
+    configs = list(product(initial_layouts, forward_backward, final_routers))
 
     coupling_map.make_symmetric()
 
-    bench = Benchmarker(n_qubits, 200, coupling_map)
+    bench = Benchmarker(n_qubits, 5, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations, True)
