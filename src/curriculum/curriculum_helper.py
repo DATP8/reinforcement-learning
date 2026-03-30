@@ -158,13 +158,24 @@ class CurriculumHelper:
         return f"src/curriculum/benchmarks/{self.topology_name}_{'-'.join(sorted(self.gate_set))}_metrics.csv"
 
     def get_random_circuit(self, difficulty: int) -> CircuitMetrics:
+        # df = pd.read_csv(self.get_file_path())
+        # df = df[df["difficulty"] == difficulty]
+        # circuit_ids = df["id"].unique()
+        # cid = np.random.choice(circuit_ids)
+        # df = df[df["id"] == cid]
+        # (circuit,) = CircuitMetrics.from_df(df)
+        # return circuit
+        (circuit, ) = self.get_n_random_circuit(1, difficulty)
+        return circuit
+
+    def get_n_random_circuit(self, n: int, difficulty: int) -> CircuitMetrics:
         df = pd.read_csv(self.get_file_path())
         df = df[df["difficulty"] == difficulty]
         circuit_ids = df["id"].unique()
-        cid = np.random.choice(circuit_ids)
-        df = df[df["id"] == cid]
-        (circuit,) = CircuitMetrics.from_df(df)
-        return circuit
+        cids = np.random.choice(circuit_ids, size=n, replace=False)
+        df = df[df["id"].isin(cids)]
+        circuits = CircuitMetrics.from_df(df)
+        return circuits
 
     def get_circuit(self, id):
         df = pd.read_csv(self.get_file_path())

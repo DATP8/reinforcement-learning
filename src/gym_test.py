@@ -59,7 +59,8 @@ model = MaskablePPO(
     "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1, tensorboard_log="./ppo_routing"
 )
 
-curriculum_callback = CurriculumCallback(threshold=0.85, max_difficulty=10, verbose=1)
+curriculum_env = make_env(cmap, horizon=6, render_mode="ansi", initial_difficulty=1)
+curriculum_callback = CurriculumCallback(threshold=0.85, max_difficulty=10, env=curriculum_env, helper=helper, verbose=1)
 
 model.learn(total_timesteps=200000, progress_bar=True, callback=curriculum_callback)
 

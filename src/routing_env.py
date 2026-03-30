@@ -97,6 +97,11 @@ class RoutingEnv(gymnasium.Env):
         self.locked_actions = set()
         return self._get_obs(), {}
 
+    def get_routed_circuit(self):
+        return self.routed_circuit
+    def get_circuit_info(self):
+        return self.circuitInfo
+
     def _build_graph(self):
         num_q = self.num_logic_qubits
 
