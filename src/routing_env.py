@@ -64,7 +64,7 @@ class RoutingEnv(gymnasium.Env):
         super().reset(seed=seed)
         options = options or {}
 
-        if "circuit" in options and "layout" in options:
+        if "circuit" in options:
             self.circuit = options["circuit"]
             self._num_logic_qubits = len(self.circuit.qubits)
             self.qubit_indices = {q: i for i, q in enumerate(self.circuit.qubits)}
@@ -72,7 +72,7 @@ class RoutingEnv(gymnasium.Env):
             self.logical_to_physical = np.zeros(self._num_logic_qubits, dtype=np.int64)
             self.physical_to_logical = np.full(self._num_phys_qubits, -1, dtype=np.int64)
 
-            virtual_bits = options["layout"].get_virtual_bits()
+            virtual_bits = self.circuit.layout.get_virtual_bits()
             for v_qubit, p_idx in virtual_bits.items():
                 if v_qubit in self.qubit_indices:
                     l_idx = self.qubit_indices[v_qubit]
