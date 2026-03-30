@@ -167,17 +167,9 @@ class RoutingEnv(gymnasium.Env):
     ) -> QuantumCircuit:
         qc = QuantumCircuit(num_qubits)
         # gate_set = ["h", "s", "cx"]
-        gate_set = ["cx"]
         for _ in range(num_gates):
-            gate = self.np_random.choice(gate_set)
-            if gate == "cx" and num_qubits > 1:
-                q0, q1 = self.np_random.choice(num_qubits, size=2, replace=False)
-                qc.cx(int(q0), int(q1))
-            elif gate == "h":
-                qc.h(int(self.np_random.choice(num_qubits)))
-            else:
-                qc.s(int(self.np_random.choice(num_qubits)))
-
+            q0, q1 = self.np_random.choice(num_qubits, size=2, replace=False)
+            qc.cx(int(q0), int(q1))
         return qc
 
     def step(self, action: int | np.ndarray):

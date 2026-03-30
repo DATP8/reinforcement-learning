@@ -45,6 +45,6 @@ class CurriculumCallback(BaseCallback):
                 action, _ = self.model.predict(obs, deterministic=True, action_masks=self.eval_env.action_masks()) # pyrefly: ignore
                 obs, reward, terminated, truncated, info = self.eval_env.step(action)
                 is_done = terminated or truncated
-                is_success = truncated
+                is_success = terminated
             success += int(is_success)
         return success / 100
