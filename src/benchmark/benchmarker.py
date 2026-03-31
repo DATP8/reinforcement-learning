@@ -182,7 +182,7 @@ if __name__ == "__main__":
     model = MaskablePPO.load("test_model", env)
     routers = [
         ("sabre", SabreSwap(coupling_map=coupling_map)),
-        ("diff17", AgenticRlRoutingPass(model, coupling_map)),
+        ("maskable_ppo", AgenticRlRoutingPass(model, coupling_map)),
     ]
 
     def _make_staged_pass_manager(transPass):
@@ -193,20 +193,20 @@ if __name__ == "__main__":
         return pm
 
     #### Standard qiskit pass manager inserted router
-    configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
-    configs.append(
-        (
-            "Op1 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=1, coupling_map=coupling_map
-            ),
-        )
-    )
+    #configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
+    #configs.append(
+    #    (
+    #        "Op1 qiskit",
+    #        generate_preset_pass_manager(
+    #            optimization_level=1, coupling_map=coupling_map
+    #        ),
+    #    )
+    #)
 
     #### Pass manager with only routing stage
-    # configs = [(title, PassManager([router])) for title, router in routers]
+    configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 10
+    bench_iterations = 100
     bench_circut_gate_count = 10
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

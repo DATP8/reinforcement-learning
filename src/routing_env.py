@@ -1,3 +1,4 @@
+from qiskit.transpiler import Layout
 from gymnasium import spaces
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap
@@ -62,7 +63,7 @@ class RoutingEnv(gymnasium.Env):
         super().reset(seed=seed)
         options = options or {}
 
-        if "circuit" in options and "layout" in options:
+        if "circuit" in options:
             self.circuit = options["circuit"]
             self._num_logic_qubits = len(self.circuit.qubits)
             self.qubit_indices = {q: i for i, q in enumerate(self.circuit.qubits)}
@@ -72,7 +73,7 @@ class RoutingEnv(gymnasium.Env):
                 self._num_phys_qubits, -1, dtype=np.int64
             )
 
-            virtual_bits = options["layout"].get_virtual_bits()
+            virtual_bits = Layout.generate_trivial_layout(*self.circuit.qregs).get_virtual_bits()
             for v_qubit, p_idx in virtual_bits.items():
                 if v_qubit in self.qubit_indices:
                     l_idx = self.qubit_indices[v_qubit]
@@ -102,7 +103,7 @@ class RoutingEnv(gymnasium.Env):
                     break
         else:
             raise ValueError(
-                "Circuit and layout must be specified if initial difficulty is None"
+                "Circuit must be specified if initial difficulty is None"
             )
 
         self._locked_actions = set()

@@ -1,4 +1,5 @@
-from qiskit.circuit import QuantumCircuit
+from qiskit.converters import circuit_to_dag
+from qiskit.converters import dag_to_circuit
 from qiskit.transpiler.layout import Layout
 from src.gym_extractor import HybridExtractor, SimpleExtractor
 from src.curriculum_callback import CurriculumCallback
@@ -11,6 +12,8 @@ import multiprocessing as mp
 import numpy as np
 
 from src.routing_env import RoutingEnv
+from qiskit.dagcircuit import DAGCircuit
+from stable_baselines3.common.callbacks import CheckpointCallback
 
 ### INFO
 ### When reporting results, take mean and standard deviation
@@ -33,13 +36,14 @@ def make_env(
 
 
 def route_circuit(
-    model: MaskablePPO, circuit: QuantumCircuit, layout: Layout
-) -> tuple[QuantumCircuit, Layout]:
+    model: MaskablePPO, dag: DAGCircuit
+) -> tuple[DAGCircuit, Layout]:
+    circuit = dag_to_circuit(dag)
     env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
-    obs, _ = env.reset(options={"circuit": circuit, "layout": layout})
+    obs, _ = env.reset(options={"circuit": circuit})
 
     if env.is_terminal():
-        return env.routed_circuit, layout
+        return circuit_to_dag(env.routed_circuit), Layout.generate_trivial_layout(*circuit.qregs)
 
     terminated = False
     while not terminated:
@@ -51,7 +55,7 @@ def route_circuit(
         circuit.qubits[i]: int(p) for i, p in enumerate(env.logical_to_physical)
     }
     layout = Layout(layout_dict)
-    return env.routed_circuit, layout
+    return circuit_to_dag(env.routed_circuit), layout
 
 
 if __name__ == "__main__":
@@ -88,7 +92,7 @@ if __name__ == "__main__":
         threshold=0.85, max_difficulty=100, verbose=1, eval_env=eval_env
     )
 
-    model.learn(total_timesteps=5000, progress_bar=True, callback=curriculum_callback)
+    model.learn(total_timesteps=500000, progress_bar=True, callback=curriculum_callback)
     model.save("test_model")
 
     for _ in range(10):
