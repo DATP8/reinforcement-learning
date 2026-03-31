@@ -158,24 +158,24 @@ if __name__ == "__main__":
     from qiskit.transpiler.passes import SabreSwap
 
     n_qubits = 5
-    #horizon = 100
-    #topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    #game1 = TensorStateHandler(n_qubits, horizon, topology)
-    #model1 = ValueModel(n_qubits, horizon, len(topology))
-#
-    #game2 = TensorStateHandler(n_qubits, horizon, topology)
-    #model2 = ValueModel(n_qubits, horizon, len(topology))
-#
-    #path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
-    #path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
-    #model1.load_state_dict(torch.load(path1, map_location="cpu"))
+    # horizon = 100
+    # topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    # game1 = TensorStateHandler(n_qubits, horizon, topology)
+    # model1 = ValueModel(n_qubits, horizon, len(topology))
+    #
+    # game2 = TensorStateHandler(n_qubits, horizon, topology)
+    # model2 = ValueModel(n_qubits, horizon, len(topology))
+    #
+    # path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
+    # path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
+    # model1.load_state_dict(torch.load(path1, map_location="cpu"))
     ## model2.load_state_dict(torch.load(path2, map_location="cpu"))
-#
-    #coupling_map = CouplingMap(topology)
-    #coupling_map.make_symmetric()
-#
-    #swap_inserter = SwapInserter(coupling_map, n_qubits)
-    #router1 = BWASRouter(model1, game1)
+    #
+    # coupling_map = CouplingMap(topology)
+    # coupling_map.make_symmetric()
+    #
+    # swap_inserter = SwapInserter(coupling_map, n_qubits)
+    # router1 = BWASRouter(model1, game1)
     ## router2 = BWASRouter(model2, game2)
     coupling_map = CouplingMap.from_line(5)
     env = make_env(coupling_map, 6, None)

@@ -3,7 +3,14 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 
 class CurriculumCallback(BaseCallback):
-    def __init__(self, threshold: float, max_difficulty: int, eval_env: ActionMasker, eval_freq: int = 2048, verbose: int = 0):
+    def __init__(
+        self,
+        threshold: float,
+        max_difficulty: int,
+        eval_env: ActionMasker,
+        eval_freq: int = 2048,
+        verbose: int = 0,
+    ):
         super().__init__(verbose)
         if not (0.0 <= threshold <= 1.0):
             raise ValueError("Threshold must be in the interval [0, 1].")
@@ -11,25 +18,25 @@ class CurriculumCallback(BaseCallback):
         self.threshold = threshold
         self.max_difficulty = max_difficulty
         self.eval_env = eval_env
-        
+
         if eval_freq < 1:
             raise ValueError("Eval frequency must be atleast 1")
-        
+
         self.eval_freq = eval_freq
         self.ep_count = 0
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
             current_diff = self.training_env.get_attr("_current_difficulty")[0]
-            if (
-                "episode" in info
-            ):
+            if "episode" in info:
                 self.ep_count += 1
                 if not (self.ep_count % self.eval_freq == 0):
                     continue
 
-                if (current_diff < self.max_difficulty
-                    and (performance := self._eval_episode_performance(current_diff)) > self.threshold
+                if (
+                    current_diff < self.max_difficulty
+                    and (performance := self._eval_episode_performance(current_diff))
+                    > self.threshold
                 ):
                     current_diff += 1
                     self.training_env.set_attr("_current_difficulty", current_diff)
@@ -47,7 +54,9 @@ class CurriculumCallback(BaseCallback):
             is_success = False
             is_done = False
             while not is_done:
-                action, _ = self.model.predict(obs, deterministic=True, action_masks=self.eval_env.action_masks()) # pyrefly: ignore
+                action, _ = self.model.predict(
+                    obs, deterministic=True, action_masks=self.eval_env.action_masks()
+                )  # pyrefly: ignore
                 obs, reward, terminated, truncated, info = self.eval_env.step(action)
                 is_done = terminated or truncated
                 is_success = terminated

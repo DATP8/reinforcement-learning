@@ -21,15 +21,23 @@ def mask_fn(env: gymnasium.Env) -> np.ndarray:
     return env.unwrapped.valid_action_mask()  # pyrefly: ignore
 
 
-def make_env(cmap: CouplingMap, horizon: int, render_mode: str | None = None, initial_difficulty=1):
+def make_env(
+    cmap: CouplingMap,
+    horizon: int,
+    render_mode: str | None = None,
+    initial_difficulty: int | None = None,
+):
     env = RoutingEnv(cmap, horizon, render_mode, initial_difficulty)
     env = ActionMasker(env, mask_fn)
     return env
 
-def route_circuit(model: MaskablePPO, circuit: QuantumCircuit, layout: Layout) -> tuple[QuantumCircuit, Layout]:
-    env: RoutingEnv = model.env.envs[0].unwrapped # pyrefly: ignore
+
+def route_circuit(
+    model: MaskablePPO, circuit: QuantumCircuit, layout: Layout
+) -> tuple[QuantumCircuit, Layout]:
+    env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
     obs, _ = env.reset(options={"circuit": circuit, "layout": layout})
-    
+
     if env.is_terminal():
         return env.routed_circuit, layout
 
@@ -38,10 +46,13 @@ def route_circuit(model: MaskablePPO, circuit: QuantumCircuit, layout: Layout) -
         mask = env.valid_action_mask()
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
         obs, _, terminated, truncated, _ = env.step(action)
-        
-    layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.logical_to_physical)}
+
+    layout_dict = {
+        circuit.qubits[i]: int(p) for i, p in enumerate(env.logical_to_physical)
+    }
     layout = Layout(layout_dict)
     return env.routed_circuit, layout
+
 
 if __name__ == "__main__":
     cmap = CouplingMap.from_line(5)
@@ -49,7 +60,7 @@ if __name__ == "__main__":
     print(f"Using {n_envs} envs")
 
     train_env = make_vec_env(
-        lambda: make_env(cmap, horizon=6),
+        lambda: make_env(cmap, horizon=6, initial_difficulty=1),
         n_envs=n_envs,
     )
 
@@ -72,8 +83,10 @@ if __name__ == "__main__":
         "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
     )
 
-    eval_env = make_env(cmap, horizon=6, render_mode="ansi", initial_difficulty=1)
-    curriculum_callback = CurriculumCallback(threshold=0.85, max_difficulty=100, verbose=1, eval_env=eval_env)
+    eval_env = make_env(cmap, horizon=6, render_mode="ansi")
+    curriculum_callback = CurriculumCallback(
+        threshold=0.85, max_difficulty=100, verbose=1, eval_env=eval_env
+    )
 
     model.learn(total_timesteps=5000, progress_bar=True, callback=curriculum_callback)
     model.save("test_model")
@@ -83,7 +96,9 @@ if __name__ == "__main__":
         flag = True
         while flag:
             action_masks = eval_env.action_masks()
-            action, _ = model.predict(obs, deterministic=True, action_masks=action_masks)
+            action, _ = model.predict(
+                obs, deterministic=True, action_masks=action_masks
+            )
             obs, reward, terminated, truncated, info = eval_env.step(action)
             if terminated:
                 eval_env.render()

@@ -7,11 +7,7 @@ from qiskit.transpiler.basepasses import TransformationPass
 
 
 class AgenticRlRoutingPass(TransformationPass):
-    def __init__(
-        self,
-        model: MaskablePPO,
-        cmap: CouplingMap
-    ):
+    def __init__(self, model: MaskablePPO, cmap: CouplingMap):
         super().__init__()
         self.model = model
         self.cmap = cmap
@@ -23,12 +19,12 @@ class AgenticRlRoutingPass(TransformationPass):
         new_dag = circuit_to_dag(qc)
         self.property_set["final_layout"] = layout
 
-        #layout = Layout(self.env.unwrapped.get_final_mapping())
-#
-        #self.property_set["final_layout"] = (
+        # layout = Layout(self.env.unwrapped.get_final_mapping())
+        #
+        # self.property_set["final_layout"] = (
         #    layout
         #    if (prev := self.property_set["final_layout"]) is None
         #    else prev.compose(layout, new_dag.qubits)
-        #)
+        # )
 
         return new_dag

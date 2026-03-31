@@ -1,5 +1,3 @@
-from numpy import ndarray
-from qiskit.transpiler import Layout
 from gymnasium import spaces
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap
@@ -14,7 +12,7 @@ class RoutingEnv(gymnasium.Env):
         cmap: CouplingMap,
         horizon: int,
         render_mode: str | None = None,
-        initial_difficulty=1,
+        initial_difficulty: int | None = None,
     ) -> None:
         super().__init__()
         unique_edges = list({tuple(sorted(edge)) for edge in cmap.get_edges()})
@@ -56,7 +54,7 @@ class RoutingEnv(gymnasium.Env):
         self._completion_reward = 10
         self._gate_cost = -0.1
         self._reduced_gate_cost = -0.1
-        
+
         self._locked_actions = set()
         self._inserted_swaps = 0
 
@@ -68,9 +66,11 @@ class RoutingEnv(gymnasium.Env):
             self.circuit = options["circuit"]
             self._num_logic_qubits = len(self.circuit.qubits)
             self.qubit_indices = {q: i for i, q in enumerate(self.circuit.qubits)}
-            
+
             self.logical_to_physical = np.zeros(self._num_logic_qubits, dtype=np.int64)
-            self.physical_to_logical = np.full(self._num_phys_qubits, -1, dtype=np.int64)
+            self.physical_to_logical = np.full(
+                self._num_phys_qubits, -1, dtype=np.int64
+            )
 
             virtual_bits = options["layout"].get_virtual_bits()
             for v_qubit, p_idx in virtual_bits.items():
@@ -82,18 +82,28 @@ class RoutingEnv(gymnasium.Env):
             self.dag = circuit_to_dag(self.circuit)
             self.routed_circuit = QuantumCircuit(self._num_phys_qubits)
             self._execute_front_layer()
-        else:
+        elif self._current_difficulty is not None:
             while True:
-                self._num_logic_qubits = int(self.np_random.integers(2, self._num_phys_qubits + 1))
-                self.circuit = self._generate_random_circuit(self._num_logic_qubits, self._current_difficulty)
+                self._num_logic_qubits = int(
+                    self.np_random.integers(2, self._num_phys_qubits + 1)
+                )
+                self.circuit = self._generate_random_circuit(
+                    self._num_logic_qubits, self._current_difficulty
+                )
                 self.qubit_indices = {q: i for i, q in enumerate(self.circuit.qubits)}
                 self.dag = circuit_to_dag(self.circuit)
                 self.routed_circuit = QuantumCircuit(self._num_phys_qubits)
-                self.logical_to_physical, self.physical_to_logical = self._generate_random_mapping()
+                self.logical_to_physical, self.physical_to_logical = (
+                    self._generate_random_mapping()
+                )
 
                 self._execute_front_layer()
                 if not self.is_terminal():
                     break
+        else:
+            raise ValueError(
+                "Circuit and layout must be specified if initial difficulty is None"
+            )
 
         self._locked_actions = set()
         self._inserted_swaps = 0
@@ -212,8 +222,10 @@ class RoutingEnv(gymnasium.Env):
             self._locked_actions.add(action)
         self.last_action = action
 
-        max_swaps = min(2*self._current_difficulty,128)
-        truncated = self._inserted_swaps == max_swaps
+        truncated = False
+        if self._current_difficulty is not None:
+            max_swaps = min(2 * self._current_difficulty, 128)
+            truncated = self._inserted_swaps == max_swaps
 
         return obs, reward, terminated, truncated, {}
 
@@ -228,7 +240,7 @@ class RoutingEnv(gymnasium.Env):
             self.logical_to_physical[l0] = p1
         if l1 != -1:
             self.logical_to_physical[l1] = p0
-            
+
         self._inserted_swaps += 1
 
     def _execute_front_layer(self) -> tuple[int, set[int]]:
@@ -273,13 +285,13 @@ class RoutingEnv(gymnasium.Env):
             "graph_x": graph_x,
             "graph_edge_idx": graph_edge_idx,
         }
-        
+
     def _build_matrix(self):
         E = len(self._cmap_edges)
         matrix = np.zeros((E, self._horizon), dtype=np.int8)
 
         layers = list(self.dag.layers())
-        
+
         p0_arr = self._cmap_edges[:, 0, None]
         p1_arr = self._cmap_edges[:, 1, None]
 
@@ -287,24 +299,36 @@ class RoutingEnv(gymnasium.Env):
             gate_nodes = [n for n in layers[h]["graph"].op_nodes() if len(n.qargs) == 2]
             if not gate_nodes:
                 continue
-                
+
             num_gates = len(gate_nodes)
-            l1_arr = np.fromiter((self.qubit_indices[n.qargs[0]] for n in gate_nodes), count=num_gates, dtype=np.int64)
-            l2_arr = np.fromiter((self.qubit_indices[n.qargs[1]] for n in gate_nodes), count=num_gates, dtype=np.int64)
-            
+            l1_arr = np.fromiter(
+                (self.qubit_indices[n.qargs[0]] for n in gate_nodes),
+                count=num_gates,
+                dtype=np.int64,
+            )
+            l2_arr = np.fromiter(
+                (self.qubit_indices[n.qargs[1]] for n in gate_nodes),
+                count=num_gates,
+                dtype=np.int64,
+            )
+
             curr_pa = self.logical_to_physical[l1_arr]
             curr_pb = self.logical_to_physical[l2_arr]
-            
+
             dist_before = self._distance_matrix[curr_pa, curr_pb]
-            
+
             pa_exp = np.tile(curr_pa, (E, 1))
             pb_exp = np.tile(curr_pb, (E, 1))
-            
-            new_pa = np.where(pa_exp == p0_arr, p1_arr, np.where(pa_exp == p1_arr, p0_arr, pa_exp))
-            new_pb = np.where(pb_exp == p0_arr, p1_arr, np.where(pb_exp == p1_arr, p0_arr, pb_exp))
-            
+
+            new_pa = np.where(
+                pa_exp == p0_arr, p1_arr, np.where(pa_exp == p1_arr, p0_arr, pa_exp)
+            )
+            new_pb = np.where(
+                pb_exp == p0_arr, p1_arr, np.where(pb_exp == p1_arr, p0_arr, pb_exp)
+            )
+
             dist_after = self._distance_matrix[new_pa, new_pb]
-            
+
             matrix[:, h] = np.sum(dist_after - dist_before, axis=1)
         return matrix
 
@@ -321,9 +345,7 @@ class RoutingEnv(gymnasium.Env):
 
     def valid_action_mask(self) -> np.ndarray:
         front_logical = [
-            self.qubit_indices[q]
-            for node in self.dag.front_layer()
-            for q in node.qargs
+            self.qubit_indices[q] for node in self.dag.front_layer() for q in node.qargs
         ]
         front_physical = self.logical_to_physical[front_logical]
 
