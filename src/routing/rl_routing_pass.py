@@ -24,13 +24,10 @@ class RlRoutingPass(TransformationPass):
 
     def run(self, dag):
         qc = dag_to_circuit(dag)
-
-        state = self.router.state_handler.state_from(qc)
-        root_state, _ = self.router.state_handler.prune(state)
-
-        path = self.router.search(root_state)
-
-        new_qc, init, final = self.swap_inserter.build_circuit_from_solution(path, qc)
+        actions = self.router.solve(qc)
+        new_qc, init, final = self.swap_inserter.build_circuit_from_solution(
+            actions, qc
+        )
 
         self.property_set["final_layout"] = Layout(
             {dag.qubits[org_q]: final_q for org_q, final_q in enumerate(final)}

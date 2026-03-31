@@ -1,3 +1,4 @@
+from src.routing.router import Router
 from qiskit import QuantumCircuit
 
 from src.states.state_handler import StateHandler  # pyrefly: ignore
@@ -25,7 +26,7 @@ class BWASNode:
         return child_node
 
 
-class BWASRouter[S, To]:
+class BWASRouter[S, To](Router):
     def __init__(
         self, model, state_handler: StateHandler[S], batch_size=64, weight=0.3
     ):
@@ -99,6 +100,10 @@ class BWASRouter[S, To]:
             path.append(node.action)
             node = node.parent_node
         return path[::-1]
+
+    def solve(self, circuit: QuantumCircuit) -> list[int]:
+        root_state = self.state_handler.state_from(circuit)
+        return self.search(root_state)
 
 
 if __name__ == "__main__":

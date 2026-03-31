@@ -1,3 +1,6 @@
+from src.model import BiCircuitGNN
+from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.routing.bwas_chunck_router import ChunkRouter
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
 from qiskit.circuit.random import random_circuit
@@ -188,38 +191,43 @@ if __name__ == "__main__":
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game1 = TensorStateHandler(n_qubits, horizon, topology)
-    model1 = ValueModel(n_qubits, horizon, len(topology))
 
-    game2 = TensorStateHandler(n_qubits, horizon, topology)
-    model2 = ValueModel(n_qubits, horizon, len(topology))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
-    path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
-    model1.load_state_dict(torch.load(path1, map_location="cpu"))
-    model2.load_state_dict(torch.load(path2, map_location="cpu"))
+    state_handler = CircuitGraphStateHandler(n_qubits, topology)
+    path = "models/graph/difficulty62_updates7_iteration25150.pt"
+    model = BiCircuitGNN(n_qubits)
+    model.load_state_dict(torch.load(path, map_location=device))
+    model.to(device)
 
-    bench_iterations = 10
+    bench_iterations = 2
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
-    initial_layouts = [TrivialLayout(coupling_map)]
-
-    forward_backward = [SabreLayout(coupling_map)]
-
     swap_inserter = SwapInserter(coupling_map, n_qubits)
-    router1 = BWASRouter(model1, game1)
-    router2 = BWASRouter(model2, game2)
+    # router2 = ChunkRouter(chunk_size=2, model=model, state_handler=state_handler)
+    # router4 = ChunkRouter(chunk_size=4, model=model, state_handler=state_handler)
+    # router8 = ChunkRouter(chunk_size=8, model=model, state_handler=state_handler)
+    # router12 = ChunkRouter(chunk_size=12, model=model, state_handler=state_handler)
+    router16 = ChunkRouter(chunk_size=16, model=model, state_handler=state_handler)
+    # router20 = ChunkRouter(chunk_size=20, model=model, state_handler=state_handler)
+    # router32 = ChunkRouter(chunk_size=32, model=model, state_handler=state_handler)
+
+    router16_pass = RlRoutingPass(router16, swap_inserter, "ChunkRouter 16")
+
+    initial_layouts = [TrivialLayout(coupling_map)]
+    forward_backward = [
+        SabreLayout(coupling_map, routing_pass=router16_pass, skip_routing=True)
+    ]
 
     final_routers = [
         SabreSwap(coupling_map),
-        RlRoutingPass(router1, swap_inserter, "diff17"),
-        RlRoutingPass(router2, swap_inserter, "incr14"),
+        router16_pass,
     ]
 
-    configs = list(product(initial_layouts, [None], final_routers))
+    configs = list(product(initial_layouts, forward_backward, final_routers))
 
     coupling_map.make_symmetric()
 
-    bench = Benchmarker(n_qubits, 14, coupling_map)
+    bench = Benchmarker(n_qubits, 5, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations, True)
