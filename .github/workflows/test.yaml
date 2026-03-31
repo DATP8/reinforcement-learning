@@ -12,6 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         name: Checkout Repository
+        with:
+          token: ${{ secrets.ACTIONS_TOKEN }}
 
       - uses: ./.github/actions/setup-env
         name: Setup Environment
@@ -24,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         name: Checkout Repository
+        with:
+          token: ${{ secrets.ACTIONS_TOKEN }}
       
       - uses: astral-sh/ruff-action@v3.6.1
         name: Check Linting
@@ -38,6 +42,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         name: Checkout Repository
+        with:
+          token: ${{ secrets.ACTIONS_TOKEN }}
 
       - uses: ./.github/actions/setup-env
         name: Setup Environment
@@ -53,6 +59,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
         name: Checkout Repository
+        with:
+          token: ${{ secrets.ACTIONS_TOKEN }}
 
       - uses: astral-sh/ruff-action@v3.6.1
         name: Check Formatting
