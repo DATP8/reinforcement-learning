@@ -29,6 +29,17 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
     def get_possible_actions(self, state: torch.Tensor) -> list[int]:
         return list(range(len(self.topology)))
 
+    def get_indexes(self, state: torch.Tensor):
+        """
+        Takes a layer and returns a list of tuples of indexes corresponding to the gates in said layer
+        """
+        indexes = []
+        for i in range(self.n_qubits):
+            for j in range(self.n_qubits):
+                if state[i, j] == 1:
+                    indexes.append((i, j))
+        return indexes
+
     def get_restricted_actions(self, state: torch.Tensor):
         pruned_state, _ = self.prune(state)
         frontlayer_qubits, _ = self.get_front_layer_qubits(pruned_state)
@@ -41,21 +52,52 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
     def prune(self, state: torch.Tensor) -> tuple[torch.Tensor, int]:
         new_state = state.clone()
         layers_removed = 0
-        new_state[:, :, 0] *= self.mask
-
+        mask = self.mask.clone()
+        new_state[:, :, 0] *= mask
+        locked_qubits = set()
+        mask_override = torch.ones((self.n_qubits), dtype=torch.float32)
+        removed_layers = torch.ones((self.horizon), dtype=torch.bool)
+        temp = 0
+        if torch.sum(new_state[:, :, 0]) >= 1e-7:
+            indexes = self.get_indexes(new_state[:, :, 0])
+            for q1, q2 in indexes:
+                locked_qubits.add(q1)
+                locked_qubits.add(q2)
+                mask[q1, :] = mask_override
+                mask[q2, :] = mask_override
+                mask[:, q1] = mask_override
+                mask[:, q2] = mask_override
+        else:
+            removed_layers[0] = 0
+            temp += 1
         while (
             layers_removed < self.horizon - 1
-            and torch.sum(new_state[:, :, layers_removed]) <= 1e-7
+            and len(locked_qubits) < len(self.topology) - 1
         ):
             if torch.sum(new_state[:, :, layers_removed + 1]) <= 1e-7:
                 break
-            new_state[:, :, layers_removed + 1] *= self.mask
+            new_state[:, :, layers_removed + 1] *= mask
+            if torch.sum(new_state[:, :, layers_removed + 1]) >= 1e-7:
+                indexes = self.get_indexes(new_state[:, :, layers_removed + 1])
+                for q1, q2 in indexes:
+                    locked_qubits.add(q1)
+                    locked_qubits.add(q2)
+                    mask[q1, :] = mask_override
+                    mask[q2, :] = mask_override
+                    mask[:, q1] = mask_override
+                    mask[:, q2] = mask_override
+            else:
+                removed_layers[layers_removed + 1] = 0
+                temp += 1
             layers_removed += 1
 
-        new_state[:, :, : self.horizon - layers_removed] = new_state[
-            :, :, layers_removed:
-        ]
-        new_state[:, :, self.horizon - layers_removed :] = 0.0
+        new_state = torch.cat(
+            [
+                new_state[:, :, removed_layers],
+                torch.zeros((self.n_qubits, self.n_qubits, temp), dtype=torch.float32),
+            ],
+            dim=2,
+        )
 
         return new_state, layers_removed
 
@@ -165,7 +207,6 @@ if __name__ == "__main__":
     horizon = 10
 
     circuit = QuantumCircuit(n_qubits)
-    circuit.cx(0, 2)
     circuit.cx(0, 1)
     circuit.cx(0, 3)
     print(circuit)
