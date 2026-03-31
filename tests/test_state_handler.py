@@ -275,6 +275,20 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
             )
 
+    def test_graph_is_terminal2(self):
+        circuits = []
+        for gate_list in input_circuits:
+            circuit = QuantumCircuit(n_qubits)
+            for q1, q2 in gate_list:
+                circuit.cx(q1, q2)
+            circuits.append(CircuitGraph.from_circuit(circuit, horizon))
+        for i, state in enumerate(circuits):
+            self.assertEqual(
+                len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
+            )
+        "dhjsak"
+        "dshaj "
+
 
 if __name__ == "__main__":
     unittest.main()
