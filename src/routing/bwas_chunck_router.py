@@ -1,4 +1,4 @@
-from copy import deepcopy
+from qiskit.transpiler import Layout
 from qiskit import QuantumCircuit
 from src.routing.bwas_router import BWASRouter
 
@@ -10,22 +10,32 @@ class ChunkRouter(BWASRouter):
 
     def solve(self, circuit: QuantumCircuit) -> list[int]:
         circuit_chunks = self._chunk_circuit(circuit)
-        mapping = [
-            q for q in range(circuit.num_qubits)
-        ]  # Identity mapping at the start
+
+        # Start with a trivial layout
+        layout = Layout.from_qubit_list(circuit.qubits, range(len(circuit.qubits)))
+
         all_actions = []
         for chunk in circuit_chunks:
-            mapped_chunk = self._apply_mapping(chunk, mapping)
-            # print(mapping)
-            # print(chunk)
-            # print(mapped_chunk)
-            root_state = self.state_handler.state_from(mapped_chunk)
+            chunk = self._apply_layout_to_circuit(chunk, layout)
+            root_state = self.state_handler.state_from(
+                chunk
+            )  # update chuck to reflect preveus swaps
             actions = self.search(root_state)
-            # print(actions)
             all_actions.extend(actions)
-            mapping = self._update_mapping(mapping, actions)
+            layout = self._update_layout(layout, actions)
 
         return all_actions
+
+    def _apply_layout_to_circuit(
+        self, circuit: QuantumCircuit, layout: Layout
+    ) -> QuantumCircuit:
+        new_circ = QuantumCircuit(circuit.num_qubits)
+
+        for instr, qargs, cargs in circuit.data:
+            physical_qargs = [layout[q] for q in qargs]
+            new_circ.append(instr, physical_qargs, cargs)
+
+        return new_circ
 
     def _chunk_circuit(self, circuit: QuantumCircuit) -> list[QuantumCircuit]:
         chunks = []
@@ -37,33 +47,15 @@ class ChunkRouter(BWASRouter):
             current_chunk.append(gate.operation, gate.qubits, gate.clbits)
 
         chunks.append(current_chunk)
-        # print("UUUUUUUU")
-        # print(len(chunks))
-        # for chuck in chunks:
-        # print(len(chuck.data))
         return chunks
 
-    def _update_mapping(self, mapping: list[int], actions: list[int]) -> list[int]:
+    def _update_layout(self, layout: Layout, actions: list[int]) -> Layout:
         topology = self.state_handler.get_topology()
         for action in actions:
             q1, q2 = topology[action]
-            # print(q1, q2)
-            # print("Before swap:", mapping)
-            mapping[q1], mapping[q2] = mapping[q2], mapping[q1]
-            # print("After swap:", mapping)
+            layout.swap(q1, q2)
 
-        # print("Updated mapping:", mapping)
-        # print("Using actions:", actions)
-        return mapping
-
-    def _apply_mapping(
-        self, circuit: QuantumCircuit, mapping: list[int]
-    ) -> QuantumCircuit:
-        new_circuit = QuantumCircuit(circuit.num_qubits)
-        for gate in circuit.data:
-            mapped_qubits = [mapping.index(q._index) for q in gate.qubits]
-            new_circuit.append(gate.operation, mapped_qubits, gate.clbits)
-        return new_circuit
+        return layout
 
 
 if __name__ == "__main__":

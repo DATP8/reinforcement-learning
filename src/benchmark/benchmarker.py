@@ -1,19 +1,14 @@
-from src.model import BiCircuitGNN
-from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-from src.routing.bwas_chunck_router import ChunkRouter
+from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
-from qiskit.transpiler import CouplingMap, PassManager
-from qiskit.circuit.random import random_circuit
+from qiskit.transpiler import PassManager
 from qiskit import QuantumCircuit
-from itertools import product
 from collections import defaultdict
 from scipy import stats
-
+from tqdm import tqdm
 import numpy as np
 import time
 import random
 
-from src.routing.rl_routing_pass import RlRoutingPass
 
 METRIC_KEYS = [
     "transpile_time",
@@ -51,10 +46,6 @@ class Benchmarker:
         }
         return metrics
 
-    def _build_pass_manager(self, init, fb, final):
-        passes = [p for p in [init, fb, final] if p is not None]
-        return PassManager(passes)
-
     def generate_random_2qubit_circuit(
         self, num_qubits: int, num_gates: int
     ) -> QuantumCircuit:
@@ -72,40 +63,29 @@ class Benchmarker:
 
         return qc
 
-    def _config_key(self, run):
-        if run["forward_backward"] is not None:
-            return (
-                type(run["initial"]).__name__
-                + "_"
-                + type(run["forward_backward"]).__name__
-            )
-        elif type(run["final_router"]) is RlRoutingPass:
-            return type(run["initial"]).__name__ + "_" + run["final_router"].get_name()
-        else:
-            return (
-                type(run["initial"]).__name__ + "_" + type(run["final_router"]).__name__
-            )
-
     def run_rand_benchmarks(
-        self, configs, iterations, is_set_difficulty=False, confidence=0.95
+        self,
+        configs: list[tuple[str, PassManager]],
+        iterations: int,
+        confidence: float = 0.95,
     ):
-        # Accumulate raw per-iteration metric values per config key
         raw: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
 
-        for i in range(iterations):
-            if is_set_difficulty:
-                qc = self.generate_random_2qubit_circuit(self.qubits, self.max_depth)
-            else:
-                qc = random_circuit(self.qubits, self.max_depth)
+        qc_list = []
 
-            runs = self.run_bench(qc, configs)
+        for i in tqdm(range(iterations), desc="List of random circuits"):
+            qc_list.append(
+                self.generate_random_2qubit_circuit(self.qubits, self.max_depth)
+            )
+
+        for config in configs:
+            title, pm = config
+            runs = self.bench_pass(qc_list, config)
             for run in runs:
-                key = self._config_key(run)
                 for metric in METRIC_KEYS:
-                    raw[key][metric].append(run[metric])
+                    raw[title][metric].append(run[metric])
 
-        # Compute mean and confidence intervals using numpy + scipy
-        for key, metric_lists in raw.items():
+        for title, metric_lists in raw.items():
             summary = {}
             for metric, values in metric_lists.items():
                 arr = np.array(values, dtype=float)
@@ -114,17 +94,15 @@ class Benchmarker:
                 se = stats.sem(arr)  # standard error
                 ci = se * stats.t.ppf((1 + confidence) / 2, df=n - 1)  # pyrefly: ignore
                 summary[metric] = (mean, ci)
-            self._pretty_print(key, summary, confidence)
+            self._pretty_print(title, summary, confidence)
 
-    def run_bench(self, qc, configs, printing=False):
-        rows = []
+    def bench_pass(self, qc_list, config):
+        runs = []
 
-        org_op = Operator.from_circuit(qc)
-        for init, fb, final in configs:
-            if printing:
-                print("Running with:", init, fb, final)
+        title, pm = config
 
-            pm = self._build_pass_manager(init, fb, final)
+        for qc in tqdm(qc_list, desc=title):
+            org_op = Operator.from_circuit(qc)
 
             start = time.perf_counter()
             routed = pm.run(qc)
@@ -135,30 +113,17 @@ class Benchmarker:
             routed_op = Operator.from_circuit(routed)
 
             assert routed_op == org_op, (
-                f"\n\nFor the following configuration {init, fb, final}\n"
+                f"\n\nFor the following configuration {title}\n"
                 f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
             )
 
-            if printing:
-                print(qc)
-                print(routed)
+            runs.append(self._collect_metrics(routed, transpile_time))
+        return runs
 
-            metrics = self._collect_metrics(routed, transpile_time)
-
-            row = {
-                "initial": init,
-                "forward_backward": fb,
-                "final_router": final,
-                **metrics,
-            }
-
-            rows.append(row)
-        return rows
-
-    def _pretty_print(self, name, summary, confidence):
+    def _pretty_print(self, title, summary, confidence):
         pct = int(confidence * 100)
         print(f"\n{'=' * 60}")
-        print(f"  {name}")
+        print(f"  Title: {title}")
         print(f"{'=' * 60}")
         print(f"  {'Metric':<22} {'Mean':>10}  {'±CI ({pct}%)':>12}".format(pct=pct))
         print(f"  {'-' * 46}")
@@ -178,56 +143,86 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
-    from src.states.tensor_state_handler import TensorStateHandler  # pyrefly: ignore
-    from src.model import ValueModel  # pyrefly: ignore
-    from src.routing.rl_routing_pass import RlRoutingPass  # pyrefly: ignore
-    from src.routing.bwas_router import BWASRouter  # pyrefly: ignore
-
+    from src.routing.swap_inserter.swap_inserter import SwapInserter
+    from qiskit.transpiler.passes import ApplyLayout
+    from qiskit.transpiler.passes import SabreLayout
+    from qiskit.transpiler.passes import TrivialLayout
+    from src.routing.bwas_chunck_router import ChunkRouter
+    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+    from qiskit.transpiler import CouplingMap
+    from src.model import BiCircuitGNN
+    from src.routing.rl_routing_pass import RlRoutingPass
+    from qiskit.transpiler.passes import SabreSwap
     import torch
-
-    from qiskit.transpiler.passes import TrivialLayout, SabreLayout, SabreSwap
 
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
+
     path = "models/graph/difficulty62_updates7_iteration25150.pt"
     model = BiCircuitGNN(n_qubits)
-    model.load_state_dict(torch.load(path, map_location=device))
-    model.to(device)
+    model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    bench_iterations = 2
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
-    # router2 = ChunkRouter(chunk_size=2, model=model, state_handler=state_handler)
-    # router4 = ChunkRouter(chunk_size=4, model=model, state_handler=state_handler)
-    # router8 = ChunkRouter(chunk_size=8, model=model, state_handler=state_handler)
-    # router12 = ChunkRouter(chunk_size=12, model=model, state_handler=state_handler)
-    router16 = ChunkRouter(chunk_size=16, model=model, state_handler=state_handler)
-    # router20 = ChunkRouter(chunk_size=20, model=model, state_handler=state_handler)
-    # router32 = ChunkRouter(chunk_size=32, model=model, state_handler=state_handler)
 
-    router16_pass = RlRoutingPass(router16, swap_inserter, "ChunkRouter 16")
+    chuck_size = 16
+    chunk_router = ChunkRouter(
+        chunk_size=chuck_size, model=model, state_handler=state_handler
+    )
+    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
-    initial_layouts = [TrivialLayout(coupling_map)]
-    forward_backward = [
-        SabreLayout(coupling_map, routing_pass=router16_pass, skip_routing=True)
+    trivial_layout = TrivialLayout(coupling_map)
+    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+
+    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
+    #### Standard qiskit pass manager inserted router
+    configs = [
+        (
+            "TrivialLayout_SabreSwap",
+            PassManager(
+                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+            ),
+        ),
+        (
+            f"TrivialLayout_Chunking_{chuck_size}",
+            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
+        ),
+        (
+            "SabreLayout_SabreSwap",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(coupling_map=coupling_map),
+                ]
+            ),
+        ),
+        (
+            f"SabreLayout_Chunking_{chuck_size}",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    chunck_swap_pass,
+                ]
+            ),
+        ),
+        (
+            "Op1 qiskit",
+            generate_preset_pass_manager(
+                optimization_level=1, coupling_map=coupling_map
+            ),
+        ),
     ]
 
-    final_routers = [
-        SabreSwap(coupling_map),
-        router16_pass,
-    ]
+    #### Pass manager with only routing stage
+    # configs = [(title, PassManager([router])) for title, router in routers]
 
-    configs = list(product(initial_layouts, forward_backward, final_routers))
-
-    coupling_map.make_symmetric()
-
-    bench = Benchmarker(n_qubits, 5, coupling_map)
-    bench.run_rand_benchmarks(configs, bench_iterations, True)
+    bench_iterations = 10
+    bench_circut_gate_count = 64
+    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
+    bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

@@ -1,3 +1,4 @@
+from qiskit import QuantumCircuit
 import random
 from typing import overload
 from typing import SupportsIndex
@@ -58,7 +59,7 @@ class StateHandler[S](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def state_from(self, circuit) -> S:
+    def state_from(self, circuit: QuantumCircuit) -> S:
         raise NotImplementedError
 
     @abstractmethod
