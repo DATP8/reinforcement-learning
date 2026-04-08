@@ -63,10 +63,9 @@ class ChunkRouter(BWASRouter):
 
 
 if __name__ == "__main__":
-    from qiskit.qpy import load, dump
+    from qiskit.qpy import load
     import torch
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-    from src.circuit_generator import CircuitGenerator
     from src.model import BiCircuitGNN
     from src.routing.swap_inserter.swap_inserter import SwapInserter
 
