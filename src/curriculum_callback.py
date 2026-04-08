@@ -6,7 +6,6 @@ class CurriculumCallback(BaseCallback):
     def __init__(
         self,
         threshold: float,
-        max_difficulty: int,
         eval_env: ActionMasker,
         eval_freq: int = 2048,
         verbose: int = 0,
@@ -16,7 +15,7 @@ class CurriculumCallback(BaseCallback):
             raise ValueError("Threshold must be in the interval [0, 1].")
 
         self.threshold = threshold
-        self.max_difficulty = max_difficulty
+        self.max_difficulty = eval_env.get_wrapper_attr("_max_difficulty")
         self.eval_env = eval_env
 
         if eval_freq < 1:
@@ -55,8 +54,10 @@ class CurriculumCallback(BaseCallback):
             is_done = False
             while not is_done:
                 action, _ = self.model.predict(
-                    obs, deterministic=True, action_masks=self.eval_env.action_masks()
-                )  # pyrefly: ignore
+                    obs,
+                    deterministic=True,
+                    action_masks=self.eval_env.action_masks(),  # pyrefly: ignore
+                )
                 obs, reward, terminated, truncated, info = self.eval_env.step(action)
                 is_done = terminated or truncated
                 is_success = terminated

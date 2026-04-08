@@ -147,14 +147,6 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter
-    from src.states.tensor_state_handler import TensorStateHandler
-    from src.model import ValueModel
-    from src.routing.path_rl_routing_pass import PathRlRoutingPass
-    from src.routing.bwas_router import BWASRouter
-
-    import torch
-
     from qiskit.transpiler.passes import SabreSwap
 
     n_qubits = 5
@@ -178,7 +170,7 @@ if __name__ == "__main__":
     # router1 = BWASRouter(model1, game1)
     ## router2 = BWASRouter(model2, game2)
     coupling_map = CouplingMap.from_line(5)
-    env = make_env(coupling_map, 6, None)
+    env = make_env(coupling_map, 64, None)
     model = MaskablePPO.load("test_model", env)
     routers = [
         ("sabre", SabreSwap(coupling_map=coupling_map)),
@@ -193,20 +185,20 @@ if __name__ == "__main__":
         return pm
 
     #### Standard qiskit pass manager inserted router
-    #configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
-    #configs.append(
+    # configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
+    # configs.append(
     #    (
     #        "Op1 qiskit",
     #        generate_preset_pass_manager(
     #            optimization_level=1, coupling_map=coupling_map
     #        ),
     #    )
-    #)
+    # )
 
     #### Pass manager with only routing stage
     configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 100
-    bench_circut_gate_count = 10
+    bench_circut_gate_count = 60
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

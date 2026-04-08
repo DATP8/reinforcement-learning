@@ -14,6 +14,7 @@ class RoutingEnv(gymnasium.Env):
         horizon: int,
         render_mode: str | None = None,
         initial_difficulty: int | None = None,
+        max_difficulty: int | None = None,
     ) -> None:
         super().__init__()
         unique_edges = list({tuple(sorted(edge)) for edge in cmap.get_edges()})
@@ -27,6 +28,9 @@ class RoutingEnv(gymnasium.Env):
 
         self._num_logic_qubits = 0
         self._current_difficulty = initial_difficulty
+        self._max_difficulty = max_difficulty
+        self._diff_slope = 2
+        self._max_steps = 128
 
         self.action_space = spaces.Discrete(len(self._cmap_edges))
         self.observation_space = spaces.Dict(
@@ -54,7 +58,6 @@ class RoutingEnv(gymnasium.Env):
 
         self._completion_reward = 10
         self._gate_cost = -0.1
-        self._reduced_gate_cost = -0.1
 
         self._locked_actions = set()
         self._inserted_swaps = 0
@@ -73,7 +76,9 @@ class RoutingEnv(gymnasium.Env):
                 self._num_phys_qubits, -1, dtype=np.int64
             )
 
-            virtual_bits = Layout.generate_trivial_layout(*self.circuit.qregs).get_virtual_bits()
+            virtual_bits = Layout.generate_trivial_layout(
+                *self.circuit.qregs
+            ).get_virtual_bits()
             for v_qubit, p_idx in virtual_bits.items():
                 if v_qubit in self.qubit_indices:
                     l_idx = self.qubit_indices[v_qubit]
@@ -81,19 +86,36 @@ class RoutingEnv(gymnasium.Env):
                     self.physical_to_logical[p_idx] = l_idx
 
             self.dag = circuit_to_dag(self.circuit)
-            self.routed_circuit = QuantumCircuit(self._num_phys_qubits)
+            if len(self.circuit.qubits) == self._num_phys_qubits:
+                self.routed_circuit = self.circuit.copy_empty_like()
+            else:
+                self.routed_circuit = QuantumCircuit(self._num_phys_qubits)
             self._execute_front_layer()
         elif self._current_difficulty is not None:
             while True:
                 self._num_logic_qubits = int(
                     self.np_random.integers(2, self._num_phys_qubits + 1)
                 )
+
+                if (
+                    self._max_difficulty is not None
+                    and self._current_difficulty >= self._max_difficulty
+                ):
+                    sample_diff = int(
+                        self.np_random.integers(1, self._current_difficulty + 1)
+                    )
+                else:
+                    sample_diff = self._current_difficulty
+
                 self.circuit = self._generate_random_circuit(
-                    self._num_logic_qubits, self._current_difficulty
+                    self._num_logic_qubits, sample_diff
                 )
                 self.qubit_indices = {q: i for i, q in enumerate(self.circuit.qubits)}
                 self.dag = circuit_to_dag(self.circuit)
-                self.routed_circuit = QuantumCircuit(self._num_phys_qubits)
+                if len(self.circuit.qubits) == self._num_phys_qubits:
+                    self.routed_circuit = self.circuit.copy_empty_like()
+                else:
+                    self.routed_circuit = QuantumCircuit(self._num_phys_qubits)
                 self.logical_to_physical, self.physical_to_logical = (
                     self._generate_random_mapping()
                 )
@@ -102,9 +124,7 @@ class RoutingEnv(gymnasium.Env):
                 if not self.is_terminal():
                     break
         else:
-            raise ValueError(
-                "Circuit must be specified if initial difficulty is None"
-            )
+            raise ValueError("Circuit must be specified if initial difficulty is None")
 
         self._locked_actions = set()
         self._inserted_swaps = 0
@@ -201,16 +221,27 @@ class RoutingEnv(gymnasium.Env):
     def step(self, action: int | np.ndarray):
         action = int(action)
 
+        dist_before = self._calculate_sabre_basic_heuristic()
         self._apply_swap(action)
+        dist_after_swap = self._calculate_sabre_basic_heuristic()
+        distance_progress = dist_before - dist_after_swap
+
         gates_executed, active_qubits = self._execute_front_layer()
 
         obs = self._get_obs()
         terminated = self.is_terminal()
 
+        reward = self._gate_cost
+
+        # Reward for moving qubits closer
+        reward += 0.05 * distance_progress
+
+        # Encourage swaps that can execute multiple gates
+        if gates_executed > 0:
+            reward += 0.2 * gates_executed
+
         if terminated:
-            reward = self._completion_reward
-        else:
-            reward = self._gate_cost
+            reward += self._completion_reward
 
         if gates_executed > 0:
             to_unlock = {
@@ -225,10 +256,21 @@ class RoutingEnv(gymnasium.Env):
 
         truncated = False
         if self._current_difficulty is not None:
-            max_swaps = min(2 * self._current_difficulty, 128)
+            max_swaps = min(
+                self._diff_slope * self._current_difficulty, self._max_steps
+            )
             truncated = self._inserted_swaps == max_swaps
 
         return obs, reward, terminated, truncated, {}
+
+    def _calculate_sabre_basic_heuristic(self) -> float:
+        distance = 0.0
+        for node in self.dag.front_layer():
+            if len(node.qargs) == 2:
+                q1 = self.logical_to_physical[self.qubit_indices[node.qargs[0]]]
+                q2 = self.logical_to_physical[self.qubit_indices[node.qargs[1]]]
+                distance += self._distance_matrix[q1][q2]
+        return distance
 
     def _apply_swap(self, action: int) -> None:
         p0, p1 = self._cmap_edges[action]
@@ -297,7 +339,9 @@ class RoutingEnv(gymnasium.Env):
         p1_arr = self._cmap_edges[:, 1, None]
 
         for h in range(min(len(layers), self._horizon)):
-            gate_nodes = [n for n in layers[h]["graph"].op_nodes() if len(n.qargs) == 2]
+            layer = layers[h]
+            graph = layer["graph"] if isinstance(layer, dict) else layer
+            gate_nodes = [n for n in graph.op_nodes() if len(n.qargs) == 2]
             if not gate_nodes:
                 continue
 

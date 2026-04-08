@@ -1,7 +1,6 @@
 from curriculum.curriculum_helper import RoutedCircuitMetrics
 from curriculum.curriculum_helper import CircuitMetrics
 from curriculum.curriculum_helper import CurriculumHelper
-import random
 import numpy as np
 from tqdm import tqdm
 
