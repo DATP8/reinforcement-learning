@@ -13,7 +13,6 @@ import numpy as np
 
 from src.routing_env import RoutingEnv
 from qiskit.dagcircuit import DAGCircuit
-from stable_baselines3.common.callbacks import CheckpointCallback
 
 ### INFO
 ### When reporting results, take mean and standard deviation
@@ -29,21 +28,22 @@ def make_env(
     horizon: int,
     render_mode: str | None = None,
     initial_difficulty: int | None = None,
+    max_difficulty: int | None = None,
 ):
-    env = RoutingEnv(cmap, horizon, render_mode, initial_difficulty)
+    env = RoutingEnv(cmap, horizon, render_mode, initial_difficulty, max_difficulty)
     env = ActionMasker(env, mask_fn)
     return env
 
 
-def route_circuit(
-    model: MaskablePPO, dag: DAGCircuit
-) -> tuple[DAGCircuit, Layout]:
+def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layout]:
     circuit = dag_to_circuit(dag)
     env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
     obs, _ = env.reset(options={"circuit": circuit})
 
     if env.is_terminal():
-        return circuit_to_dag(env.routed_circuit), Layout.generate_trivial_layout(*circuit.qregs)
+        return circuit_to_dag(env.routed_circuit), Layout.generate_trivial_layout(
+            *circuit.qregs
+        )
 
     terminated = False
     while not terminated:
@@ -58,13 +58,18 @@ def route_circuit(
     return circuit_to_dag(env.routed_circuit), layout
 
 
+HORIZON = 16
+MAX_DIFF = 100
+
 if __name__ == "__main__":
-    cmap = CouplingMap.from_line(5)
+    cmap = CouplingMap.from_line(6)
     n_envs = mp.cpu_count() - 1
     print(f"Using {n_envs} envs")
 
     train_env = make_vec_env(
-        lambda: make_env(cmap, horizon=6, initial_difficulty=1),
+        lambda: make_env(
+            cmap, horizon=HORIZON, initial_difficulty=1, max_difficulty=MAX_DIFF
+        ),
         n_envs=n_envs,
     )
 
@@ -87,12 +92,16 @@ if __name__ == "__main__":
         "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
     )
 
-    eval_env = make_env(cmap, horizon=6, render_mode="ansi")
+    eval_env = make_env(
+        cmap, horizon=HORIZON, render_mode="ansi", max_difficulty=MAX_DIFF
+    )
     curriculum_callback = CurriculumCallback(
-        threshold=0.85, max_difficulty=100, verbose=1, eval_env=eval_env
+        threshold=0.85, verbose=1, eval_env=eval_env
     )
 
-    model.learn(total_timesteps=500000, progress_bar=True, callback=curriculum_callback)
+    model.learn(
+        total_timesteps=1000000, progress_bar=True, callback=curriculum_callback
+    )
     model.save("test_model")
 
     for _ in range(10):
