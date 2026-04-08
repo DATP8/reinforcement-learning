@@ -7,7 +7,7 @@ import torch
 
 class TensorState(torch.Tensor):
     @classmethod
-    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
+    def from_circuit(cls, qc: QuantumCircuit, horizon: int | None = None):
         depth = qc.depth() if horizon is None else horizon
         tensor = torch.zeros((qc.num_qubits, qc.num_qubits, depth), dtype=torch.float32)
 
