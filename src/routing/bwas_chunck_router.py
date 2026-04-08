@@ -31,7 +31,12 @@ class ChunkRouter(BWASRouter):
     ) -> QuantumCircuit:
         new_circ = QuantumCircuit(circuit.num_qubits)
 
-        for instr, qargs, cargs in circuit.data:
+
+        for instruction in circuit.data:
+            instr = instruction.operation
+            qargs = instruction.qubits
+            cargs = instruction.clbits
+
             physical_qargs = [layout[q] for q in qargs]
             new_circ.append(instr, physical_qargs, cargs)
 
