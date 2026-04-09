@@ -98,7 +98,7 @@ class Benchmarker:
                 if success:
                     break
                 try:
-                    qc = get_benchmark(algorithm_name, BenchmarkLevel.ALG, self.qubits)
+                    qc = get_benchmark(algorithm_name, BenchmarkLevel.INDEP, self.qubits)
                     qc = self._prepare_for_routing(qc)
                     if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
                         # print(f"{algorithm_name} had qubits ({qc.num_qubits} > {self.qubits}) and {qc.size()} > {self.max_gates}")
@@ -160,7 +160,7 @@ class Benchmarker:
 
         org_op = Operator.from_circuit(qc)
         routed_op = Operator.from_circuit(routed)
-        assert routed_op == org_op, (
+        assert routed_op.equiv(org_op), (
             f"\n\nFor the following configuration {title}\n"
             f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
         )
@@ -219,7 +219,7 @@ class Benchmarker:
         print(f"{'=' * 120}")
 
         header = (
-            f"  {'Config':<20}"
+            f"  {'Config':<30}"
             f" {'Transpile(s)':>12}"
             f" {'Swap':>8}"
             f" {'CX':>8}"
@@ -233,7 +233,7 @@ class Benchmarker:
 
         for config_name, metrics in runs_by_config.items():
             print(
-                f"  {config_name:<20}"
+                f"  {config_name:<30}"
                 f" {metrics['transpile_time']:>12.4f}"
                 f" {metrics['swap_count']:>8.0f}"
                 f" {metrics['cx_count']:>8.0f}"
@@ -247,86 +247,87 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter
-    from src.states.tensor_state_handler import TensorStateHandler
-    from src.model import ValueModel
-    from src.routing.path_rl_routing_pass import PathRlRoutingPass
-    from src.routing.bwas_router import BWASRouter
-
-    import torch
-
+     from src.routing.swap_inserter.swap_inserter import SwapInserter
+    from qiskit.transpiler.passes import ApplyLayout
+    from qiskit.transpiler.passes import SabreLayout
+    from qiskit.transpiler.passes import TrivialLayout
+    from src.routing.bwas_chunck_router import ChunkRouter
+    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+    from qiskit.transpiler import CouplingMap
+    from src.model import BiCircuitGNN
+    from src.routing.rl_routing_pass import RlRoutingPass
     from qiskit.transpiler.passes import SabreSwap
+    import torch
 
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game1 = TensorStateHandler(n_qubits, horizon, topology)
-    model1 = ValueModel(n_qubits, horizon, len(topology))
+    state_handler = CircuitGraphStateHandler(n_qubits, topology)
 
-    game2 = TensorStateHandler(n_qubits, horizon, topology)
-    model2 = ValueModel(n_qubits, horizon, len(topology))
-
-    path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
-    path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
-    model1.load_state_dict(torch.load(path1, map_location="cpu"))
-    # model2.load_state_dict(torch.load(path2, map_location="cpu"))
+    path = "models/graph/difficulty62_updates7_iteration25150.pt"
+    model = BiCircuitGNN(n_qubits)
+    model.load_state_dict(torch.load(path, map_location="cpu"))
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
-    router1 = BWASRouter(model1, game1)
-    # router2 = BWASRouter(model2, game2)
 
-    routers = [
-        ("sabre", SabreSwap(coupling_map=coupling_map)),
-        ("diff17", PathRlRoutingPass(router1, swap_inserter)),
-    ]
+    chuck_size = 16
+    chunk_router = ChunkRouter(
+        chunk_size=chuck_size, model=model, state_handler=state_handler
+    )
+    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
-    def _make_staged_pass_manager(routingPass):
-        pm = generate_preset_pass_manager(
-            optimization_level=1, coupling_map=coupling_map
-        )
+    trivial_layout = TrivialLayout(coupling_map)
+    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
 
-        pm.layout = PassManager(
-            [
-                BarrierBeforeFinalMeasurements(),
-                SabreLayout(coupling_map, routing_pass=routingPass),
-            ]
-        )
-
-        pm.routing = PassManager(
-            [
-                BarrierBeforeFinalMeasurements(),
-                routingPass,
-                ApplyLayout(),
-                FilterOpNodes(
-                    lambda node: (
-                        node.label
-                        != "qiskit.transpiler.internal.routing.protection.barrier"
-                    )
-                ),
-            ]
-        )
-
-        return pm
-
+    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
     #### Standard qiskit pass manager inserted router
-    configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
-    configs.append(
+    configs = [
+        (
+            "TrivialLayout_SabreSwap",
+            PassManager(
+                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+            ),
+        ),
+        (
+            f"TrivialLayout_Chunking_{chuck_size}",
+            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
+        ),
+        (
+            "SabreLayout_SabreSwap",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(coupling_map=coupling_map),
+                ]
+            ),
+        ),
+        (
+            f"SabreLayout_Chunking_{chuck_size}",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    chunck_swap_pass,
+                ]
+            ),
+        ),
         (
             "Op1 qiskit",
             generate_preset_pass_manager(
                 optimization_level=1, coupling_map=coupling_map
             ),
-        )
-    )
+        ),
+    ]
 
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 10
-    bench_circut_gate_count = 17
+    bench_circut_gate_count = 64
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+    bench.run_mqt_benchmarks(configs) # pyrefly: ignore
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
