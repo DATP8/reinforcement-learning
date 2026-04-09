@@ -247,7 +247,7 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-     from src.routing.swap_inserter.swap_inserter import SwapInserter
+    from src.routing.swap_inserter.swap_inserter import SwapInserter
     from qiskit.transpiler.passes import ApplyLayout
     from qiskit.transpiler.passes import SabreLayout
     from qiskit.transpiler.passes import TrivialLayout
