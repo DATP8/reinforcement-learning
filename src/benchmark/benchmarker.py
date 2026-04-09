@@ -98,7 +98,9 @@ class Benchmarker:
                 if success:
                     break
                 try:
-                    qc = get_benchmark(algorithm_name, BenchmarkLevel.INDEP, self.qubits)
+                    qc = get_benchmark(
+                        algorithm_name, BenchmarkLevel.INDEP, self.qubits
+                    )
                     qc = self._prepare_for_routing(qc)
                     if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
                         # print(f"{algorithm_name} had qubits ({qc.num_qubits} > {self.qubits}) and {qc.size()} > {self.max_gates}")
@@ -119,26 +121,23 @@ class Benchmarker:
         iterations: int,
         confidence: float = 0.95,
     ):
-        raw: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
-
         qc_list = []
 
-        for i in tqdm(range(iterations), desc="List of random circuits"):
+        for _ in tqdm(range(iterations), desc="List of random circuits"):
             qc_list.append(
                 self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
             )
 
         for config in configs:
-            title, pm = config
-            runs = self.bench_config(qc_list, config)
-            for run in runs:
-                for metric in METRIC_KEYS:
-                    raw[title][metric].append(run[metric])
-
-        for title, metric_lists in raw.items():
             summary = {}
-            for metric, values in metric_lists.items():
-                arr = np.array(values, dtype=float)
+            title, _ = config
+            runs = self.bench_config(qc_list, config)
+            for metric in METRIC_KEYS:
+                metric_values = []
+                for run in runs:
+                    metric_values.append(run[metric])
+                
+                arr = np.array(metric_values, dtype=float)
                 mean = arr.mean()
                 n = len(arr)
                 se = stats.sem(arr)  # standard error
@@ -329,5 +328,5 @@ if __name__ == "__main__":
     bench_iterations = 10
     bench_circut_gate_count = 64
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs) # pyrefly: ignore
+    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
