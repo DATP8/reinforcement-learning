@@ -43,9 +43,16 @@ class StateHandler[S](ABC):
             self.get_random_state(random.randint(min_difficulty, max_difficulty))
             for _ in range(batch_size)
         ]
+
     @abstractmethod
     def get_random_states_in_range_keep(
-        self, batch_size: int, min_difficulty: int, max_difficulty: int, previous_set: Batchable[S] | None, kept_circuits_percent: int) -> Batchable[S]:
+        self,
+        batch_size: int,
+        min_difficulty: int,
+        max_difficulty: int,
+        previous_set: Batchable[S] | None,
+        kept_circuits_percent: int,
+    ) -> Batchable[S]:
         raise NotImplementedError
 
     def get_random_states_at_difficulty(
