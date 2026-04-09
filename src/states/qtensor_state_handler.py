@@ -1,3 +1,5 @@
+import math
+
 from src.states.state_handler import Batchable, StateHandler  # pyrefly: ignore
 from src.states.qtensor import Qtensor  # pyrefly: ignore
 
@@ -139,6 +141,35 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def get_topology(self):
         return self.topology
+    
+    def get_random_states_in_range(
+        self, batch_size: int, min_difficulty: int, max_difficulty: int
+    ) -> list[Qtensor]:
+        return [
+            self.get_random_state(random.randint(min_difficulty, max_difficulty))
+            for _ in range(batch_size)
+        ]
+    
+    def get_random_states_in_range_keep(
+        self,
+        batch_size: int,
+        min_difficulty: int,
+        max_difficulty: int,
+        previous_set: Batchable[Qtensor] | None = None,
+        kept_circuits_percent = 0
+        ) -> list[Qtensor]:
+        if previous_set is not None and kept_circuits_percent != 0:
+            kept_circuits_amount = math.floor(batch_size*(kept_circuits_percent/100))
+            kept_indeces = random.sample(range(0, batch_size), kept_circuits_amount)
+            random_circuits = self.get_random_states_in_range(batch_size-kept_circuits_amount, min_difficulty, max_difficulty)
+            kept_circuits = []
+            for i in range(0, batch_size):
+                if i in kept_indeces:
+                    kept_circuits.append(previous_set[i])
+            #pyrefly:ignore[no-matching-overload, bad-argument-type]
+            return kept_circuits + random_circuits
+        else:
+            return self.get_random_states_in_range(batch_size, min_difficulty, max_difficulty)
 
 
 if __name__ == "__main__":
