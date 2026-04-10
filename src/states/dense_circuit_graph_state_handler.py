@@ -139,7 +139,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
 
         frontlayer = set(i for i in range(state.x.shape[0] - 1))
         n_directed_edges = (
-            state.edge_index.shape[1] - (state.x.shape[0] - 1) * 2
+            state.edge_index.shape[1] - 1
         )  # Exclude global node edges
         for succ, prev in state.edge_index.t()[
             :n_directed_edges
