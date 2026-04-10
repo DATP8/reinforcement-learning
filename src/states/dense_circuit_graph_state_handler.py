@@ -2,7 +2,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
 from src.states.state_handler import StateHandler, Batchable
-from src.states.circuit_graph import CircuitGraph
+from src.states.dense_circuit_graph import DenseCircuitGraph
 
 import torch
 import random
@@ -10,11 +10,11 @@ from cachetools import LFUCache
 from qiskit import QuantumCircuit
 
 
-class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
+class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.topology = topology
-        self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](
+        self.next_state_cache = LFUCache[tuple[int, int], DenseCircuitGraph](
             maxsize=10000
         )
         self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
@@ -26,12 +26,12 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def get_num_qubits(self):
         return self.n_qubits
 
-    def get_possible_actions(self, state: CircuitGraph) -> list[int]:
+    def get_possible_actions(self, state: DenseCircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
 
     def get_next_state(
-        self, state: CircuitGraph, action: int
-    ) -> CircuitGraph:
+        self, state: DenseCircuitGraph, action: int
+    ) -> DenseCircuitGraph:
         state_hash = hash(state)
         if (state_hash, action) in self.next_state_cache:
             return self.next_state_cache[(state_hash, action)]
@@ -89,7 +89,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
         return new_state
 
-    def is_terminal(self, state: CircuitGraph) -> bool:
+    def is_terminal(self, state: DenseCircuitGraph) -> bool:
         if state.x is None:
             raise ValueError("State must have x defined")
         state_hash = hash(state)
@@ -106,7 +106,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         self.is_terminal_cache[state_hash] = True
         return True
 
-    def get_action_cost(self, state: CircuitGraph, action: int) -> float:
+    def get_action_cost(self, state: DenseCircuitGraph, action: int) -> float:
         state_hash = hash(state)
         if (state_hash, action) in self.action_cost_cache:
             return self.action_cost_cache[(state_hash, action)]
@@ -133,7 +133,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
         return action_cost
 
-    def get_removed_gates(self, state: CircuitGraph) -> list[int]:
+    def get_removed_gates(self, state: DenseCircuitGraph) -> list[int]:
         if state.x is None or state.edge_index is None or state.edge_attr is None:
             return []
 
@@ -159,7 +159,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
         return removed_gates
 
-    def prune(self, state: CircuitGraph) -> tuple[CircuitGraph, int]:
+    def prune(self, state: DenseCircuitGraph) -> tuple[DenseCircuitGraph, int]:
         if state.x is None or state.edge_index is None or state.edge_attr is None:
             return state, 0
 
@@ -190,12 +190,12 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
         # filter node features
         x = state.x[keep_nodes]
 
-        new_state = CircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        new_state = DenseCircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
         new_state, n_pruned_gates = self.prune(new_state)
 
         return new_state, len(removed_gates) + n_pruned_gates
 
-    def get_random_state(self, difficulty: int) -> CircuitGraph:
+    def get_random_state(self, difficulty: int) -> DenseCircuitGraph:
         qc = QuantumCircuit(self.n_qubits)
         for _ in range(difficulty):
             q1, q2 = random.sample(range(self.n_qubits), 2)
@@ -203,20 +203,20 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
                 q2 = random.choice(range(self.n_qubits))
             qc.cx(q1, q2)
 
-        state = CircuitGraph.from_circuit(qc)
+        state = DenseCircuitGraph.from_circuit(qc)
         if self.is_terminal(state):
             return self.get_random_state(difficulty)
 
         return state
 
-    def batch_states(self, states: Batchable[CircuitGraph]) -> CircuitGraph:
+    def batch_states(self, states: Batchable[DenseCircuitGraph]) -> DenseCircuitGraph:
         return next(
             combined_state
             for combined_state in DataLoader(states, batch_size=len(states))
         )
 
-    def state_from(self, circuit: QuantumCircuit) -> CircuitGraph:
-        return CircuitGraph.from_circuit(circuit)
+    def state_from(self, circuit: QuantumCircuit) -> DenseCircuitGraph:
+        return DenseCircuitGraph.from_circuit(circuit)
 
 
 if __name__ == "__main__":
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     n_qubits = 6
-    game = CircuitGraphStateHandler(6, topology)
+    game = DenseCircuitGraphStateHandler(6, topology)
 
     circuit = QuantumCircuit(6)
     circuit.cx(0, 1)
@@ -232,12 +232,8 @@ if __name__ == "__main__":
     circuit.cx(3, 5)
 
     print(circuit)
-    state = CircuitGraph.from_circuit(circuit)
+    state = DenseCircuitGraph.from_circuit(circuit)
     print(state.edge_index)
     new_state = game.get_next_state(state, 2)
 
     print(new_state.x)
-    print(new_state.edge_index)
-    print(new_state.edge_attr)
-
-    print("new_state is terminal:", game.is_terminal(new_state))
