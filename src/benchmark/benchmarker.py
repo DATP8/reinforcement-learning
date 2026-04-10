@@ -136,7 +136,7 @@ class Benchmarker:
                 metric_values = []
                 for run in runs:
                     metric_values.append(run[metric])
-                
+
                 arr = np.array(metric_values, dtype=float)
                 mean = arr.mean()
                 n = len(arr)
