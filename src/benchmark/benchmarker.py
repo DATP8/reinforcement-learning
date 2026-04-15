@@ -149,7 +149,7 @@ class Benchmarker:
 if __name__ == "__main__":
     from qiskit.transpiler.passes import SabreSwap
 
-    n_qubits = 5
+    n_qubits = 6
     # horizon = 100
     # topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     # game1 = TensorStateHandler(n_qubits, horizon, topology)
@@ -169,8 +169,8 @@ if __name__ == "__main__":
     # swap_inserter = SwapInserter(coupling_map, n_qubits)
     # router1 = BWASRouter(model1, game1)
     ## router2 = BWASRouter(model2, game2)
-    coupling_map = CouplingMap.from_line(5)
-    env = make_env(coupling_map, 64, None)
+    coupling_map = CouplingMap.from_line(n_qubits)
+    env = make_env(n_qubits, coupling_map, 16, None)
     model = MaskablePPO.load("test_model", env)
     routers = [
         ("sabre", SabreSwap(coupling_map=coupling_map)),
@@ -199,6 +199,6 @@ if __name__ == "__main__":
     configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 100
-    bench_circut_gate_count = 60
-    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
+    bench_circuit_gate_count = 64
+    bench = Benchmarker(n_qubits, bench_circuit_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

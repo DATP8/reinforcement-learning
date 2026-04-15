@@ -1,65 +1,37 @@
-from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.callbacks import BaseCallback
-
+import numpy as np
 
 class CurriculumCallback(BaseCallback):
-    def __init__(
-        self,
-        threshold: float,
-        eval_env: ActionMasker,
-        eval_freq: int = 2048,
-        verbose: int = 0,
-    ):
+    def __init__(self, threshold: float, verbose: int = 0):
         super().__init__(verbose)
-        if not (0.0 <= threshold <= 1.0):
-            raise ValueError("Threshold must be in the interval [0, 1].")
-
         self.threshold = threshold
-        self.max_difficulty = eval_env.get_wrapper_attr("_max_difficulty")
-        self.eval_env = eval_env
+        self.rollout_successes = []
+        self.max_difficulty = None
 
-        if eval_freq < 1:
-            raise ValueError("Eval frequency must be atleast 1")
-
-        self.eval_freq = eval_freq
-        self.ep_count = 0
+    def _on_training_start(self) -> None:
+        self.max_difficulty = self.training_env.get_attr("_max_difficulty")[0]
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
-            current_diff = self.training_env.get_attr("_current_difficulty")[0]
             if "episode" in info:
-                self.ep_count += 1
-                if not (self.ep_count % self.eval_freq == 0):
-                    continue
-
-                if (
-                    current_diff < self.max_difficulty
-                    and (performance := self._eval_episode_performance(current_diff))
-                    > self.threshold
-                ):
-                    current_diff += 1
-                    self.training_env.set_attr("_current_difficulty", current_diff)
-                    if self.verbose > 0:
-                        print(
-                            f"\nDifficulty increased to {current_diff} (Episode performance: {performance:.2f})"
-                        )
+                is_truncated = info.get("TimeLimit.truncated", False)
+                self.rollout_successes.append(not is_truncated)
         return True
 
-    def _eval_episode_performance(self, current_diff: int) -> float:
-        success = 0
-        self.eval_env.set_wrapper_attr("_current_difficulty", current_diff)
-        for _ in range(100):
-            obs, _ = self.eval_env.reset()
-            is_success = False
-            is_done = False
-            while not is_done:
-                action, _ = self.model.predict(
-                    obs,
-                    deterministic=True,
-                    action_masks=self.eval_env.action_masks(),  # pyrefly: ignore
-                )
-                obs, reward, terminated, truncated, info = self.eval_env.step(action)
-                is_done = terminated or truncated
-                is_success = terminated
-            success += int(is_success)
-        return success / 100
+    def _on_rollout_end(self) -> None:
+        if len(self.rollout_successes) == 0:
+            return
+
+        success_rate = np.mean(self.rollout_successes)
+        current_diff = self.training_env.env_method("get_difficulty")[0]
+
+        if self.verbose > 0:
+            print(f"\n[Curriculum] Rollout success rate: {success_rate:.2f} (Difficulty {current_diff})")
+
+        if success_rate >= self.threshold and current_diff < self.max_difficulty:
+            current_diff += 1
+            self.training_env.env_method("set_difficulty", current_diff)
+            if self.verbose > 0:
+                print(f"[Curriculum] Difficulty increased to {current_diff}!")
+
+        self.rollout_successes.clear()
