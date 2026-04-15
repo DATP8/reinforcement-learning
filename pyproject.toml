@@ -10,6 +10,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "cachetools>=7.0.5",
     "matplotlib[pyplot]>=3.10.8",
+    "mqt.bench>=1.1.11",
     "networkx>=3.6.1",
     "qiskit>=2.3.0",
     "qiskit-ibm-runtime>=0.45.1",
