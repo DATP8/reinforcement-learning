@@ -27,7 +27,6 @@ METRIC_KEYS = [
 ]
 
 
-
 class Benchmarker:
     def __init__(
         self,
@@ -45,15 +44,15 @@ class Benchmarker:
 
     def _print_header(self, title: str, confidence: float | None = None) -> None:
         header: str = f"{'Config':<30}"
-        underline: str = "".ljust(30, '-')
+        underline: str = "".ljust(30, "-")
         if confidence is not None:
             for label, width in METRIC_KEYS:
                 header += f"{label:>{width}}{'  ±CI':<10}"
-                underline += f"{'-'*width}{'-'*10}"
+                underline += f"{'-' * width}{'-' * 10}"
         else:
             for label, width in METRIC_KEYS:
                 header += f"{label:>{width}}"
-                underline += f"{'-'*width}"
+                underline += f"{'-' * width}"
         print("\n")
         print(underline)
         print(title)
@@ -73,7 +72,6 @@ class Benchmarker:
                 value_str
             row += value_str
         print(row)
-      
 
     def _prepare_for_routing(self, qc: QuantumCircuit) -> QuantumCircuit:
         if not self.decompose_before_routing:
@@ -152,12 +150,16 @@ class Benchmarker:
     ):
         qc_list = []
 
-        for _ in tqdm(range(iterations), desc="List of random circuits", position=0, leave=False):
+        for _ in tqdm(
+            range(iterations), desc="List of random circuits", position=0, leave=False
+        ):
             qc_list.append(
                 self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
             )
 
-        self._print_header(title=f"{len(qc_list)} random circuits", confidence=confidence)
+        self._print_header(
+            title=f"{len(qc_list)} random circuits", confidence=confidence
+        )
         for config in configs:
             mean_dic = {}
             ci_dic = {}
@@ -168,11 +170,12 @@ class Benchmarker:
                 arr = np.array(metric_values, dtype=float)
                 n = len(arr)
                 se = stats.sem(arr) if n > 1 else 0.0
-                ci_val = se * stats.t.ppf((1 + confidence) / 2, df=n - 1) if n > 1 else 0.0
+                ci_val = (
+                    se * stats.t.ppf((1 + confidence) / 2, df=n - 1) if n > 1 else 0.0
+                )
                 mean_dic[metric] = arr.mean()
                 ci_dic[metric] = ci_val
             self._print_row(title, metrics=mean_dic, ci=ci_dic)
-
 
     def bench_pass(self, qc, pm, title):
 
@@ -215,8 +218,6 @@ class Benchmarker:
             runs.append(self.bench_pass(qc, pm, title))
 
         return runs
-
-
 
 
 if __name__ == "__main__":
