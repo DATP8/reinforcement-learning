@@ -1,6 +1,7 @@
 from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 
+
 class CurriculumCallback(BaseCallback):
     def __init__(self, threshold: float, verbose: int = 0):
         super().__init__(verbose)
@@ -26,7 +27,9 @@ class CurriculumCallback(BaseCallback):
         current_diff = self.training_env.env_method("get_difficulty")[0]
 
         if self.verbose > 0:
-            print(f"\n[Curriculum] Rollout success rate: {success_rate:.2f} (Difficulty {current_diff})")
+            print(
+                f"\n[Curriculum] Rollout success rate: {success_rate:.2f} (Difficulty {current_diff})"
+            )
 
         if success_rate >= self.threshold and current_diff < self.max_difficulty:
             current_diff += 1

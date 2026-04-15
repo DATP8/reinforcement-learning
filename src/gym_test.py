@@ -16,8 +16,14 @@ from src.routing_env import RoutingEnv
 from qiskit.dagcircuit import DAGCircuit
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 
+
 class EvalIfCurriculumFinishedCallback(BaseCallback):
-    def __init__(self, eval_callback: EvalCallback, curriculum_callback: CurriculumCallback, verbose=0):
+    def __init__(
+        self,
+        eval_callback: EvalCallback,
+        curriculum_callback: CurriculumCallback,
+        verbose=0,
+    ):
         super().__init__(verbose)
         self.eval_callback = eval_callback
         self.curriculum_callback = curriculum_callback
@@ -31,6 +37,7 @@ class EvalIfCurriculumFinishedCallback(BaseCallback):
         if current_diff >= self.curriculum_callback.max_difficulty:
             return self.eval_callback.on_step()
         return True
+
 
 ### INFO
 ### When reporting results, take mean and standard deviation
@@ -58,7 +65,7 @@ def make_env(
         max_difficulty=max_difficulty,
         depth_slope=2,
         max_depth=128,
-        render_mode=render_mode
+        render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)
     return env
@@ -80,9 +87,7 @@ def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layo
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
         obs, _, terminated, truncated, _ = env.step(action)
 
-    layout_dict = {
-        circuit.qubits[i]: int(p) for i, p in enumerate(env.locations)
-    }
+    layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.locations)}
     layout = Layout(layout_dict)
     return circuit_to_dag(env.routed_circuit), layout
 
@@ -98,7 +103,11 @@ if __name__ == "__main__":
 
     train_env = make_vec_env(
         lambda: make_env(
-            num_qubits=NUM_QUBITS, coupling_map=coupling_map, horizon=HORIZON, initial_difficulty=1, max_difficulty=MAX_DIFF
+            num_qubits=NUM_QUBITS,
+            coupling_map=coupling_map,
+            horizon=HORIZON,
+            initial_difficulty=1,
+            max_difficulty=MAX_DIFF,
         ),
         n_envs=n_envs,
     )
@@ -118,19 +127,22 @@ if __name__ == "__main__":
     )
 
     model = MaskablePPO("MlpPolicy", train_env, verbose=1)
-    #model = MaskablePPO(
+    # model = MaskablePPO(
     #    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
-    #)
+    # )
 
     eval_env = make_env(
-        num_qubits=NUM_QUBITS, coupling_map=coupling_map, horizon=HORIZON, render_mode="ansi", initial_difficulty=MAX_DIFF, max_difficulty=MAX_DIFF
+        num_qubits=NUM_QUBITS,
+        coupling_map=coupling_map,
+        horizon=HORIZON,
+        render_mode="ansi",
+        initial_difficulty=MAX_DIFF,
+        max_difficulty=MAX_DIFF,
     )
     eval_env = Monitor(eval_env)
-    
-    curriculum_callback = CurriculumCallback(
-        threshold=0.85, verbose=1
-    )
-    
+
+    curriculum_callback = CurriculumCallback(threshold=0.85, verbose=1)
+
     eval_freq = max(20000 // n_envs, 1)
     eval_callback = EvalCallback(
         eval_env,
@@ -139,13 +151,17 @@ if __name__ == "__main__":
         eval_freq=eval_freq,
         deterministic=True,
         render=False,
-        verbose=1
+        verbose=1,
     )
-    
-    conditional_eval = EvalIfCurriculumFinishedCallback(eval_callback, curriculum_callback)
-    
+
+    conditional_eval = EvalIfCurriculumFinishedCallback(
+        eval_callback, curriculum_callback
+    )
+
     model.learn(
-        total_timesteps=300000, progress_bar=True, callback=[curriculum_callback, conditional_eval]
+        total_timesteps=300000,
+        progress_bar=True,
+        callback=[curriculum_callback, conditional_eval],
     )
     model.save("test_model")
 
@@ -153,7 +169,7 @@ if __name__ == "__main__":
         obs, _ = eval_env.reset()
         flag = True
         while flag:
-            action_masks = mask_fn(eval_env) # pyrefly: ignore
+            action_masks = mask_fn(eval_env)  # pyrefly: ignore
             action, _ = model.predict(
                 obs, deterministic=True, action_masks=action_masks
             )

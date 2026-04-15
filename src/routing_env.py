@@ -5,6 +5,7 @@ from qiskit.converters import circuit_to_dag
 import numpy as np
 import gymnasium
 
+
 class RoutingEnv(gymnasium.Env):
     def __init__(
         self,
@@ -16,7 +17,7 @@ class RoutingEnv(gymnasium.Env):
         max_difficulty: int,
         depth_slope: int,
         max_depth: int,
-        render_mode: str | None = None
+        render_mode: str | None = None,
     ) -> None:
         super().__init__()
         self._num_qubits = num_qubits
@@ -30,16 +31,16 @@ class RoutingEnv(gymnasium.Env):
         self._depth_slope = depth_slope
         self._max_depth = max_depth
         self._render_mode = render_mode
-        self._distance_matrix: np.ndarray = coupling_map.distance_matrix # pyrefly: ignore
-        
+        self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
+
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
         self._cmap_edges = np.array(unique_edges)
         self._edge_set = frozenset(unique_edges)
-        
+
         self._active_swaps = []
         self.locations = np.arange(self._num_qubits, dtype=np.int64)
         self._qubits = np.arange(self._num_qubits, dtype=np.int64)
-        
+
         self.action_space = spaces.Discrete(self._num_active_swaps)
         self.observation_space = spaces.Box(
             low=-2,
@@ -47,8 +48,8 @@ class RoutingEnv(gymnasium.Env):
             shape=(len(self._cmap_edges), self._horizon),
             dtype=np.int8,
         )
-        
-        #self.observation_space = spaces.Dict(
+
+        # self.observation_space = spaces.Dict(
         #    {
         #        "matrix": spaces.Box(
         #            low=-2,
@@ -69,7 +70,7 @@ class RoutingEnv(gymnasium.Env):
         #            dtype=np.int64,
         #        ),
         #    }
-        #)
+        # )
 
         self._reward_value = 1.0
 
@@ -82,7 +83,7 @@ class RoutingEnv(gymnasium.Env):
         self._active_swaps = []
         self._visited_layouts = set()
         self._sucess = not bool(self._dag.op_nodes())
-        
+
         # Scale the completion reward with the circuit depth to offset swap penalties
         self._completion_reward = 1.0 + (self._depth * 0.5)
         self._reward_value = self._completion_reward if self.is_terminal() else 0.0
@@ -102,12 +103,12 @@ class RoutingEnv(gymnasium.Env):
             sampled_diff = int(self.np_random.integers(1, self._max_difficulty + 1))
         else:
             sampled_diff = self._difficulty
-            
+
         self._depth = min(self._depth_slope * sampled_diff, self._max_depth)
-        
-        provided_circuit: QuantumCircuit = options.get("circuit") # pyrefly: ignore
+
+        provided_circuit: QuantumCircuit = options.get("circuit")  # pyrefly: ignore
         self._is_eval_circuit = provided_circuit is not None
-        
+
         if self._is_eval_circuit:
             self._remaining_swaps = len(provided_circuit) * 10
         else:
@@ -128,17 +129,17 @@ class RoutingEnv(gymnasium.Env):
             if provided_circuit is None:
                 # Randomly shuffle layout initially during training
                 self.np_random.shuffle(self.locations)
-                
+
             for q, loc in enumerate(self.locations):
                 self._qubits[loc] = q
 
             self._execute_front_layer()
             self._visited_layouts = {tuple(self._qubits)}
             self._reward_value = self._completion_reward if self.is_terminal() else 0.0
-            
+
             if provided_circuit is not None or not self.is_terminal():
                 break
-        
+
         self._cache_observation()
         return self._get_obs(), {}
 
@@ -158,7 +159,7 @@ class RoutingEnv(gymnasium.Env):
             l0, l1 = self._qubits[p0], self._qubits[p1]
 
             penalty = 0.1
-            
+
             self.routed_circuit.swap(p0, p1)
             self._qubits[p0], self._qubits[p1] = l1, l0
             self.locations[l0] = p1
@@ -167,10 +168,10 @@ class RoutingEnv(gymnasium.Env):
             self._inserted_swaps += 1
 
         gates_executed = self._execute_front_layer()
-        
+
         if gates_executed > 0:
             self._visited_layouts.clear()
-            
+
         self._visited_layouts.add(tuple(self._qubits))
 
         self._remaining_swaps = max(0, self._remaining_swaps - 1)
@@ -188,7 +189,7 @@ class RoutingEnv(gymnasium.Env):
         return self._get_obs(), self._reward_value, terminated, truncated, {}
 
     def _cache_observation(self):
-        #self._cached_gnn_obs = self._build_graph()
+        # self._cached_gnn_obs = self._build_graph()
         self._cached_matrix = self._build_matrix()
 
     def _execute_front_layer(self) -> int:
@@ -200,13 +201,13 @@ class RoutingEnv(gymnasium.Env):
                 indices = [self._qubit_indices[q] for q in node.qargs]
                 if len(indices) == 1:
                     p0 = self.locations[indices[0]]
-                    self.routed_circuit._append(node.op, [p0]) # pyrefly: ignore
+                    self.routed_circuit._append(node.op, [p0])  # pyrefly: ignore
                     self._dag.remove_op_node(node)
                     progress = True
                 else:
                     p0, p1 = self.locations[indices[0]], self.locations[indices[1]]
                     if (p0, p1) in self._edge_set or (p1, p0) in self._edge_set:
-                        self.routed_circuit.append(node.op, [p0, p1]) # pyrefly: ignore
+                        self.routed_circuit.append(node.op, [p0, p1])  # pyrefly: ignore
                         self._dag.remove_op_node(node)
                         gates_executed += 1
                         progress = True
@@ -214,12 +215,12 @@ class RoutingEnv(gymnasium.Env):
 
     def _get_obs(self):
         return self._cached_matrix
-        #graph_x, graph_edge_idx = self._cached_gnn_obs
-        #return {
+        # graph_x, graph_edge_idx = self._cached_gnn_obs
+        # return {
         #    "matrix": self._cached_matrix,
         #    "graph_x": graph_x,
         #    "graph_edge_idx": graph_edge_idx,
-        #}
+        # }
 
     def _build_matrix(self):
         E = len(self._cmap_edges)
@@ -253,13 +254,17 @@ class RoutingEnv(gymnasium.Env):
             dist_before = self._distance_matrix[curr_pa, curr_pb]
             pa_exp = np.tile(curr_pa, (E, 1))
             pb_exp = np.tile(curr_pb, (E, 1))
-            new_pa = np.where(pa_exp == p0_arr, p1_arr, np.where(pa_exp == p1_arr, p0_arr, pa_exp))
-            new_pb = np.where(pb_exp == p0_arr, p1_arr, np.where(pb_exp == p1_arr, p0_arr, pb_exp))
+            new_pa = np.where(
+                pa_exp == p0_arr, p1_arr, np.where(pa_exp == p1_arr, p0_arr, pa_exp)
+            )
+            new_pb = np.where(
+                pb_exp == p0_arr, p1_arr, np.where(pb_exp == p1_arr, p0_arr, pb_exp)
+            )
             dist_after = self._distance_matrix[new_pa, new_pb]
 
             matrix[:, h] = np.sum(dist_after - dist_before, axis=1)
         return matrix
-    
+
     def _build_graph(self):
         num_q = self._num_logic_qubits
         interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
@@ -308,7 +313,9 @@ class RoutingEnv(gymnasium.Env):
 
     def valid_action_mask(self) -> np.ndarray:
         front_logical = [
-            self._qubit_indices[q] for node in self._dag.front_layer() for q in node.qargs
+            self._qubit_indices[q]
+            for node in self._dag.front_layer()
+            for q in node.qargs
         ]
         front_physical = self.locations[front_logical]
         mask = np.any(np.isin(self._cmap_edges, front_physical), axis=1)
@@ -326,15 +333,15 @@ class RoutingEnv(gymnasium.Env):
             self._visited_layouts.clear()
             self._visited_layouts.add(tuple(self._qubits))
             mask = np.any(np.isin(self._cmap_edges, front_physical), axis=1)
-            
+
         assert mask.any(), "No valid action in mask"
-        
+
         # Pad up to num_active_swaps if needed
         diff = self._num_active_swaps - len(mask)
         if diff > 0:
             mask = np.pad(mask, (0, diff), constant_values=False)
-        return mask[:self._num_active_swaps]
-    
+        return mask[: self._num_active_swaps]
+
     def is_terminal(self) -> bool:
         return not bool(self._dag.op_nodes())
 
