@@ -6,10 +6,10 @@ from qiskit.dagcircuit import DAGCircuit
 
 
 class AgenticRlRoutingPass(TransformationPass):
-    def __init__(self, model: MaskablePPO, cmap: CouplingMap):
+    def __init__(self, model: MaskablePPO, coupling_map: CouplingMap):
         super().__init__()
         self.model = model
-        self.cmap = cmap
+        self.cmap = coupling_map
 
     def run(self, dag: DAGCircuit):
         new_dag, layout = route_circuit(self.model, dag)

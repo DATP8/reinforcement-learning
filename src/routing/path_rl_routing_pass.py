@@ -1,3 +1,4 @@
+from src.routing.router import Router
 from qiskit.transpiler import Layout
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler.basepasses import TransformationPass
@@ -8,7 +9,7 @@ from src.routing.swap_inserter.swap_inserter import SwapInserter
 class PathRlRoutingPass(TransformationPass):
     def __init__(
         self,
-        router,
+        router: Router,
         swap_inserter: SwapInserter,
     ):
         super().__init__()
@@ -17,13 +18,11 @@ class PathRlRoutingPass(TransformationPass):
 
     def run(self, dag):
         qc = dag_to_circuit(dag)
+        actions = self.router.solve(qc)
+        new_qc, init, final = self.swap_inserter.build_circuit_from_solution(
+            actions, qc
+        )
 
-        state = self.router.state_handler.state_from(qc)
-        root_state, _ = self.router.state_handler.prune(state)
-
-        path = self.router.search(root_state)
-
-        new_qc, init, final = self.swap_inserter.build_circuit_from_solution(path, qc)
         new_dag = circuit_to_dag(new_qc)
 
         layout = Layout(

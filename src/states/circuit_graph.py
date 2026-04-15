@@ -26,7 +26,7 @@ class CircuitGraph(Data):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
-    def from_circuit(cls, qc: QuantumCircuit, horizon: int = 0):
+    def from_circuit(cls, qc: QuantumCircuit):
         n_qubits = qc.num_qubits
         two_qubit_gates = []
         for gate in qc.data:
@@ -82,9 +82,9 @@ class CircuitGraph(Data):
 if __name__ == "__main__":
     qs = QuantumCircuit(6)
 
-    qs.cx(0, 1)
-    qs.cx(1, 3)
-    qs.cx(4, 2)
+    # qs.cx(0, 1)
+    # qs.cx(1, 3)
+    # qs.cx(4, 2)
 
     print(qs)
 

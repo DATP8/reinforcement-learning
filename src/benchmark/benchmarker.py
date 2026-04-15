@@ -1,13 +1,13 @@
-from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from src.gym_test import make_env
 from sb3_contrib import MaskablePPO
-from tqdm import tqdm
+from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
-from qiskit.transpiler import CouplingMap, PassManager
+from qiskit.transpiler import PassManager
 from qiskit import QuantumCircuit
 from collections import defaultdict
 from scipy import stats
+from tqdm import tqdm
 import numpy as np
 
 import time
@@ -147,58 +147,93 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
+    from src.routing.swap_inserter.swap_inserter import SwapInserter
+    from qiskit.transpiler.passes import ApplyLayout
+    from qiskit.transpiler.passes import SabreLayout
+    from qiskit.transpiler.passes import TrivialLayout
+    from src.routing.bwas_chunck_router import ChunkRouter
+    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+    from qiskit.transpiler import CouplingMap
+    from src.model import BiCircuitGNN
+
+    # from src.routing.rl_routing_pass import RlRoutingPass
     from qiskit.transpiler.passes import SabreSwap
+    import torch
 
     n_qubits = 6
-    # horizon = 100
-    # topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    # game1 = TensorStateHandler(n_qubits, horizon, topology)
-    # model1 = ValueModel(n_qubits, horizon, len(topology))
-    #
-    # game2 = TensorStateHandler(n_qubits, horizon, topology)
-    # model2 = ValueModel(n_qubits, horizon, len(topology))
-    #
-    # path1 = "/home/vind/code/P8/project/reinforcement-learning/models/difficulty17_iteration95270.pt"
-    # path2 = "/home/vind/code/P8/project/reinforcement-learning/models/increment14_iteration77940_difficulty17.pt"
-    # model1.load_state_dict(torch.load(path1, map_location="cpu"))
-    ## model2.load_state_dict(torch.load(path2, map_location="cpu"))
-    #
-    # coupling_map = CouplingMap(topology)
-    # coupling_map.make_symmetric()
-    #
-    # swap_inserter = SwapInserter(coupling_map, n_qubits)
-    # router1 = BWASRouter(model1, game1)
-    ## router2 = BWASRouter(model2, game2)
-    coupling_map = CouplingMap.from_line(n_qubits)
-    env = make_env(n_qubits, coupling_map, 16, None)
-    model = MaskablePPO.load("test_model", env)
-    routers = [
-        ("sabre", SabreSwap(coupling_map=coupling_map)),
-        ("maskable_ppo", AgenticRlRoutingPass(model, coupling_map)),
+    horizon = 100
+    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    state_handler = CircuitGraphStateHandler(n_qubits, topology)
+
+    #path = "models/graph/difficulty62_updates7_iteration25150.pt"
+    #model = BiCircuitGNN(n_qubits)
+    #model.load_state_dict(torch.load(path, map_location="cpu"))
+
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
+    swap_inserter = SwapInserter(coupling_map, n_qubits)
+
+    #chuck_size = 16
+    #chunk_router = ChunkRouter(
+    #    chunk_size=chuck_size, model=model, state_handler=state_handler
+    #)
+
+    horizon = 18
+    ppo_env = make_env(n_qubits, coupling_map, horizon, None)
+    ppo_model = MaskablePPO.load("test_model", ppo_env)
+    agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
+
+    # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
+
+    trivial_layout = TrivialLayout(coupling_map)
+    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+
+    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
+    #### Standard qiskit pass manager inserted router
+    configs = [
+        (
+            "TrivialLayout_SabreSwap",
+            PassManager(
+                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+            ),
+        ),
+        (
+            f"TrivialLayout_MaskablePPO_{horizon}",
+            PassManager([trivial_layout, ApplyLayout(), agentic_router]),
+        ),
+        (
+            "SabreLayout_SabreSwap",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(coupling_map=coupling_map),
+                ]
+            ),
+        ),
+        (
+            f"SabreLayout_MaskablePPO_{horizon}",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    agentic_router,
+                ]
+            ),
+        ),
+        (
+            "Op1 qiskit",
+            generate_preset_pass_manager(
+                optimization_level=1, coupling_map=coupling_map
+            ),
+        ),
     ]
 
-    def _make_staged_pass_manager(transPass):
-        pm = generate_preset_pass_manager(
-            optimization_level=1, coupling_map=coupling_map
-        )
-        pm.routing = PassManager([transPass])
-        return pm
-
-    #### Standard qiskit pass manager inserted router
-    # configs = [(title, _make_staged_pass_manager(router)) for title, router in routers]
-    # configs.append(
-    #    (
-    #        "Op1 qiskit",
-    #        generate_preset_pass_manager(
-    #            optimization_level=1, coupling_map=coupling_map
-    #        ),
-    #    )
-    # )
-
     #### Pass manager with only routing stage
-    configs = [(title, PassManager([router])) for title, router in routers]
+    # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 100
-    bench_circuit_gate_count = 64
-    bench = Benchmarker(n_qubits, bench_circuit_gate_count, coupling_map)
+    bench_circut_gate_count = 100
+    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

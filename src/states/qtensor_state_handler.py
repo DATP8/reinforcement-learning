@@ -34,8 +34,7 @@ class QtensorStateHandler(StateHandler[Qtensor]):
 
     def prune(self, state: Qtensor) -> tuple[Qtensor, int]:
         new_state = state.clone()
-        # pyrefly: ignore[no-matching-overload]
-        removed_gates = torch.ones((self.horizon), dtype=bool)
+        removed_gates = torch.ones((self.horizon), dtype=torch.bool)
         front_layer = set()
         layers_removed = 0
         for i in range(state.gates):
@@ -87,7 +86,8 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         if state_hash in self.is_terminal_cache:
             return self.is_terminal_cache[state_hash]
         next_state, _ = self.prune(state)
-        is_terminal = torch.sum(next_state.unwrap()).item() <= 1e-7
+        # pyrefly: ignore[no-matching-overload, bad-argument-type]
+        is_terminal = torch.sum(next_state).item() <= 1e-7
         self.is_terminal_cache[state_hash] = is_terminal
         return is_terminal
 

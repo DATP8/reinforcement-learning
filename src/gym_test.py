@@ -92,7 +92,7 @@ def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layo
     return circuit_to_dag(env.routed_circuit), layout
 
 
-HORIZON = 16
+HORIZON = 18
 MAX_DIFF = 100
 NUM_QUBITS = 6
 

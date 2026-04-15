@@ -66,7 +66,7 @@ class SwapInserter:
 
         def _place(gate_idx: int):
             qs, inst = gates[gate_idx]
-            inst: CircuitInstruction
+            inst: CircuitInstruction  # type:ignore
             phys_qubits = [out.qubits[locations[q]] for q in qs]
             clbits = [out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits]  # pyrefly: ignore[missing-attribute]
             out.append(inst.operation, phys_qubits, clbits)  # pyrefly: ignore[missing-attribute]
