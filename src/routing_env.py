@@ -31,7 +31,9 @@ class RoutingEnv(gymnasium.Env):
         self._depth_slope = depth_slope
         self._max_depth = max_depth
         self._render_mode = render_mode
-        self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
+        self._distance_matrix: np.ndarray = (
+            coupling_map.distance_matrix # pyrefly: ignore
+        )  
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
         self._cmap_edges = np.array(unique_edges)
@@ -77,12 +79,15 @@ class RoutingEnv(gymnasium.Env):
         self._visited_layouts = set()
         self._inserted_swaps = 0
 
+        self._p0_arr = self._cmap_edges[:, 0, None]
+        self._p1_arr = self._cmap_edges[:, 1, None]
+
     def _reset_internals(self):
         self.locations = np.arange(self._num_qubits, dtype=np.int64)
         self._qubits = np.arange(self._num_qubits, dtype=np.int64)
         self._active_swaps = []
         self._visited_layouts = set()
-        self._sucess = not bool(self._dag.op_nodes())
+        self._success = not bool(self._dag.op_nodes())
 
         # Scale the completion reward with the circuit depth to offset swap penalties
         self._completion_reward = 1.0 + (self._depth * 0.5)
@@ -227,8 +232,6 @@ class RoutingEnv(gymnasium.Env):
         matrix = np.zeros((E, self._horizon), dtype=np.int8)
 
         layers = list(self._dag.layers())
-        p0_arr = self._cmap_edges[:, 0, None]
-        p1_arr = self._cmap_edges[:, 1, None]
 
         for h in range(min(len(layers), self._horizon)):
             layer = layers[h]
@@ -252,14 +255,22 @@ class RoutingEnv(gymnasium.Env):
             curr_pa = self.locations[l1_arr]
             curr_pb = self.locations[l2_arr]
             dist_before = self._distance_matrix[curr_pa, curr_pb]
-            pa_exp = np.tile(curr_pa, (E, 1))
-            pb_exp = np.tile(curr_pb, (E, 1))
-            new_pa = np.where(
-                pa_exp == p0_arr, p1_arr, np.where(pa_exp == p1_arr, p0_arr, pa_exp)
+
+            pa_exp = np.broadcast_to(curr_pa, (E, num_gates))
+            pb_exp = np.broadcast_to(curr_pb, (E, num_gates))
+
+            mask_pa_p0 = pa_exp == self._p0_arr
+            mask_pa_p1 = pa_exp == self._p1_arr
+            new_pa = np.select(
+                [mask_pa_p0, mask_pa_p1], [self._p1_arr, self._p0_arr], pa_exp
             )
-            new_pb = np.where(
-                pb_exp == p0_arr, p1_arr, np.where(pb_exp == p1_arr, p0_arr, pb_exp)
+
+            mask_pb_p0 = pb_exp == self._p0_arr
+            mask_pb_p1 = pb_exp == self._p1_arr
+            new_pb = np.select(
+                [mask_pb_p0, mask_pb_p1], [self._p1_arr, self._p0_arr], pb_exp
             )
+
             dist_after = self._distance_matrix[new_pa, new_pb]
 
             matrix[:, h] = np.sum(dist_after - dist_before, axis=1)
@@ -324,10 +335,11 @@ class RoutingEnv(gymnasium.Env):
             if mask[i]:
                 p0, p1 = self._cmap_edges[i]
                 l0, l1 = self._qubits[p0], self._qubits[p1]
-                new_qubits = self._qubits.copy()
-                new_qubits[p0], new_qubits[p1] = l1, l0
-                if tuple(new_qubits) in self._visited_layouts:
+
+                self._qubits[p0], self._qubits[p1] = l1, l0
+                if tuple(self._qubits) in self._visited_layouts:
                     mask[i] = False
+                self._qubits[p0], self._qubits[p1] = l0, l1
 
         if not mask.any():
             self._visited_layouts.clear()

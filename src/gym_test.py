@@ -94,7 +94,7 @@ def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layo
 
 
 HORIZON = 16
-MAX_DIFF = 2
+MAX_DIFF = 100
 NUM_QUBITS = 6
 
 if __name__ == "__main__":

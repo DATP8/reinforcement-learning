@@ -151,33 +151,30 @@ if __name__ == "__main__":
     from qiskit.transpiler.passes import ApplyLayout
     from qiskit.transpiler.passes import SabreLayout
     from qiskit.transpiler.passes import TrivialLayout
-    from src.routing.bwas_chunck_router import ChunkRouter
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.transpiler import CouplingMap
-    from src.model import BiCircuitGNN
 
     # from src.routing.rl_routing_pass import RlRoutingPass
     from qiskit.transpiler.passes import SabreSwap
-    import torch
 
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
 
-    #path = "models/graph/difficulty62_updates7_iteration25150.pt"
-    #model = BiCircuitGNN(n_qubits)
-    #model.load_state_dict(torch.load(path, map_location="cpu"))
+    # path = "models/graph/difficulty62_updates7_iteration25150.pt"
+    # model = BiCircuitGNN(n_qubits)
+    # model.load_state_dict(torch.load(path, map_location="cpu"))
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
 
-    #chuck_size = 16
-    #chunk_router = ChunkRouter(
+    # chuck_size = 16
+    # chunk_router = ChunkRouter(
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
-    #)
+    # )
 
     horizon = 18
     ppo_env = make_env(n_qubits, coupling_map, horizon, None)
