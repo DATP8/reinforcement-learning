@@ -14,13 +14,14 @@ import numpy as np
 
 from src.routing_env import RoutingEnv
 from qiskit.dagcircuit import DAGCircuit
-from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 
 
 class EvalIfCurriculumFinishedCallback(BaseCallback):
     def __init__(
         self,
-        eval_callback: EvalCallback,
+        eval_callback: MaskableEvalCallback,
         curriculum_callback: CurriculumCallback,
         verbose=0,
     ):
@@ -92,8 +93,8 @@ def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layo
     return circuit_to_dag(env.routed_circuit), layout
 
 
-HORIZON = 18
-MAX_DIFF = 100
+HORIZON = 16
+MAX_DIFF = 2
 NUM_QUBITS = 6
 
 if __name__ == "__main__":
@@ -126,7 +127,7 @@ if __name__ == "__main__":
         net_arch=dict(pi=[64, 64], vf=[64, 64]),
     )
 
-    model = MaskablePPO("MlpPolicy", train_env, verbose=1)
+    model = MaskablePPO("MlpPolicy", train_env, verbose=1, batch_size=2048)
     # model = MaskablePPO(
     #    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
     # )
@@ -143,8 +144,8 @@ if __name__ == "__main__":
 
     curriculum_callback = CurriculumCallback(threshold=0.85, verbose=1)
 
-    eval_freq = max(20000 // n_envs, 1)
-    eval_callback = EvalCallback(
+    eval_freq = max(100000 // n_envs, 1)
+    eval_callback = MaskableEvalCallback(
         eval_env,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
@@ -159,7 +160,7 @@ if __name__ == "__main__":
     )
 
     model.learn(
-        total_timesteps=300000,
+        total_timesteps=25_000_000,
         progress_bar=True,
         callback=[curriculum_callback, conditional_eval],
     )
