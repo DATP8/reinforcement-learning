@@ -230,6 +230,8 @@ if __name__ == "__main__":
     from qiskit.transpiler import CouplingMap
     from src.model import BiCircuitGNN
     from src.routing.rl_routing_pass import RlRoutingPass
+    from src.routing.sat_routing_pass import SatRoutingPass
+    from qiskit_ibm_transpiler.ai.routing import AIRouting
     from qiskit.transpiler.passes import SabreSwap
     import torch
 
@@ -245,13 +247,22 @@ if __name__ == "__main__":
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
-    swap_inserter = SwapInserter(coupling_map, n_qubits)
+   
+    ai_routing = AIRouting(
+        coupling_map=coupling_map, 
+        optimization_level=3, 
+        layout_mode="keep",
+        local_mode=True  
+    )
 
-    chuck_size = 16
+    swap_inserter = SwapInserter(coupling_map, n_qubits)
+    chunk_size = 16        
     chunk_router = ChunkRouter(
-        chunk_size=chuck_size, model=model, state_handler=state_handler
+        chunk_size=chunk_size, model=model, state_handler=state_handler
     )
     chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
+
+    sat_swap_pass = SatRoutingPass(coupling_map)
 
     trivial_layout = TrivialLayout(coupling_map)
     sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
@@ -265,10 +276,18 @@ if __name__ == "__main__":
                 [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
             ),
         ),
+        # (
+        #     f"TrivialLayout_Chunking_{chuck_size}",
+        #     PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
+        # ),
         (
-            f"TrivialLayout_Chunking_{chuck_size}",
-            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
+            f"TrivialLayout_AI_ibm",
+            PassManager([ai_routing]),
         ),
+        #(
+        #    f"TrivialLayout_sat",
+        #    PassManager([trivial_layout, ApplyLayout(), sat_swap_pass]),
+        #),
         (
             "SabreLayout_SabreSwap",
             PassManager(
@@ -279,18 +298,17 @@ if __name__ == "__main__":
                 ]
             ),
         ),
+        # (
+        #     f"SabreLayout_Chunking_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             sabre_layout,
+        #             ApplyLayout(),
+        #             chunck_swap_pass,
+        #         ]
+        #     ),
+        # ),
         (
-            f"SabreLayout_Chunking_{chuck_size}",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass,
-                ]
-            ),
-        ),
-        (
-            "Op1 qiskit",
             generate_preset_pass_manager(
                 optimization_level=0, coupling_map=coupling_map
             ),
@@ -300,9 +318,9 @@ if __name__ == "__main__":
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 10
-    bench_circut_gate_count = 64
+    bench_iterations = 100
+    bench_circut_gate_count = 1000
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
-    print("\n")
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+    print("\n")
+    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore

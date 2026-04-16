@@ -17,6 +17,8 @@ dependencies = [
     "torch>=2.10.0",
     "torch-geometric>=2.7.0",
     "tornado>=6.5.4",
+    "mqt.qmap>=3.6.0,<4.0.0",
+    "qiskit-ibm-transpiler>=0.11.0",
 ]
 
 [tool.pyrefly]
