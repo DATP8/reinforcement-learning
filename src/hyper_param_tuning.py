@@ -31,6 +31,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._curriculum_callback = curriculum_callback
         self._eval_freq = eval_freq
         self._last_mean_reward = 0.0
+        self._best_mean_reward = -float("inf")
         self._seed = seed
         self._post_curriculum_evals = 0
 
@@ -40,26 +41,32 @@ class RayTuneCurriculumCallback(BaseCallback):
     def _on_step(self) -> bool:
         if self.n_calls % self._eval_freq == 0:
             current_diff = self.training_env.env_method("get_difficulty")[0]
-            if current_diff >= self._curriculum_callback.max_difficulty:
+            is_max_diff = current_diff >= self._curriculum_callback.max_difficulty
+            
+            checkpoint = None
+
+            if is_max_diff:
                 self._eval_callback.on_step()
                 self._last_mean_reward = self._eval_callback.last_mean_reward
                 self._post_curriculum_evals += 1
+                
+                if self._last_mean_reward > self._best_mean_reward:
+                    self._best_mean_reward = self._last_mean_reward
+                    
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        model_path = os.path.join(temp_dir, "model")
+                        self.model.save(model_path)
+                        checkpoint = tune.Checkpoint.from_directory(temp_dir)
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                model_path = os.path.join(temp_dir, "model")
-                self.model.save(model_path)
-
-                checkpoint = tune.Checkpoint.from_directory(temp_dir)
-
-                tune.report(
-                    {
-                        "mean_reward": self._last_mean_reward,
-                        "difficulty": current_diff,
-                        "seed": self._seed,
-                        "post_curriculum_evals": self._post_curriculum_evals,
-                    },
-                    checkpoint=checkpoint,
-                )
+            tune.report(
+                {
+                    "mean_reward": self._last_mean_reward,
+                    "difficulty": current_diff,
+                    "seed": self._seed,
+                    "post_curriculum_evals": self._post_curriculum_evals,
+                },
+                checkpoint=checkpoint,
+            )
 
         return True
 
