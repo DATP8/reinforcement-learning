@@ -15,7 +15,6 @@ import multiprocessing as mp
 import torch
 import os
 import tempfile
-from ray import train
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -50,9 +49,9 @@ class RayTuneCurriculumCallback(BaseCallback):
                 model_path = os.path.join(temp_dir, "model")
                 self.model.save(model_path)
 
-                checkpoint = train.Checkpoint.from_directory(temp_dir)
+                checkpoint = tune.Checkpoint.from_directory(temp_dir)
 
-                train.report(
+                tune.report(
                     {
                         "mean_reward": self._last_mean_reward,
                         "difficulty": current_diff,
