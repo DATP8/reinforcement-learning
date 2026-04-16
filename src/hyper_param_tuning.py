@@ -27,7 +27,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._eval_callback = eval_callback
         self._curriculum_callback = curriculum_callback
         self._eval_freq = eval_freq
-        self._last_mean_reward = -float("inf")
+        self._last_mean_reward = -1e10
         self._seed = seed
         self._post_curriculum_evals = 0
 
@@ -50,6 +50,7 @@ class RayTuneCurriculumCallback(BaseCallback):
                     "post_curriculum_evals": self._post_curriculum_evals,
                 }
             )
+        
         return True
 
 
@@ -120,7 +121,7 @@ if __name__ == "__main__":
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
     search_space = {
-        "learning_rate": tune.loguniform(1e-5, 1e-3),
+        "learning_rate": tune.loguniform(1e-5, 1e-1),
         "gamma": tune.uniform(0.8, 1.0),
         "gae_lambda": tune.uniform(0.9, 1.0),
         "batch_size": tune.choice([1024, 2048]),
