@@ -1,3 +1,4 @@
+from numpy import ndarray
 from gymnasium import spaces
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap
@@ -16,7 +17,7 @@ class RoutingEnv(gymnasium.Env):
         initial_difficulty: int,
         max_difficulty: int,
         depth_slope: int,
-        max_depth: int,
+        layout_mode: str,
         render_mode: str | None = None,
     ) -> None:
         super().__init__()
@@ -28,26 +29,28 @@ class RoutingEnv(gymnasium.Env):
         self._horizon = horizon
         self._difficulty = initial_difficulty
         self._max_difficulty = max_difficulty
-        self._depth_slope = depth_slope
-        self._max_depth = max_depth
+        self._diff_slope = depth_slope
+        self._layout_mode = layout_mode
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = (
             coupling_map.distance_matrix  # pyrefly: ignore
         )
+        self._build_dist_pairs()
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
         self._cmap_edges = np.array(unique_edges)
         self._edge_set = frozenset(unique_edges)
+        self._num_edges = len(self._cmap_edges)
 
         self._active_swaps = []
-        self.locations = np.arange(self._num_qubits, dtype=np.int64)
-        self._qubits = np.arange(self._num_qubits, dtype=np.int64)
+        self.l2p = np.arange(self._num_qubits, dtype=np.int64)
+        self._p2l = np.arange(self._num_qubits, dtype=np.int64)
 
         self.action_space = spaces.Discrete(self._num_active_swaps)
         self.observation_space = spaces.Box(
             low=-2,
             high=2,
-            shape=(len(self._cmap_edges), self._horizon),
+            shape=(self._num_active_swaps, self._horizon),
             dtype=np.int8,
         )
 
@@ -74,30 +77,37 @@ class RoutingEnv(gymnasium.Env):
         #    }
         # )
 
-        self._reward_value = 1.0
+        self._completion_reward = 1.0
+        self._swap_penalty = 0.01
 
         self._visited_layouts = set()
-        self._inserted_swaps = 0
 
-        self._p0_arr = self._cmap_edges[:, 0, None]
-        self._p1_arr = self._cmap_edges[:, 1, None]
+    def _build_dist_pairs(self) -> None:
+        self._dist_pairs: dict[int, list[tuple[int, int]]] = {}
+        for q1 in range(self._num_qubits):
+            for q2 in range(q1 + 1, self._num_qubits):
+                dist = int(self._distance_matrix[q1, q2])
+                self._dist_pairs.setdefault(dist, []).append((q1, q2))
+
+        self._all_dists = sorted(self._dist_pairs.keys())
 
     def _reset_internals(self):
-        self.locations = np.arange(self._num_qubits, dtype=np.int64)
-        self._qubits = np.arange(self._num_qubits, dtype=np.int64)
+        self.l2p = np.arange(self._num_qubits, dtype=np.int64)
+        self._p2l = np.arange(self._num_qubits, dtype=np.int64)
         self._active_swaps = []
         self._visited_layouts = set()
-        self._success = not bool(self._dag.op_nodes())
 
-        # Scale the completion reward with the circuit depth to offset swap penalties
-        self._completion_reward = 1.0 + (self._depth * 0.5)
-        self._reward_value = self._completion_reward if self.is_terminal() else 0.0
-
-    def set_difficulty(self, difficulty: int):
+    def set_difficulty(self, difficulty: int) -> None:
         self._difficulty = difficulty
 
     def get_difficulty(self) -> int:
         return self._difficulty
+
+    def _compute_depth(self, difficulty: int) -> int:
+        return self._diff_slope * difficulty
+
+    def _compute_remaining_swaps(self) -> int:
+        return self._depth
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         super().reset(seed=seed)
@@ -109,93 +119,127 @@ class RoutingEnv(gymnasium.Env):
         else:
             sampled_diff = self._difficulty
 
-        self._depth = min(self._depth_slope * sampled_diff, self._max_depth)
-
-        provided_circuit: QuantumCircuit = options.get("circuit")  # pyrefly: ignore
-        self._is_eval_circuit = provided_circuit is not None
-
-        if self._is_eval_circuit:
-            self._remaining_swaps = len(provided_circuit) * 10
-        else:
-            self._remaining_swaps = self._depth * self._num_qubits
+        self._depth = self._compute_depth(sampled_diff)
+        self._remaining_swaps = self._compute_remaining_swaps()
 
         self.routed_circuit = QuantumCircuit(self._num_qubits)
-        self._inserted_swaps = 0
 
-        while True:
-            if provided_circuit is not None:
-                self._circuit = provided_circuit.copy()
-            else:
-                self._circuit = self._generate_random_circuit(self._depth)
-            self._qubit_indices = {q: i for i, q in enumerate(self._circuit.qubits)}
-            self._dag = circuit_to_dag(self._circuit)
-            self._reset_internals()
+        provided_circuit: QuantumCircuit = options.get("circuit")  # pyrefly: ignore
+        if provided_circuit is not None:
+            self._circuit = provided_circuit.copy()
+        else:
+            self._circuit = self._generate_random_circuit_from_diff(sampled_diff)
 
-            if provided_circuit is None:
-                # Randomly shuffle layout initially during training
-                self.np_random.shuffle(self.locations)
+        self._qubit_indices = {q: i for i, q in enumerate(self._circuit.qubits)}
+        self._dag = circuit_to_dag(self._circuit)
+        self._reset_internals()
 
-            for q, loc in enumerate(self.locations):
-                self._qubits[loc] = q
+        if provided_circuit is None:
+            self._apply_layout(sampled_diff)
 
-            self._execute_front_layer()
-            self._visited_layouts = {tuple(self._qubits)}
-            self._reward_value = self._completion_reward if self.is_terminal() else 0.0
+        for log, phy in enumerate(self.l2p):
+            self._p2l[phy] = log
 
-            if provided_circuit is not None or not self.is_terminal():
-                break
+        self._execute_front_layer()
+        self._visited_layouts = {tuple(self._p2l)}
 
-        self._cache_observation()
+        self._update_obs()
         return self._get_obs(), {}
 
-    def _generate_random_circuit(self, num_gates: int) -> QuantumCircuit:
+    def _apply_layout(self, sampled_diff: int) -> None:
+        if self._layout_mode == "random":
+            self.np_random.shuffle(self.l2p)
+        elif self._layout_mode == "progressive":
+            if self._difficulty >= self._max_difficulty:
+                self.np_random.shuffle(self.l2p)
+            else:
+                n = self._num_qubits
+                num_swaps = int((sampled_diff / self._max_difficulty) * n)
+                for i in range(n - 1, n - num_swaps - 1, -1):
+                    j = int(self.np_random.integers(0, i + 1))
+                    self.l2p[i], self.l2p[j] = int(self.l2p[j]), int(self.l2p[i])
+        elif self._layout_mode == "identity":
+            return  # no op
+        else:
+            raise ValueError("Invalid layout mode")
+
+    def _generate_random_circuit_from_diff(self, difficulty: int) -> QuantumCircuit:
         qc = QuantumCircuit(self._num_qubits)
-        for _ in range(num_gates):
-            q0, q1 = self.np_random.choice(self._num_qubits, size=2, replace=False)
-            qc.cx(int(q0), int(q1))
+        remaining = difficulty
+
+        while remaining > 0:
+            valid_dists = [dist for dist in self._all_dists if dist <= remaining]
+
+            if not valid_dists:
+                break
+
+            dist_idx = int(self.np_random.integers(0, len(valid_dists)))
+            next_dist = valid_dists[dist_idx]
+
+            pairs = self._dist_pairs[next_dist]
+            pair_idx = int(self.np_random.integers(0, len(pairs)))
+            pair = pairs[pair_idx]
+
+            q1, q2 = int(pair[0]), int(pair[1])
+            qc.cx(q1, q2)
+            remaining -= next_dist
+
         return qc
 
-    def step(self, action: int | np.ndarray):
+    def step(self, action: int | ndarray):
         action = int(action)
-        penalty = 0.0
+        if action >= len(self._active_swaps):
+            self._remaining_swaps = max(0, self._remaining_swaps - 1)
+            terminated = self.is_terminal()
+            truncated = self._remaining_swaps == 0 and not terminated
+            achieved = self._completion_reward if terminated else 0.0
+            self._update_obs()
+            return self._get_obs(), achieved, terminated, truncated, {}
 
-        if action < len(self._cmap_edges):
-            p0, p1 = self._cmap_edges[action]
-            l0, l1 = self._qubits[p0], self._qubits[p1]
+        dist_before = self._total_front_layer_distance()
 
-            penalty = 0.1
+        edge_idx = self._active_swaps[action]
+        p0, p1 = self._cmap_edges[edge_idx]
 
-            self.routed_circuit.swap(p0, p1)
-            self._qubits[p0], self._qubits[p1] = l1, l0
-            self.locations[l0] = p1
-            self.locations[l1] = p0
+        l0, l1 = self._p2l[p0], self._p2l[p1]
+        self._p2l[p0], self._p2l[p1] = l1, l0
+        self.l2p[l0] = p1
+        self.l2p[l1] = p0
 
-            self._inserted_swaps += 1
+        self.routed_circuit.swap(p0, p1)
 
         gates_executed = self._execute_front_layer()
-
         if gates_executed > 0:
             self._visited_layouts.clear()
 
-        self._visited_layouts.add(tuple(self._qubits))
+        self._visited_layouts.add(tuple(self._p2l))
+
+        dist_after = self._total_front_layer_distance()
+        progress_reward = (dist_before - dist_after) * 0.05
 
         self._remaining_swaps = max(0, self._remaining_swaps - 1)
-
-        achieved = self._completion_reward if self.is_terminal() else 0.0
-        self._reward_value = achieved - penalty
-
-        self._cache_observation()
-
         terminated = self.is_terminal()
-        truncated = False
-        if self._remaining_swaps == 0 and not self.is_terminal():
-            truncated = True
+        truncated = self._remaining_swaps == 0 and not terminated
 
-        return self._get_obs(), self._reward_value, terminated, truncated, {}
+        achieved = self._completion_reward if terminated else 0.0
 
-    def _cache_observation(self):
-        # self._cached_gnn_obs = self._build_graph()
-        self._cached_matrix = self._build_matrix()
+        reward = achieved - self._swap_penalty + progress_reward
+
+        self._update_obs()
+        return self._get_obs(), reward, terminated, truncated, {}
+
+    def _total_front_layer_distance(self) -> float:
+        total = 0.0
+        for node in self._dag.front_layer():
+            indices = [self._qubit_indices[q] for q in node.qargs]
+            if len(indices) == 2:
+                p0, p1 = int(self.l2p[indices[0]]), int(self.l2p[indices[1]])
+                total += self._distance_matrix[p0, p1]
+        return total
+
+    def _update_obs(self):
+        # self._gnn = self._build_graph()
+        self._matrix = self._build_matrix()
 
     def _execute_front_layer(self) -> int:
         progress = True
@@ -205,33 +249,34 @@ class RoutingEnv(gymnasium.Env):
             for node in list(self._dag.front_layer()):
                 indices = [self._qubit_indices[q] for q in node.qargs]
                 if len(indices) == 1:
-                    p0 = self.locations[indices[0]]
+                    p0 = self.l2p[indices[0]]
                     self.routed_circuit._append(node.op, [p0])  # pyrefly: ignore
                     self._dag.remove_op_node(node)
                     progress = True
                 else:
-                    p0, p1 = self.locations[indices[0]], self.locations[indices[1]]
+                    p0, p1 = self.l2p[indices[0]], self.l2p[indices[1]]
                     if (p0, p1) in self._edge_set or (p1, p0) in self._edge_set:
                         self.routed_circuit.append(node.op, [p0, p1])  # pyrefly: ignore
                         self._dag.remove_op_node(node)
                         gates_executed += 1
                         progress = True
+
         return gates_executed
 
     def _get_obs(self):
-        return self._cached_matrix
-        # graph_x, graph_edge_idx = self._cached_gnn_obs
+        return self._matrix
+        # graph_x, graph_edge_idx = self._gnn
         # return {
         #    "matrix": self._cached_matrix,
         #    "graph_x": graph_x,
         #    "graph_edge_idx": graph_edge_idx,
         # }
 
-    def _build_matrix(self):
-        E = len(self._cmap_edges)
-        matrix = np.zeros((E, self._horizon), dtype=np.int8)
-
+    def _build_matrix(self) -> ndarray:
         layers = list(self._dag.layers())
+        self._active_swaps = self._select_active_swaps(layers)
+
+        matrix = np.zeros((self._num_active_swaps, self._horizon), dtype=np.int8)
 
         for h in range(min(len(layers), self._horizon)):
             layer = layers[h]
@@ -240,41 +285,84 @@ class RoutingEnv(gymnasium.Env):
             if not gate_nodes:
                 continue
 
-            num_gates = len(gate_nodes)
-            l1_arr = np.fromiter(
-                (self._qubit_indices[n.qargs[0]] for n in gate_nodes),
-                count=num_gates,
-                dtype=np.int64,
-            )
-            l2_arr = np.fromiter(
-                (self._qubit_indices[n.qargs[1]] for n in gate_nodes),
-                count=num_gates,
-                dtype=np.int64,
-            )
+            gate_pairs = []
+            for node in gate_nodes:
+                indices = [self._qubit_indices[q] for q in node.qargs]
+                pa = int(self.l2p[indices[0]])
+                pb = int(self.l2p[indices[1]])
+                gate_pairs.append((pa, pb))
 
-            curr_pa = self.locations[l1_arr]
-            curr_pb = self.locations[l2_arr]
-            dist_before = self._distance_matrix[curr_pa, curr_pb]
+            for slot, edge_idx in enumerate(self._active_swaps):
+                p0, p1 = self._cmap_edges[edge_idx]
+                improvement = 0
 
-            pa_exp = np.broadcast_to(curr_pa, (E, num_gates))
-            pb_exp = np.broadcast_to(curr_pb, (E, num_gates))
+                for pa, pb in gate_pairs:
+                    dist_before = self._distance_matrix[pa, pb]
+                    new_pa = p1 if pa == p0 else (p0 if pa == p1 else pa)
+                    new_pb = p1 if pb == p0 else (p0 if pb == p1 else pb)
+                    dist_after = self._distance_matrix[new_pa, new_pb]
+                    improvement += dist_before - dist_after
 
-            mask_pa_p0 = pa_exp == self._p0_arr
-            mask_pa_p1 = pa_exp == self._p1_arr
-            new_pa = np.select(
-                [mask_pa_p0, mask_pa_p1], [self._p1_arr, self._p0_arr], pa_exp
-            )
+                matrix[slot, h] = np.clip(improvement, -2, 2)
 
-            mask_pb_p0 = pb_exp == self._p0_arr
-            mask_pb_p1 = pb_exp == self._p1_arr
-            new_pb = np.select(
-                [mask_pb_p0, mask_pb_p1], [self._p1_arr, self._p0_arr], pb_exp
-            )
-
-            dist_after = self._distance_matrix[new_pa, new_pb]
-
-            matrix[:, h] = np.sum(dist_after - dist_before, axis=1)
         return matrix
+
+    def _select_active_swaps(self, layers) -> list[int]:
+        if not self._dag.op_nodes():
+            return []
+
+        front_physical = set()
+        for node in self._dag.front_layer():
+            indices = [self._qubit_indices[q] for q in node.qargs]
+            if len(indices) == 2:
+                front_physical.add(int(self.l2p[indices[0]]))
+                front_physical.add(int(self.l2p[indices[1]]))
+
+        if not front_physical:
+            return []
+
+        candidate_indices = []
+        for edge_idx in range(self._num_edges):
+            p0, p1 = self._cmap_edges[edge_idx]
+            if p0 in front_physical or p1 in front_physical:
+                candidate_indices.append(edge_idx)
+
+        if len(candidate_indices) <= self._num_active_swaps:
+            return candidate_indices
+
+        num_layers = min(len(layers), self._horizon)
+
+        layer_pairs = []
+        for h in range(num_layers):
+            layer = layers[h]
+            graph = layer["graph"] if isinstance(layer, dict) else layer
+            pairs = []
+            for node in graph.op_nodes():
+                if len(node.qargs) == 2:
+                    indices = [self._qubit_indices[q] for q in node.qargs]
+                    pa = int(self.l2p[indices[0]])
+                    pb = int(self.l2p[indices[1]])
+                    pairs.append((pa, pb))
+            layer_pairs.append(pairs)
+
+        scores = []
+        for edge_idx in candidate_indices:
+            p0, p1 = self._cmap_edges[edge_idx]
+            total_improvement = 0
+
+            for pairs in layer_pairs:
+                for pa, pb in pairs:
+                    dist_before = self._distance_matrix[pa, pb]
+                    new_pa = p1 if pa == p0 else (p0 if pa == p1 else pa)
+                    new_pb = p1 if pb == p0 else (p0 if pb == p1 else pb)
+
+                    dist_after = self._distance_matrix[new_pa, new_pb]
+                    total_improvement += dist_before - dist_after
+
+            scores.append((edge_idx, total_improvement))
+
+        scores.sort(key=lambda x: -x[1])
+        return [idx for idx, _ in scores[: self._num_active_swaps]]
 
     def _build_graph(self):
         num_q = self._num_logic_qubits
@@ -291,15 +379,15 @@ class RoutingEnv(gymnasium.Env):
         x = np.zeros((self._num_phys_qubits, 3), dtype=np.float32)
 
         for q in range(num_q):
-            phys = self.locations[q]
+            phys = self.l2p[q]
             total_interactions = interaction_counts[q].sum()
 
             if total_interactions > 0:
                 dists = []
                 for other_q in range(num_q):
                     if interaction_counts[q, other_q] > 0:
-                        p1 = self.locations[q]
-                        p2 = self.locations[other_q]
+                        p1 = self.l2p[q]
+                        p2 = self.l2p[other_q]
                         dists.append(self._distance_matrix[p1][p2])
                 avg_dist = np.mean(dists) if len(dists) > 0 else 0.0
             else:
@@ -323,36 +411,29 @@ class RoutingEnv(gymnasium.Env):
         return x, edge_index
 
     def valid_action_mask(self) -> np.ndarray:
-        front_logical = [
-            self._qubit_indices[q]
-            for node in self._dag.front_layer()
-            for q in node.qargs
-        ]
-        front_physical = self.locations[front_logical]
-        mask = np.any(np.isin(self._cmap_edges, front_physical), axis=1)
+        mask = np.zeros(self._num_active_swaps, dtype=bool)
 
-        for i in range(len(self._cmap_edges)):
-            if mask[i]:
-                p0, p1 = self._cmap_edges[i]
-                l0, l1 = self._qubits[p0], self._qubits[p1]
+        if self.is_terminal():
+            return mask
 
-                self._qubits[p0], self._qubits[p1] = l1, l0
-                if tuple(self._qubits) in self._visited_layouts:
-                    mask[i] = False
-                self._qubits[p0], self._qubits[p1] = l0, l1
+        if not self._active_swaps:
+            return mask
+
+        for slot, edge_idx in enumerate(self._active_swaps):
+            p0, p1 = self._cmap_edges[edge_idx]
+            l0, l1 = int(self._p2l[p0]), int(self._p2l[p1])
+            self._p2l[p0], self._p2l[p1] = l1, l0
+            already_seen = tuple(self._p2l) in self._visited_layouts
+            self._p2l[p0], self._p2l[p1] = l0, l1
+
+            if not already_seen:
+                mask[slot] = True
 
         if not mask.any():
-            self._visited_layouts.clear()
-            self._visited_layouts.add(tuple(self._qubits))
-            mask = np.any(np.isin(self._cmap_edges, front_physical), axis=1)
+            self._visited_layouts = {tuple(self._p2l)}
+            mask[: len(self._active_swaps)] = True
 
-        assert mask.any(), "No valid action in mask"
-
-        # Pad up to num_active_swaps if needed
-        diff = self._num_active_swaps - len(mask)
-        if diff > 0:
-            mask = np.pad(mask, (0, diff), constant_values=False)
-        return mask[: self._num_active_swaps]
+        return mask
 
     def is_terminal(self) -> bool:
         return not bool(self._dag.op_nodes())

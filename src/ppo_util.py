@@ -20,22 +20,23 @@ def mask_fn(env: gymnasium.Env) -> np.ndarray:
 def make_env(
     num_qubits: int,
     coupling_map: CouplingMap,
+    num_active_swaps: int,
     horizon: int,
+    depth_slope: int,
+    layout_mode: str = "progressive",
     render_mode: str | None = None,
     initial_difficulty: int = 1,
     max_difficulty: int = 100,
-    depth_slope: int = 2,
-    max_depth: int = 128,
 ):
     env = RoutingEnv(
         num_qubits=num_qubits,
         coupling_map=coupling_map,
-        num_active_swaps=len(coupling_map.get_edges()),
+        num_active_swaps=num_active_swaps,
         horizon=horizon,
         initial_difficulty=initial_difficulty,
         max_difficulty=max_difficulty,
         depth_slope=depth_slope,
-        max_depth=max_depth,
+        layout_mode=layout_mode,
         render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)
@@ -58,7 +59,7 @@ def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layo
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
         obs, _, terminated, truncated, _ = env.step(action)
 
-    layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.locations)}
+    layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.l2p)}
     layout = Layout(layout_dict)
     return circuit_to_dag(env.routed_circuit), layout
 

@@ -61,24 +61,27 @@ def maskable_ppo_obj(config):
 
     train_env = make_vec_env(
         lambda: make_env(
-            config["num_qubits"],
-            coupling_map,
-            config["horizon"],
+            num_qubits=config["num_qubits"],
+            coupling_map=coupling_map,
+            num_active_swaps=config["num_active_swaps"],
+            horizon=config["horizon"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
             depth_slope=config["depth_slope"],
-            max_depth=config["max_depth"],
         ),
-        n_envs=config["n_envs"],
+        n_envs=config["num_envs"],
         seed=seed,
     )
 
     eval_env = make_env(
-        config["num_qubits"],
-        coupling_map,
-        config["horizon"],
-        config["initial_difficulty"],
-        config["max_difficulty"],
+        num_qubits=config["num_qubits"],
+        coupling_map=coupling_map,
+        num_active_swaps=config["num_active_swaps"],
+        horizon=config["horizon"],
+        depth_slope=config["depth_slope"],
+        layout_mode=config["layout_mode"],
+        initial_difficulty=config["initial_difficulty"],
+        max_difficulty=config["max_difficulty"],
     )
     eval_env = Monitor(eval_env)
 
@@ -94,7 +97,7 @@ def maskable_ppo_obj(config):
 
     curriculum_callback = CurriculumCallback(config["threshold"])
 
-    eval_freq = max(config["base_eval_freq"] // config["n_envs"], 1)
+    eval_freq = max(config["base_eval_freq"] // config["num_envs"], 1)
 
     # called by ray_tune_eval so we just set freq = 1
     eval_callback = MaskableEvalCallback(eval_env, eval_freq=1, verbose=0)
@@ -113,7 +116,7 @@ if __name__ == "__main__":
     cpus_per_trial = 4
     num_unique_samples = 100
     repeats_per_config = 3
-    grace_period = 5
+    grace_period = 4
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // cpus_per_trial)
@@ -126,17 +129,18 @@ if __name__ == "__main__":
         "learning_rate": tune.loguniform(1e-5, 1e-1),
         "gamma": tune.uniform(0.8, 1.0),
         "gae_lambda": tune.uniform(0.9, 1.0),
-        "batch_size": tune.choice([1024, 2048]),
-        "horizon": tune.randint(1, 101),
+        "batch_size": tune.choice([512, 1024, 2048, 4096]),
+        "horizon": tune.randint(4, 64),
+        "layout_mode": tune.choice(["random", "progressive", "identity"]),
         "num_qubits": 6,
         "initial_difficulty": 1,
         "max_difficulty": 100,
         "depth_slope": 2,
-        "max_depth": 128,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "total_timesteps": 10_000_000,
-        "n_envs": cpus_per_trial,
+        "num_active_swaps": 6,
+        "num_envs": cpus_per_trial,
     }
 
     algo = OptunaSearch(metric="mean_reward", mode="max")

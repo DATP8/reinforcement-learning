@@ -1,6 +1,6 @@
 from src.ppo_util import make_env, PostCurriculumEvalCallback, mask_fn
 from stable_baselines3.common.monitor import Monitor
-from src.gym_extractor import HybridExtractor, SimpleExtractor
+from src.gym_extractor import SimpleExtractor
 from src.curriculum_callback import CurriculumCallback
 from qiskit.transpiler import CouplingMap
 from stable_baselines3.common.env_util import make_vec_env
@@ -17,6 +17,12 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 HORIZON = 16
 MAX_DIFF = 100
 NUM_QUBITS = 6
+SLOPE = 2
+EVAL_SAMPLES = 3
+TOTAL_STEPS = 25_000_000
+EVAL_FREQ = 100_000
+THRESHOLD = 0.85
+BATCH_SIZE = 2048
 
 if __name__ == "__main__":
     coupling_map = CouplingMap.from_line(NUM_QUBITS)
@@ -27,28 +33,32 @@ if __name__ == "__main__":
         lambda: make_env(
             num_qubits=NUM_QUBITS,
             coupling_map=coupling_map,
+            num_active_swaps=len(coupling_map.get_edges()),
             horizon=HORIZON,
             initial_difficulty=1,
             max_difficulty=MAX_DIFF,
+            depth_slope=SLOPE,
         ),
         n_envs=n_envs,
     )
 
     # Simple Extractor
-    policy_kwargs = dict(
+    policy_kwargs: dict[
+        str, type[SimpleExtractor] | dict[str, int] | dict[str, list[int]]
+    ] = dict(
         features_extractor_class=SimpleExtractor,
         features_extractor_kwargs=dict(features_dim=128),
         net_arch=dict(pi=[64, 64], vf=[64, 64]),
     )
 
     # Hybrid Graph Extractor
-    policy_kwargs = dict(
-        features_extractor_class=HybridExtractor,
-        features_extractor_kwargs=dict(features_dim=128),
-        net_arch=dict(pi=[64, 64], vf=[64, 64]),
-    )
+    # policy_kwargs = dict(
+    #    features_extractor_class=HybridExtractor,
+    #    features_extractor_kwargs=dict(features_dim=128),
+    #    net_arch=dict(pi=[64, 64], vf=[64, 64]),
+    # )
 
-    model = MaskablePPO("MlpPolicy", train_env, verbose=1, batch_size=2048)
+    model = MaskablePPO("MlpPolicy", train_env, verbose=1, batch_size=BATCH_SIZE)
     # model = MaskablePPO(
     #    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
     # )
@@ -56,21 +66,23 @@ if __name__ == "__main__":
     eval_env = make_env(
         num_qubits=NUM_QUBITS,
         coupling_map=coupling_map,
+        num_active_swaps=len(coupling_map.get_edges()),
         horizon=HORIZON,
         render_mode="ansi",
         initial_difficulty=MAX_DIFF,
         max_difficulty=MAX_DIFF,
+        depth_slope=SLOPE,
     )
     eval_env = Monitor(eval_env)
 
-    curriculum_callback = CurriculumCallback(threshold=0.85, verbose=1)
+    curriculum_callback = CurriculumCallback(threshold=THRESHOLD, verbose=1)
 
-    eval_freq = max(100000 // n_envs, 1)
+    eval_freq = max(EVAL_FREQ // n_envs, 1)
     eval_callback = MaskableEvalCallback(
         eval_env,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
-        eval_freq=eval_freq,
+        eval_freq=1,
         deterministic=True,
         render=False,
         verbose=1,
@@ -81,13 +93,13 @@ if __name__ == "__main__":
     )
 
     model.learn(
-        total_timesteps=25_000_000,
+        total_timesteps=TOTAL_STEPS,
         progress_bar=True,
         callback=[curriculum_callback, conditional_eval],
     )
     model.save("test_model")
 
-    for _ in range(5):
+    for _ in range(EVAL_SAMPLES):
         obs, _ = eval_env.reset()
         flag = True
         while flag:

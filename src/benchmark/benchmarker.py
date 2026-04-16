@@ -28,7 +28,7 @@ METRIC_KEYS = [
 class Benchmarker:
     def __init__(self, qubits, max_gates, coupling_map):
         self.qubits = qubits
-        self.max_depth = max_gates
+        self.max_gates = max_gates
         self.coupling_map = coupling_map
 
     def _collect_metrics(self, routed_circuit, transpile_time):
@@ -79,7 +79,7 @@ class Benchmarker:
 
         for i in tqdm(range(iterations), desc="List of random circuits"):
             qc_list.append(
-                self.generate_random_2qubit_circuit(self.qubits, self.max_depth)
+                self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
             )
 
         for config in configs:
@@ -176,10 +176,14 @@ if __name__ == "__main__":
     # )
 
     horizon = 16
-    ppo_env = make_env(n_qubits, coupling_map, horizon, None)
-    ppo_model = MaskablePPO.load(
-        "manfred-res/checkpoints/simple_ppo_bs1024_h16", ppo_env
+    ppo_env = make_env(
+        n_qubits,
+        coupling_map,
+        num_active_swaps=len(coupling_map.get_edges()),
+        horizon=horizon,
+        depth_slope=2,
     )
+    ppo_model = MaskablePPO.load("checkpoints/best_model", ppo_env)
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
@@ -231,7 +235,7 @@ if __name__ == "__main__":
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 100
-    bench_circut_gate_count = 100
+    bench_iterations = 50
+    bench_circut_gate_count = 64
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
