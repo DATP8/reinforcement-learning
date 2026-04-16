@@ -158,7 +158,6 @@ if __name__ == "__main__":
     from qiskit.transpiler.passes import SabreSwap
 
     n_qubits = 6
-    horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
 
@@ -176,9 +175,9 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 18
+    horizon = 16
     ppo_env = make_env(n_qubits, coupling_map, horizon, None)
-    ppo_model = MaskablePPO.load("test_model", ppo_env)
+    ppo_model = MaskablePPO.load("manfred-res/checkpoints/best_model", ppo_env)
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
@@ -231,6 +230,6 @@ if __name__ == "__main__":
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 100
-    bench_circut_gate_count = 100
+    bench_circut_gate_count = 1000
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
