@@ -42,11 +42,12 @@ class DAVI[S: To]:
         mse_loss = nn.MSELoss()
 
         difficulty = initial_difficulty
-
+        previous_states = None
         for iteration in range(num_iterations):
-            states = self.state_handler.get_random_states_in_range(
-                batchsize, 1, difficulty
+            states = self.state_handler.get_random_states_in_range_keep(
+                batchsize, 1, difficulty, previous_states, 30
             )
+            previous_states = states
             y = torch.full((batchsize, 1), float("inf")).squeeze(-1).to(device)
 
             next_states = []
