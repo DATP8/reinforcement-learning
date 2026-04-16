@@ -131,7 +131,7 @@ if __name__ == "__main__":
         "gae_lambda": tune.uniform(0.9, 1.0),
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
-        "layout_mode": tune.choice(["random", "progressive", "identity"]),
+        "layout_mode": "progressive",
         "num_qubits": 6,
         "initial_difficulty": 1,
         "max_difficulty": 100,
