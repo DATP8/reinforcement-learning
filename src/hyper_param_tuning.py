@@ -14,7 +14,6 @@ from ray import tune
 import multiprocessing as mp
 import torch
 import os
-import tempfile
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -30,9 +29,10 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._eval_callback = eval_callback
         self._curriculum_callback = curriculum_callback
         self._eval_freq = eval_freq
-        self._last_mean_reward = 0.0
-        self._best_mean_reward = -float("inf")
         self._seed = seed
+
+        self._last_mean_reward = -float("inf")
+        self._best_mean_reward = -float("inf")
         self._post_curriculum_evals = 0
 
     def _init_callback(self) -> None:
@@ -53,10 +53,11 @@ class RayTuneCurriculumCallback(BaseCallback):
                 if self._last_mean_reward > self._best_mean_reward:
                     self._best_mean_reward = self._last_mean_reward
 
-                    with tempfile.TemporaryDirectory() as temp_dir:
-                        model_path = os.path.join(temp_dir, "model")
-                        self.model.save(model_path)
-                        checkpoint = tune.Checkpoint.from_directory(temp_dir)
+                    ckpt_dir = os.path.join(os.getcwd(), "best_model_tmp")
+                    os.makedirs(ckpt_dir, exist_ok=True)
+
+                    self.model.save(os.path.join(ckpt_dir, "model"))
+                    checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
 
             tune.report(
                 {
