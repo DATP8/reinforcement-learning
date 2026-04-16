@@ -13,6 +13,9 @@ from src.ppo_util import make_env
 from ray import tune
 import multiprocessing as mp
 import torch
+import os
+import tempfile
+from ray import train
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -21,7 +24,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         eval_callback: MaskableEvalCallback,
         curriculum_callback: CurriculumCallback,
         eval_freq: int,
-        seed,
+        seed: int,
         verbose: int = 0,
     ):
         super().__init__(verbose)
@@ -43,14 +46,21 @@ class RayTuneCurriculumCallback(BaseCallback):
                 self._last_mean_reward = self._eval_callback.last_mean_reward
                 self._post_curriculum_evals += 1
 
-            tune.report(
-                {
-                    "mean_reward": self._last_mean_reward,
-                    "difficulty": current_diff,
-                    "seed": self._seed,
-                    "post_curriculum_evals": self._post_curriculum_evals,
-                }
-            )
+            with tempfile.TemporaryDirectory() as temp_dir:
+                model_path = os.path.join(temp_dir, "model")
+                self.model.save(model_path)
+                
+                checkpoint = train.Checkpoint.from_directory(temp_dir)
+
+                train.report(
+                    {
+                        "mean_reward": self._last_mean_reward,
+                        "difficulty": current_diff,
+                        "seed": self._seed,
+                        "post_curriculum_evals": self._post_curriculum_evals,
+                    },
+                    checkpoint=checkpoint,
+                )
 
         return True
 
