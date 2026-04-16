@@ -42,17 +42,17 @@ class RayTuneCurriculumCallback(BaseCallback):
         if self.n_calls % self._eval_freq == 0:
             current_diff = self.training_env.env_method("get_difficulty")[0]
             is_max_diff = current_diff >= self._curriculum_callback.max_difficulty
-            
+
             checkpoint = None
 
             if is_max_diff:
                 self._eval_callback.on_step()
                 self._last_mean_reward = self._eval_callback.last_mean_reward
                 self._post_curriculum_evals += 1
-                
+
                 if self._last_mean_reward > self._best_mean_reward:
                     self._best_mean_reward = self._last_mean_reward
-                    
+
                     with tempfile.TemporaryDirectory() as temp_dir:
                         model_path = os.path.join(temp_dir, "model")
                         self.model.save(model_path)
