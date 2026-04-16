@@ -178,7 +178,7 @@ if __name__ == "__main__":
     horizon = 16
     ppo_env = make_env(n_qubits, coupling_map, horizon, None)
     ppo_model = MaskablePPO.load(
-        "manfred-res/checkpoints/simple_ppo_bs2048_h16", ppo_env
+        "manfred-res/checkpoints/simple_ppo_bs1024_h16", ppo_env
     )
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -232,6 +232,6 @@ if __name__ == "__main__":
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 100
-    bench_circut_gate_count = 1000
+    bench_circut_gate_count = 100
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

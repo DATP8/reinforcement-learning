@@ -1,7 +1,6 @@
 from ray.tune.schedulers import ASHAScheduler
 from numpy import random
 from ray.tune.search import Repeater
-from ray import train
 from stable_baselines3.common.callbacks import BaseCallback
 from ray.tune.search.optuna.optuna_search import OptunaSearch
 from qiskit.transpiler import CouplingMap
@@ -43,7 +42,7 @@ class RayTuneCurriculumCallback(BaseCallback):
                 self._last_mean_reward = self._eval_callback.last_mean_reward
                 self._post_curriculum_evals += 1
 
-            train.report(
+            tune.report(
                 {
                     "mean_reward": self._last_mean_reward,
                     "difficulty": current_diff,
