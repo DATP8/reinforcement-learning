@@ -49,7 +49,7 @@ class RayTuneCurriculumCallback(BaseCallback):
             with tempfile.TemporaryDirectory() as temp_dir:
                 model_path = os.path.join(temp_dir, "model")
                 self.model.save(model_path)
-                
+
                 checkpoint = train.Checkpoint.from_directory(temp_dir)
 
                 train.report(
