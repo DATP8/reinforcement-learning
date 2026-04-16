@@ -1,96 +1,17 @@
+from src.ppo_util import make_env, PostCurriculumEvalCallback, mask_fn
 from stable_baselines3.common.monitor import Monitor
-from qiskit.converters import circuit_to_dag
-from qiskit.converters import dag_to_circuit
-from qiskit.transpiler.layout import Layout
 from src.gym_extractor import HybridExtractor, SimpleExtractor
 from src.curriculum_callback import CurriculumCallback
-import gymnasium
 from qiskit.transpiler import CouplingMap
 from stable_baselines3.common.env_util import make_vec_env
 from sb3_contrib import MaskablePPO
-from sb3_contrib.common.wrappers import ActionMasker
 import multiprocessing as mp
-import numpy as np
 
-from src.routing_env import RoutingEnv
-from qiskit.dagcircuit import DAGCircuit
-from stable_baselines3.common.callbacks import BaseCallback
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
-
-
-class EvalIfCurriculumFinishedCallback(BaseCallback):
-    def __init__(
-        self,
-        eval_callback: MaskableEvalCallback,
-        curriculum_callback: CurriculumCallback,
-        verbose=0,
-    ):
-        super().__init__(verbose)
-        self.eval_callback = eval_callback
-        self.curriculum_callback = curriculum_callback
-
-    def _init_callback(self) -> None:
-        self.eval_callback.init_callback(self.model)
-
-    def _on_step(self) -> bool:
-        current_diff = self.training_env.env_method("get_difficulty")[0]
-        # Only evaluate if we reached max difficulty
-        if current_diff >= self.curriculum_callback.max_difficulty:
-            return self.eval_callback.on_step()
-        return True
-
 
 ### INFO
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
-
-
-def mask_fn(env: gymnasium.Env) -> np.ndarray:
-    return env.unwrapped.valid_action_mask()  # pyrefly: ignore
-
-
-def make_env(
-    num_qubits: int,
-    coupling_map: CouplingMap,
-    horizon: int,
-    render_mode: str | None = None,
-    initial_difficulty: int = 1,
-    max_difficulty: int = 100,
-):
-    env = RoutingEnv(
-        num_qubits=num_qubits,
-        coupling_map=coupling_map,
-        num_active_swaps=len(coupling_map.get_edges()),
-        horizon=horizon,
-        initial_difficulty=initial_difficulty,
-        max_difficulty=max_difficulty,
-        depth_slope=2,
-        max_depth=128,
-        render_mode=render_mode,
-    )
-    env = ActionMasker(env, mask_fn)
-    return env
-
-
-def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layout]:
-    circuit = dag_to_circuit(dag)
-    env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
-    obs, _ = env.reset(options={"circuit": circuit})
-
-    if env.is_terminal():
-        return circuit_to_dag(env.routed_circuit), Layout.generate_trivial_layout(
-            *circuit.qregs
-        )
-
-    terminated = False
-    while not terminated:
-        mask = env.valid_action_mask()
-        action, _ = model.predict(obs, action_masks=mask, deterministic=True)
-        obs, _, terminated, truncated, _ = env.step(action)
-
-    layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.locations)}
-    layout = Layout(layout_dict)
-    return circuit_to_dag(env.routed_circuit), layout
 
 
 HORIZON = 16
@@ -155,9 +76,7 @@ if __name__ == "__main__":
         verbose=1,
     )
 
-    conditional_eval = EvalIfCurriculumFinishedCallback(
-        eval_callback, curriculum_callback
-    )
+    conditional_eval = PostCurriculumEvalCallback(eval_callback, curriculum_callback, eval_freq)
 
     model.learn(
         total_timesteps=25_000_000,

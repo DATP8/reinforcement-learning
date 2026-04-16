@@ -177,7 +177,9 @@ if __name__ == "__main__":
 
     horizon = 16
     ppo_env = make_env(n_qubits, coupling_map, horizon, None)
-    ppo_model = MaskablePPO.load("manfred-res/checkpoints/best_model", ppo_env)
+    ppo_model = MaskablePPO.load(
+        "manfred-res/checkpoints/simple_ppo_bs2048_h16", ppo_env
+    )
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)

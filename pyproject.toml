@@ -24,6 +24,7 @@ dependencies = [
     "matplotlib>=3.10.8",
     "types-tqdm>=4.67.3.20260408",
     "ray[tune]>=2.55.0",
+    "optuna>=4.8.0",
 ]
 
 [tool.pyrefly]

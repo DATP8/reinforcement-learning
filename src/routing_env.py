@@ -32,8 +32,8 @@ class RoutingEnv(gymnasium.Env):
         self._max_depth = max_depth
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = (
-            coupling_map.distance_matrix # pyrefly: ignore
-        )  
+            coupling_map.distance_matrix  # pyrefly: ignore
+        )
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
         self._cmap_edges = np.array(unique_edges)

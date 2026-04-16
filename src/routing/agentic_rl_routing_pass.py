@@ -1,6 +1,6 @@
+from src.ppo_util import route_circuit
 from qiskit.transpiler import CouplingMap
 from sb3_contrib import MaskablePPO
-from src.gym_test import route_circuit
 from qiskit.transpiler.basepasses import TransformationPass
 from qiskit.dagcircuit import DAGCircuit
 
