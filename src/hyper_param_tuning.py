@@ -53,7 +53,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         return True
 
 
-def objective(config):
+def maskable_ppo_obj(config):
     seed = random.randint(0, 2**31 - 1)
     config["coupling_map"] = CouplingMap.from_line(config["num_qubits"])
 
@@ -131,7 +131,7 @@ if __name__ == "__main__":
         "max_depth": 128,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
-        "total_timesteps": 5_000_000,
+        "total_timesteps": 10_000_000,
         "n_envs": cpus_per_trial,
     }
 
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     tuner = tune.Tuner(
         tune.with_resources(
-            objective, resources={"cpu": cpus_per_trial, "gpu": gpus_per_trial}
+            maskable_ppo_obj, resources={"cpu": cpus_per_trial, "gpu": gpus_per_trial}
         ),
         param_space=search_space,
         tune_config=tune.TuneConfig(
