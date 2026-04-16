@@ -76,7 +76,9 @@ if __name__ == "__main__":
         verbose=1,
     )
 
-    conditional_eval = PostCurriculumEvalCallback(eval_callback, curriculum_callback, eval_freq)
+    conditional_eval = PostCurriculumEvalCallback(
+        eval_callback, curriculum_callback, eval_freq
+    )
 
     model.learn(
         total_timesteps=25_000_000,

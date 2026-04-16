@@ -1,3 +1,4 @@
+from stable_baselines3.common.monitor import Monitor
 from ray.tune.schedulers import ASHAScheduler
 from numpy import random
 from ray.tune.search import Repeater
@@ -27,7 +28,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._eval_callback = eval_callback
         self._curriculum_callback = curriculum_callback
         self._eval_freq = eval_freq
-        self._last_mean_reward = -1e10
+        self._last_mean_reward = 0.0
         self._seed = seed
         self._post_curriculum_evals = 0
 
@@ -50,18 +51,18 @@ class RayTuneCurriculumCallback(BaseCallback):
                     "post_curriculum_evals": self._post_curriculum_evals,
                 }
             )
-        
+
         return True
 
 
 def maskable_ppo_obj(config):
     seed = random.randint(0, 2**31 - 1)
-    config["coupling_map"] = CouplingMap.from_line(config["num_qubits"])
+    coupling_map = CouplingMap.from_line(config["num_qubits"])
 
     train_env = make_vec_env(
         lambda: make_env(
             config["num_qubits"],
-            config["coupling_map"],
+            coupling_map,
             config["horizon"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
@@ -74,11 +75,12 @@ def maskable_ppo_obj(config):
 
     eval_env = make_env(
         config["num_qubits"],
-        config["coupling_map"],
+        coupling_map,
         config["horizon"],
         config["initial_difficulty"],
         config["max_difficulty"],
     )
+    eval_env = Monitor(eval_env)
 
     model = MaskablePPO(
         "MlpPolicy",
@@ -95,7 +97,7 @@ def maskable_ppo_obj(config):
     eval_freq = max(config["base_eval_freq"] // config["n_envs"], 1)
 
     # called by ray_tune_eval so we just set freq = 1
-    eval_callback = MaskableEvalCallback(eval_env, eval_freq=1, verbose=0) 
+    eval_callback = MaskableEvalCallback(eval_env, eval_freq=1, verbose=0)
 
     ray_tune_eval = RayTuneCurriculumCallback(
         eval_callback, curriculum_callback, eval_freq, seed
