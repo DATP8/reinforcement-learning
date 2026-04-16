@@ -93,7 +93,8 @@ def maskable_ppo_obj(config):
 
     eval_freq = max(config["base_eval_freq"] // config["n_envs"], 1)
 
-    eval_callback = MaskableEvalCallback(eval_env, eval_freq=eval_freq, verbose=0)
+    # called by ray_tune_eval so we just set freq = 1
+    eval_callback = MaskableEvalCallback(eval_env, eval_freq=1, verbose=0) 
 
     ray_tune_eval = RayTuneCurriculumCallback(
         eval_callback, curriculum_callback, eval_freq, seed
@@ -119,7 +120,7 @@ if __name__ == "__main__":
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
     search_space = {
-        "learning_rate": tune.loguniform(1e-5, 1e-1),
+        "learning_rate": tune.loguniform(1e-5, 1e-3),
         "gamma": tune.uniform(0.8, 1.0),
         "gae_lambda": tune.uniform(0.9, 1.0),
         "batch_size": tune.choice([1024, 2048]),
