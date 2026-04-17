@@ -29,7 +29,7 @@ class RoutingEnv(gymnasium.Env):
         self._max_difficulty = max_difficulty
         self._diff_slope = depth_slope
         self._render_mode = render_mode
-        self._distance_matrix: np.NDArray[np.float64] = coupling_map.distance_matrix  # pyrefly: ignore
+        self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
         self._build_dist_pairs()
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
@@ -44,8 +44,8 @@ class RoutingEnv(gymnasium.Env):
             self._physical_to_edges[q2].append(i)
 
         self._active_swaps = []
-        self.l2p: np.NDArray[np.int64] = np.arange(self._num_qubits, dtype=np.int64)
-        self._p2l: np.NDArray[np.int64] = np.arange(self._num_qubits, dtype=np.int64)
+        self.l2p: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
+        self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self.action_space = spaces.Discrete(self._num_active_swaps)
         self.observation_space = spaces.Box(
             low=-2,
@@ -250,7 +250,7 @@ class RoutingEnv(gymnasium.Env):
         #    "graph_edge_idx": graph_edge_idx,
         # }
 
-    def _build_matrix(self) -> np.NDArray[np.int8]:
+    def _build_matrix(self) -> np.ndarray:
         layers = list(self._dag.layers())
         self._active_swaps = self._select_active_swaps(layers)
 
@@ -382,7 +382,7 @@ class RoutingEnv(gymnasium.Env):
     #
     #    return x, edge_index
 
-    def valid_action_mask(self) -> np.NDArray[np.bool]:
+    def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(self._num_active_swaps, dtype=bool)
         if self.is_terminal() or not self._active_swaps:
             return mask
