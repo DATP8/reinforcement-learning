@@ -1,14 +1,12 @@
 from src.routing.router import Router
 from qiskit.transpiler import Layout
-from qiskit.converters import circuit_to_dag
+from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.transpiler.basepasses import TransformationPass
 
-from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
-
-from qiskit.converters import dag_to_circuit
+from src.routing.swap_inserter.swap_inserter import SwapInserter
 
 
-class RlRoutingPass(TransformationPass):
+class PathRlRoutingPass(TransformationPass):
     def __init__(
         self,
         router: Router,

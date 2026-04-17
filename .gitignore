@@ -9,3 +9,6 @@ pyproject.toml
 uv.lock
 *.ipynb
 __pycache__
+test.py
+logs
+*.zip

@@ -1,6 +1,5 @@
 import numpy as np
 import unittest
-import time
 from src.circuit_generator import CircuitGenerator
 
 
@@ -10,7 +9,7 @@ class TestCircuitGenerator(unittest.TestCase):
     _NUM_TESTS = 100
 
     def test_generate_n_random_circuits(self):
-        seed = int(time.time())
+        seed = np.random.randint(0, np.iinfo(int).max)
         print(f"Seed is: {seed}")
         rng = np.random.default_rng(seed)
 

@@ -1,3 +1,6 @@
+from src.gym_test import make_env
+from sb3_contrib import MaskablePPO
+from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
@@ -12,6 +15,7 @@ import numpy as np
 
 from mqt.bench import BenchmarkLevel, get_benchmark
 from mqt.bench.benchmarks import get_available_benchmark_names
+
 
 import time
 import random
@@ -221,28 +225,18 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter
     from qiskit.transpiler.passes import ApplyLayout
     from qiskit.transpiler.passes import SabreLayout
     from qiskit.transpiler.passes import TrivialLayout
-    from src.routing.bwas_chunck_router import ChunkRouter
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.transpiler import CouplingMap
-    from src.model import BiCircuitGNN
-    from src.routing.rl_routing_pass import RlRoutingPass
     from src.routing.sat_routing_pass import SatRoutingPass
     from qiskit_ibm_transpiler.ai.routing import AIRouting
     from qiskit.transpiler.passes import SabreSwap
-    import torch
 
     n_qubits = 6
-    horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
-
-    path = "models/graph/difficulty62_updates7_iteration25150.pt"
-    model = BiCircuitGNN(n_qubits)
-    model.load_state_dict(torch.load(path, map_location="cpu"))
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
@@ -255,12 +249,12 @@ if __name__ == "__main__":
         local_mode=True  
     )
 
-    swap_inserter = SwapInserter(coupling_map, n_qubits)
-    chunk_size = 16        
-    chunk_router = ChunkRouter(
-        chunk_size=chunk_size, model=model, state_handler=state_handler
+    horizon = 16
+    ppo_env = make_env(n_qubits, coupling_map, horizon, None)
+    ppo_model = MaskablePPO.load(
+        "/home/vind/code/P8/project/reinforcement-learning/models/simple_ppo_bs2048_h16.zip", ppo_env
     )
-    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
+    agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     sat_swap_pass = SatRoutingPass(coupling_map)
 
@@ -276,18 +270,14 @@ if __name__ == "__main__":
                 [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
             ),
         ),
-        # (
-        #     f"TrivialLayout_Chunking_{chuck_size}",
-        #     PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
-        # ),
         (
             f"TrivialLayout_AI_ibm",
             PassManager([ai_routing]),
         ),
-        #(
-        #    f"TrivialLayout_sat",
-        #    PassManager([trivial_layout, ApplyLayout(), sat_swap_pass]),
-        #),
+        (
+            f"TrivialLayout_MaskablePPO_{horizon}",
+            PassManager([trivial_layout, ApplyLayout(), agentic_router]),
+        ),
         (
             "SabreLayout_SabreSwap",
             PassManager(
@@ -299,16 +289,17 @@ if __name__ == "__main__":
             ),
         ),
         # (
-        #     f"SabreLayout_Chunking_{chuck_size}",
+        #     f"SabreLayout_MaskablePPO_{horizon}",
         #     PassManager(
         #         [
         #             sabre_layout,
         #             ApplyLayout(),
-        #             chunck_swap_pass,
+        #             agentic_router,
         #         ]
         #     ),
         # ),
         (
+            "qiskit",
             generate_preset_pass_manager(
                 optimization_level=0, coupling_map=coupling_map
             ),
@@ -318,8 +309,8 @@ if __name__ == "__main__":
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 100
-    bench_circut_gate_count = 1000
+    bench_iterations = 10
+    bench_circut_gate_count = 100
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
     print("\n")
