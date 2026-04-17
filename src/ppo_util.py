@@ -23,7 +23,6 @@ def make_env(
     num_active_swaps: int,
     horizon: int,
     depth_slope: int,
-    layout_mode: str = "progressive",
     render_mode: str | None = None,
     initial_difficulty: int = 1,
     max_difficulty: int = 100,
@@ -36,7 +35,6 @@ def make_env(
         initial_difficulty=initial_difficulty,
         max_difficulty=max_difficulty,
         depth_slope=depth_slope,
-        layout_mode=layout_mode,
         render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)

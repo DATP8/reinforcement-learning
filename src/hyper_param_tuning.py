@@ -96,7 +96,6 @@ def maskable_ppo_obj(config):
         num_active_swaps=config["num_active_swaps"],
         horizon=config["horizon"],
         depth_slope=config["depth_slope"],
-        layout_mode=config["layout_mode"],
         initial_difficulty=config["initial_difficulty"],
         max_difficulty=config["max_difficulty"],
     )
@@ -132,8 +131,8 @@ def maskable_ppo_obj(config):
 if __name__ == "__main__":
     cpus_per_trial = 4
     num_unique_samples = 100
-    repeats_per_config = 3
-    grace_period = 4
+    repeats_per_config = 1
+    grace_period = 1
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // cpus_per_trial)
@@ -148,7 +147,6 @@ if __name__ == "__main__":
         "gae_lambda": tune.uniform(0.9, 1.0),
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
-        "layout_mode": "progressive",
         "num_qubits": 6,
         "initial_difficulty": 1,
         "max_difficulty": 100,
