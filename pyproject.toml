@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "pandas>=3.0.1",
+    "pandas",
     "qiskit>=2.3.0",
     "seaborn>=0.13.2",
     "cachetools>=7.0.5",
@@ -13,6 +13,9 @@ dependencies = [
     "mqt.bench>=1.1.11",
     "gymnasium>=1.2.3",
     "networkx>=3.6.1",
+    "py-spy>=0.4.1",
+    "pyrefly>=0.56.0",
+    "pytest>=9.0.2",
     "qiskit>=2.3.0",
     "qiskit-ibm-runtime>=0.45.1",
     "rich>=14.3.3",
@@ -29,6 +32,9 @@ dependencies = [
     "types-tqdm>=4.67.3.20260408",
     "ray[tune]>=2.55.0",
     "optuna>=4.8.0",
+    "jupyter>=1.1.1",
+    "types-cachetools>=6.2.0.20260408",
+    "pylatexenc>=2.10",
 ]
 
 [tool.pyrefly]

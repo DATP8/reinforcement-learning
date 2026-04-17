@@ -1,3 +1,5 @@
+from src.states.dense_circuit_graph import DenseCircuitGraph
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
 import unittest
 import torch
 
@@ -270,6 +272,68 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             for q1, q2 in gate_list:
                 circuit.cx(q1, q2)
             circuits.append(CircuitGraph.from_circuit(circuit))
+        for i, state in enumerate(circuits):
+            self.assertEqual(
+                len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
+            )
+            
+class TestDenseCircuitGraphStateHandler(unittest.TestCase):
+    game = DenseCircuitGraphStateHandler(n_qubits, topology)
+
+    def test_graph_prune(self):
+        qcs =[]
+        circuits = []
+        for gate_list in input_circuits:
+            circuit = QuantumCircuit(n_qubits)
+            for q1, q2 in gate_list:
+                circuit.cx(q1, q2)
+            qcs.append(circuit)
+            circuits.append(DenseCircuitGraph.from_circuit(circuit))
+        for i, (state, circuit) in enumerate(zip(circuits, qcs)):
+            pruned_state, _ = self.game.prune(state)
+            pruned_circuit = QuantumCircuit(n_qubits)
+            for q1, q2 in output_circuits_pruned[i]:
+                pruned_circuit.cx(q1, q2)
+            
+            target_state = DenseCircuitGraph.from_circuit(pruned_circuit)
+            self.assertEqual(
+                hash(target_state),
+                hash(pruned_state),
+                f"pruned_state: x={pruned_state.x}, edge_index={pruned_state.edge_index}, edge_attr={pruned_state.edge_attr}\ntarget_state: x={target_state.x}, edge_index={target_state.edge_index}, edge_attr={target_state.edge_attr}\noriginal_circuit: {circuit}\ntarget_pruned_circuit: {pruned_circuit}",
+            )
+
+    def test_graph_generate_random_circuit(self):
+        for _ in range(1000):
+            state = self.game.get_random_state(10)
+            pruned_state, _ = self.game.prune(state)
+            if self.game.is_terminal(pruned_state):
+                print(state)
+            self.assertFalse(self.game.is_terminal(pruned_state))
+
+    def test_graph_get_next_state(self):
+        states = []
+        for gate_list in input_circuits:
+            circuit = QuantumCircuit(n_qubits)
+            for q1, q2 in gate_list:
+                circuit.cx(q1, q2)
+            states.append(DenseCircuitGraph.from_circuit(circuit))
+        for i, state in enumerate(states):
+            next_state = self.game.get_next_state(state, actions[i])
+            pruned_circuit = QuantumCircuit(n_qubits)
+            for q1, q2 in output_circuits_actions[i]:
+                pruned_circuit.cx(q1, q2)
+            self.assertEqual(
+                hash(DenseCircuitGraph.from_circuit(pruned_circuit)),
+                hash(next_state),
+            )
+
+    def test_graph_is_terminal(self):
+        circuits = []
+        for gate_list in input_circuits:
+            circuit = QuantumCircuit(n_qubits)
+            for q1, q2 in gate_list:
+                circuit.cx(q1, q2)
+            circuits.append(DenseCircuitGraph.from_circuit(circuit))
         for i, state in enumerate(circuits):
             self.assertEqual(
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)

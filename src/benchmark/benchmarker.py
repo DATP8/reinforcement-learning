@@ -5,6 +5,8 @@ from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
 )
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
+from src.model import BiCircuitGNNDense
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
@@ -233,10 +235,19 @@ if __name__ == "__main__":
     from src.routing.sat_routing_pass import SatRoutingPass
     from qiskit_ibm_transpiler.ai.routing import AIRouting
     from qiskit.transpiler.passes import SabreSwap
+    from src.model import BiCircuitGNNDense
+    from src.routing.swap_inserter.swap_inserter import SwapInserter
+    from src.routing.bwas_chunck_router import ChunkRouter
+    from src.routing.rl_routing_pass import RlRoutingPass
+
+    
+    import torch
+
 
     n_qubits = 6
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
+    state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
@@ -244,7 +255,7 @@ if __name__ == "__main__":
    
     ai_routing = AIRouting(
         coupling_map=coupling_map, 
-        optimization_level=3, 
+        optimization_level=1, 
         layout_mode="keep",
         local_mode=True  
     )
@@ -257,6 +268,24 @@ if __name__ == "__main__":
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     sat_swap_pass = SatRoutingPass(coupling_map)
+
+    
+    path_dense = "models/dense_18.pt"
+    #path_dense = "models/dense_32.pt"
+    model_dense = BiCircuitGNNDense(n_qubits)
+    model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
+
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
+    swap_inserter = SwapInserter(coupling_map, n_qubits)
+
+    chuck_size = 18
+   
+    chuck_router_dense = ChunkRouter(
+        chunk_size=chuck_size, model=model_dense, state_handler=state_handler_dense
+    )
+    chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
 
     trivial_layout = TrivialLayout(coupling_map)
     sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
@@ -272,11 +301,15 @@ if __name__ == "__main__":
         ),
         (
             f"TrivialLayout_AI_ibm",
-            PassManager([ai_routing]),
+            PassManager([trivial_layout, ApplyLayout(), ai_routing]),
         ),
         (
             f"TrivialLayout_MaskablePPO_{horizon}",
             PassManager([trivial_layout, ApplyLayout(), agentic_router]),
+        ),
+        (
+            f"TrivialLayout_Dense_Chunking_{chuck_size}",
+            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass_dense]),
         ),
         (
             "SabreLayout_SabreSwap",
@@ -288,26 +321,31 @@ if __name__ == "__main__":
                 ]
             ),
         ),
-        # (
-        #     f"SabreLayout_MaskablePPO_{horizon}",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             agentic_router,
-        #         ]
-        #     ),
-        # ),
+         (
+            f"SabreLayout_AI_ibm",
+            PassManager([trivial_layout, ApplyLayout(), ai_routing]),
+        ),
         (
-            "qiskit",
+            f"SabreLayout_MaskablePPO_{horizon}",
+            PassManager([trivial_layout, ApplyLayout(), agentic_router]),
+        ),
+        (
+            f"SabreLayout_Chunking_{chuck_size}",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    chunck_swap_pass_dense,
+                ]
+            ),
+        ),
+        (
+            "Op0 qiskit",
             generate_preset_pass_manager(
                 optimization_level=0, coupling_map=coupling_map
             ),
         ),
     ]
-
-    #### Pass manager with only routing stage
-    # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 10
     bench_circut_gate_count = 100
