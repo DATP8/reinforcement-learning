@@ -175,15 +175,14 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 16
+    horizon = 55
     ppo_env = make_env(
-        n_qubits,
-        coupling_map,
-        num_active_swaps=len(coupling_map.get_edges()),
-        horizon=horizon,
-        depth_slope=2,
+        n_qubits, coupling_map, num_active_swaps=6, horizon=horizon, diff_slope=2
     )
-    ppo_model = MaskablePPO.load("checkpoints/best_model", ppo_env)
+    ppo_model = MaskablePPO.load(
+        "manfred-res/rayres/maskable_ppo_obj_c1ecef19_8_trial_index=0,base_eval_freq=100000,batch_size=2048,depth_slope=2,gae_lambda=0.9885,gamma=0.9818,horiz_2026-04-17_13-51-27/checkpoint_000003/model.zip",
+        ppo_env,
+    )
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)

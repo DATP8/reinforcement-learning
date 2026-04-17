@@ -15,7 +15,7 @@ class RoutingEnv(gymnasium.Env):
         horizon: int,
         initial_difficulty: int,
         max_difficulty: int,
-        depth_slope: int,
+        diff_slope: int,
         render_mode: str | None = None,
     ) -> None:
         super().__init__()
@@ -27,7 +27,7 @@ class RoutingEnv(gymnasium.Env):
         self._horizon = horizon
         self._current_difficulty = initial_difficulty
         self._max_difficulty = max_difficulty
-        self._diff_slope = depth_slope
+        self._diff_slope = diff_slope
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
         self._build_dist_pairs()

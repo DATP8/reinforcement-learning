@@ -22,7 +22,7 @@ def make_env(
     coupling_map: CouplingMap,
     num_active_swaps: int,
     horizon: int,
-    depth_slope: int,
+    diff_slope: int,
     render_mode: str | None = None,
     initial_difficulty: int = 1,
     max_difficulty: int = 100,
@@ -34,7 +34,7 @@ def make_env(
         horizon=horizon,
         initial_difficulty=initial_difficulty,
         max_difficulty=max_difficulty,
-        depth_slope=depth_slope,
+        diff_slope=diff_slope,
         render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)

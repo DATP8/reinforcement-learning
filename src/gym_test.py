@@ -37,7 +37,7 @@ if __name__ == "__main__":
             horizon=HORIZON,
             initial_difficulty=1,
             max_difficulty=MAX_DIFF,
-            depth_slope=SLOPE,
+            diff_slope=SLOPE,
         ),
         n_envs=n_envs,
     )
@@ -71,7 +71,7 @@ if __name__ == "__main__":
         render_mode="ansi",
         initial_difficulty=MAX_DIFF,
         max_difficulty=MAX_DIFF,
-        depth_slope=SLOPE,
+        diff_slope=SLOPE,
     )
     eval_env = Monitor(eval_env)
 

@@ -83,7 +83,7 @@ def maskable_ppo_obj(config):
             horizon=config["horizon"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
-            depth_slope=config["depth_slope"],
+            diff_slope=config["diff_slope"],
         ),
         n_envs=config["num_envs"],
         seed=seed,
@@ -94,7 +94,7 @@ def maskable_ppo_obj(config):
         coupling_map=coupling_map,
         num_active_swaps=config["num_active_swaps"],
         horizon=config["horizon"],
-        depth_slope=config["depth_slope"],
+        diff_slope=config["diff_slope"],
         initial_difficulty=config["max_difficulty"],  # Strictly eval on max diff
         max_difficulty=config["max_difficulty"],
     )
@@ -149,7 +149,7 @@ if __name__ == "__main__":
         "num_qubits": 6,
         "initial_difficulty": 1,
         "max_difficulty": 100,
-        "depth_slope": 2,
+        "diff_slope": 2,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "total_timesteps": 10_000_000,
