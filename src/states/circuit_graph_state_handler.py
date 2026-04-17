@@ -14,9 +14,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
         self.n_qubits = n_qubits
         self.topology = topology
-        self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](
-            maxsize=10000
-        )
+        self.next_state_cache = LFUCache[tuple[int, int], CircuitGraph](maxsize=10000)
         self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
         self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
 
@@ -29,9 +27,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
     def get_possible_actions(self, state: CircuitGraph) -> list[int]:
         return list(range(len(self.topology)))
 
-    def get_next_state(
-        self, state: CircuitGraph, action: int
-    ) -> CircuitGraph:
+    def get_next_state(self, state: CircuitGraph, action: int) -> CircuitGraph:
         state_hash = hash(state)
         if (state_hash, action) in self.next_state_cache:
             return self.next_state_cache[(state_hash, action)]
