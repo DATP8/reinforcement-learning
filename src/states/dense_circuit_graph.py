@@ -70,8 +70,12 @@ class DenseCircuitGraph(Data):
                 )
                 edge_attr.append(edge_feature)
 
-        edge_index.append((len(two_qubit_gates), len(two_qubit_gates))) # add dummpy self loop for global node
-        edge_attr.append(torch.zeros(n_qubits + 1, dtype=torch.float)) # add dummpy edge attr for global node self loop
+        edge_index.append(
+            (len(two_qubit_gates), len(two_qubit_gates))
+        )  # add dummpy self loop for global node
+        edge_attr.append(
+            torch.zeros(n_qubits + 1, dtype=torch.float)
+        )  # add dummpy edge attr for global node self loop
         edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
         edge_attr = torch.stack(edge_attr)
 

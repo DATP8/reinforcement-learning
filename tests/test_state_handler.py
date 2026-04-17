@@ -276,12 +276,13 @@ class TestCircuitGraphStateHandler(unittest.TestCase):
             self.assertEqual(
                 len(output_circuits_pruned[i]) == 0, self.game.is_terminal(state)
             )
-            
+
+
 class TestDenseCircuitGraphStateHandler(unittest.TestCase):
     game = DenseCircuitGraphStateHandler(n_qubits, topology)
 
     def test_graph_prune(self):
-        qcs =[]
+        qcs = []
         circuits = []
         for gate_list in input_circuits:
             circuit = QuantumCircuit(n_qubits)
@@ -294,7 +295,7 @@ class TestDenseCircuitGraphStateHandler(unittest.TestCase):
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
-            
+
             target_state = DenseCircuitGraph.from_circuit(pruned_circuit)
             self.assertEqual(
                 hash(target_state),

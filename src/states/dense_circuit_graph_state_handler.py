@@ -121,7 +121,9 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         for removed_gate in removed_gates[::-1]:
             gate_q1 = torch.where(state.x[removed_gate, :n_qubits] > 0)[0].item()
             gate_q2 = torch.where(state.x[removed_gate, n_qubits:] > 0)[0].item()
-            if gate_q1 == q1 and gate_q2 == q2 or gate_q1 == q2 and gate_q2 == q1:  # exact match
+            if (
+                gate_q1 == q1 and gate_q2 == q2 or gate_q1 == q2 and gate_q2 == q1
+            ):  # exact match
                 action_cost = 0.5
                 break
             if (
@@ -138,9 +140,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
             return []
 
         frontlayer = set(i for i in range(state.x.shape[0] - 1))
-        n_directed_edges = (
-            state.edge_index.shape[1] - 1
-        )  # Exclude global node edges
+        n_directed_edges = state.edge_index.shape[1] - 1  # Exclude global node edges
         for succ, prev in state.edge_index.t()[
             :n_directed_edges
         ]:  # loop over edges, excluding global node edges

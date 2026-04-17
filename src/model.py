@@ -179,7 +179,8 @@ class BiCircuitGNN(nn.Module):
         out = self.head(x)
 
         return out.squeeze(-1)
-    
+
+
 class BiCircuitGNNDense(nn.Module):
     def __init__(self, n_qubits, hidden_dim=128):
         super().__init__()
