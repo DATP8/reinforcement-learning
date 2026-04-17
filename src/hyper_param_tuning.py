@@ -130,7 +130,7 @@ def maskable_ppo_obj(config):
 
 if __name__ == "__main__":
     cpus_per_trial = 4
-    num_unique_samples = 100
+    num_unique_samples = 20
     repeats_per_config = 1
     grace_period = 1
 
