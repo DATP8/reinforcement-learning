@@ -44,7 +44,6 @@ class RayTuneCurriculumCallback(BaseCallback):
             is_max_diff = current_diff >= self._curriculum_callback.max_difficulty
 
             checkpoint = None
-
             if is_max_diff:
                 self._eval_callback.on_step()
                 self._last_mean_reward = self._eval_callback.last_mean_reward
@@ -96,7 +95,7 @@ def maskable_ppo_obj(config):
         num_active_swaps=config["num_active_swaps"],
         horizon=config["horizon"],
         depth_slope=config["depth_slope"],
-        initial_difficulty=config["initial_difficulty"],
+        initial_difficulty=config["max_difficulty"],  # Strictly eval on max diff
         max_difficulty=config["max_difficulty"],
     )
     eval_env = Monitor(eval_env)

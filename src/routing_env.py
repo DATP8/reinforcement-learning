@@ -258,8 +258,7 @@ class RoutingEnv(gymnasium.Env):
         num_layers = min(len(layers), self._horizon)
 
         for h in range(num_layers):
-            layer = layers[h]
-            graph = layer["graph"]
+            graph = layers[h]["graph"]
             gate_nodes = [n for n in graph.op_nodes() if len(n.qargs) == 2]
 
             if not gate_nodes:
@@ -311,9 +310,7 @@ class RoutingEnv(gymnasium.Env):
             if len(active_swaps) >= self._num_active_swaps:
                 break
 
-            layer = layers[h]
-            graph = layer["graph"]
-
+            graph = layers[h]["graph"]
             for node in graph.op_nodes():
                 if len(node.qargs) == 2:
                     indices = [self._qubit_indices[q] for q in node.qargs]
