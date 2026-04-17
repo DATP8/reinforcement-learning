@@ -2,6 +2,8 @@ from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
 )
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
+from src.model import BiCircuitGNNDense
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
@@ -237,21 +239,32 @@ if __name__ == "__main__":
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
+    state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
 
     path = "models/graph/difficulty62_updates7_iteration25150.pt"
     model = BiCircuitGNN(n_qubits)
     model.load_state_dict(torch.load(path, map_location="cpu"))
+
+    path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
+    # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
+    model_dense = BiCircuitGNNDense(n_qubits)
+    model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
 
     coupling_map = CouplingMap(topology)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
 
-    chuck_size = 16
+    chuck_size = 18
     chunk_router = ChunkRouter(
         chunk_size=chuck_size, model=model, state_handler=state_handler
     )
     chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
+
+    chuck_router_dense = ChunkRouter(
+        chunk_size=chuck_size, model=model_dense, state_handler=state_handler_dense
+    )
+    chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
 
     trivial_layout = TrivialLayout(coupling_map)
     sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
@@ -265,9 +278,13 @@ if __name__ == "__main__":
                 [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
             ),
         ),
+        # (
+        #     f"TrivialLayout_Chunking_{chuck_size}",
+        #     PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
+        # ),
         (
-            f"TrivialLayout_Chunking_{chuck_size}",
-            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
+            f"TrivialLayout_Dense_Chunking_{chuck_size}",
+            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass_dense]),
         ),
         (
             "SabreLayout_SabreSwap",
@@ -279,20 +296,42 @@ if __name__ == "__main__":
                 ]
             ),
         ),
+        # (
+        #     f"SabreLayout_Chunking_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             sabre_layout,
+        #             ApplyLayout(),
+        #             chunck_swap_pass,
+        #         ]
+        #     ),
+        # ),
         (
-            f"SabreLayout_Chunking_{chuck_size}",
+            f"SabreLayout_Dense_Chunking_{chuck_size}",
             PassManager(
                 [
                     sabre_layout,
                     ApplyLayout(),
-                    chunck_swap_pass,
+                    chunck_swap_pass_dense,
                 ]
             ),
         ),
         (
             "Op1 qiskit",
             generate_preset_pass_manager(
-                optimization_level=0, coupling_map=coupling_map
+                optimization_level=1, coupling_map=coupling_map
+            ),
+        ),
+        (
+            "Op2 qiskit",
+            generate_preset_pass_manager(
+                optimization_level=2, coupling_map=coupling_map
+            ),
+        ),
+        (
+            "Op3 qiskit",
+            generate_preset_pass_manager(
+                optimization_level=3, coupling_map=coupling_map
             ),
         ),
     ]
@@ -301,7 +340,7 @@ if __name__ == "__main__":
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 10
-    bench_circut_gate_count = 64
+    bench_circut_gate_count = 100
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
