@@ -14,6 +14,7 @@ from ray import tune
 import multiprocessing as mp
 import torch
 import os
+import numpy as np
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -41,26 +42,24 @@ class RayTuneCurriculumCallback(BaseCallback):
     def _on_step(self) -> bool:
         if self.n_calls % self._eval_freq == 0:
             current_diff = self.training_env.env_method("get_difficulty")[0]
-            is_max_diff = current_diff >= self._curriculum_callback.max_difficulty
-
+            curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
             checkpoint = None
-            if is_max_diff:
+            if curriculum_done:
                 self._eval_callback.on_step()
                 self._last_mean_reward = self._eval_callback.last_mean_reward
-                self._post_curriculum_evals += 1
-
                 if self._last_mean_reward > self._best_mean_reward:
                     self._best_mean_reward = self._last_mean_reward
 
                     ckpt_dir = os.path.join(os.getcwd(), "best_model_tmp")
                     os.makedirs(ckpt_dir, exist_ok=True)
 
-                    self.model.save(os.path.join(ckpt_dir, "model"))
+                    self.model.save(os.path.join(ckpt_dir, "best_model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
 
             tune.report(
                 {
-                    "mean_reward": self._last_mean_reward,
+                    "last_mean_reward": self._last_mean_reward,
+                    "best_mean_reward": self._best_mean_reward,
                     "difficulty": current_diff,
                     "seed": self._seed,
                     "post_curriculum_evals": self._post_curriculum_evals,
@@ -81,9 +80,9 @@ def maskable_ppo_obj(config):
             coupling_map=coupling_map,
             num_active_swaps=config["num_active_swaps"],
             horizon=config["horizon"],
+            diff_slope=config["diff_slope"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
-            diff_slope=config["diff_slope"],
         ),
         n_envs=config["num_envs"],
         seed=seed,
@@ -129,14 +128,15 @@ def maskable_ppo_obj(config):
 
 if __name__ == "__main__":
     cpus_per_trial = 4
-    num_unique_samples = 20
+    num_unique_samples = 32
     repeats_per_config = 1
-    grace_period = 1
+    grace_period = 10
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // cpus_per_trial)
 
-    num_samples = repeats_per_config * num_unique_samples
+    # num_samples = repeats_per_config * num_unique_samples # when using Repeater
+    num_samples = num_unique_samples
 
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
@@ -148,17 +148,17 @@ if __name__ == "__main__":
         "horizon": tune.randint(4, 64),
         "num_qubits": 6,
         "initial_difficulty": 1,
-        "max_difficulty": 100,
+        "max_difficulty": 256,
         "diff_slope": 2,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
-        "total_timesteps": 10_000_000,
+        "total_timesteps": 25_000_000,
         "num_active_swaps": 6,
         "num_envs": cpus_per_trial,
     }
 
     algo = OptunaSearch(metric="mean_reward", mode="max")
-    repeated_algo = Repeater(algo, repeat=repeats_per_config)
+    # repeated_algo = Repeater(algo, repeat=repeats_per_config) # Can cause problems when using scheduler
 
     max_evals = search_space["total_timesteps"] // search_space["base_eval_freq"]
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
         ),
         param_space=search_space,
         tune_config=tune.TuneConfig(
-            num_samples=num_samples, search_alg=repeated_algo, scheduler=scheduler
+            num_samples=num_samples, search_alg=algo, scheduler=scheduler
         ),
     )
 
@@ -190,7 +190,7 @@ if __name__ == "__main__":
         df.groupby(config_cols)
         .agg(
             avg_reward=("mean_reward", "mean"),
-            std_reward=("mean_reward", "std"),
+            std_reward=("mean_reward", np.std),
             seeds_used=("seed", lambda x: list(x)),
         )
         .reset_index()
