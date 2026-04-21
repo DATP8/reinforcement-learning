@@ -15,6 +15,7 @@ import multiprocessing as mp
 import torch
 import os
 import numpy as np
+import sys
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -33,7 +34,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._seed = seed
 
         self._last_mean_reward = 0.0
-        self._best_mean_reward = -float("inf")
+        self._best_mean_reward = -sys.float_info.max
         self._post_curriculum_evals = 0
 
     def _init_callback(self) -> None:
