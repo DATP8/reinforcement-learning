@@ -33,7 +33,7 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._eval_freq = eval_freq
         self._seed = seed
 
-        self._last_mean_reward = 0.0
+        self._last_mean_reward = -sys.float_info.max
         self._best_mean_reward = -sys.float_info.max
         self._post_curriculum_evals = 0
 
