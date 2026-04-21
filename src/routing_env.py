@@ -302,82 +302,75 @@ class RoutingEnv(gymnasium.Env):
         if self.is_terminal():
             return []
 
+        num_layers = min(len(layers), self._horizon)
+        active_swaps = self._search_active_swaps(layers, num_layers)
+        self.np_random.shuffle(active_swaps)
+        return active_swaps
+
+    def _search_active_swaps(self, layers, num_layers: int) -> list[int]:
         active_swaps = []
         seen_edges = set()
-        num_layers = min(len(layers), self._horizon)
-
-        for h in range(num_layers):
-            if len(active_swaps) >= self._num_active_swaps:
-                break
-
-            graph = layers[h]["graph"]
+        for layer_idx in range(num_layers):
+            graph = layers[layer_idx]["graph"]
             for node in graph.op_nodes():
                 if len(node.qargs) == 2:
                     indices = [self._qubit_indices[q] for q in node.qargs]
-
                     for l0 in indices:
                         p0 = self.l2p[l0]
-
                         for edge_idx in self._physical_to_edges[p0]:
                             if edge_idx not in seen_edges:
                                 active_swaps.append(edge_idx)
                                 seen_edges.add(edge_idx)
-
                                 if len(active_swaps) >= self._num_active_swaps:
-                                    break
-                        if len(active_swaps) >= self._num_active_swaps:
-                            break
-                if len(active_swaps) >= self._num_active_swaps:
-                    break
+                                    return active_swaps
 
-        self.np_random.shuffle(active_swaps)
         return active_swaps
 
-    # def _build_graph(self):
-    #    num_q = self._num_logic_qubits
-    #    interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
-    #
-    #    for node in self._dag.op_nodes():
-    #        qargs = node.qargs
-    #        if len(qargs) == 2:
-    #            q1 = self._qubit_indices[qargs[0]]
-    #            q2 = self._qubit_indices[qargs[1]]
-    #            interaction_counts[q1, q2] += 1
-    #            interaction_counts[q2, q1] += 1
-    #
-    #    x = np.zeros((self._num_phys_qubits, 3), dtype=np.float32)
-    #
-    #    for q in range(num_q):
-    #        phys = self.l2p[q]
-    #        total_interactions = interaction_counts[q].sum()
-    #
-    #        if total_interactions > 0:
-    #            dists = []
-    #            for other_q in range(num_q):
-    #                if interaction_counts[q, other_q] > 0:
-    #                    p1 = self.l2p[q]
-    #                    p2 = self.l2p[other_q]
-    #                    dists.append(self._distance_matrix[p1][p2])
-    #            avg_dist = np.mean(dists) if len(dists) > 0 else 0.0
-    #        else:
-    #            avg_dist = 0.0
-    #
-    #        x[q] = [phys, total_interactions, avg_dist]
-    #
-    #    edges = []
-    #    for q1 in range(num_q):
-    #        for q2 in range(num_q):
-    #            if interaction_counts[q1, q2] > 0:
-    #                edges.append((q1, q2))
-    #
-    #    MAX_EDGES = 100
-    #    edge_index = np.zeros((2, MAX_EDGES), dtype=np.int64)
-    #    if edges:
-    #        edge_array = np.array(edges, dtype=np.int64).T
-    #        n_edges = min(edge_array.shape[1], MAX_EDGES)
-    #        edge_index[:, :n_edges] = edge_array[:, :n_edges]
-    #
-    #    return x, edge_index
+    def _build_graph(self):
+        num_q = self._num_logic_qubits
+        interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
+
+        for node in self._dag.op_nodes():
+            qargs = node.qargs
+            if len(qargs) == 2:
+                q1 = self._qubit_indices[qargs[0]]
+                q2 = self._qubit_indices[qargs[1]]
+                interaction_counts[q1, q2] += 1
+                interaction_counts[q2, q1] += 1
+
+        x = np.zeros((self._num_phys_qubits, 3), dtype=np.float32)
+
+        for q in range(num_q):
+            phys = self.l2p[q]
+            total_interactions = interaction_counts[q].sum()
+
+            if total_interactions > 0:
+                dists = []
+                for other_q in range(num_q):
+                    if interaction_counts[q, other_q] > 0:
+                        p1 = self.l2p[q]
+                        p2 = self.l2p[other_q]
+                        dists.append(self._distance_matrix[p1][p2])
+                avg_dist = np.mean(dists) if len(dists) > 0 else 0.0
+            else:
+                avg_dist = 0.0
+
+            x[q] = [phys, total_interactions, avg_dist]
+
+        edges = []
+        for q1 in range(num_q):
+            for q2 in range(num_q):
+                if interaction_counts[q1, q2] > 0:
+                    edges.append((q1, q2))
+
+        MAX_EDGES = 100
+        edge_index = np.zeros((2, MAX_EDGES), dtype=np.int64)
+        if edges:
+            edge_array = np.array(edges, dtype=np.int64).T
+            n_edges = min(edge_array.shape[1], MAX_EDGES)
+            edge_index[:, :n_edges] = edge_array[:, :n_edges]
+
+        return x, edge_index
 
     def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(self._num_active_swaps, dtype=bool)
@@ -397,7 +390,7 @@ class RoutingEnv(gymnasium.Env):
         if not mask.any():
             self._visited_layouts.clear()
             self._visited_layouts.add(tuple(self._p2l))
-            mask[: len(self._active_swaps)] = True
+            mask = np.ones(self._num_active_swaps, dtype=bool)
 
         assert mask.any(), "No valid action"
 
