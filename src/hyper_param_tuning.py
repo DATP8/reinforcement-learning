@@ -58,7 +58,7 @@ class RayTuneCurriculumCallback(BaseCallback):
 
             tune.report(
                 {
-                    "last_mean_reward": self._last_mean_reward,
+                    "mean_reward": self._last_mean_reward,
                     "best_mean_reward": self._best_mean_reward,
                     "difficulty": current_diff,
                     "seed": self._seed,
