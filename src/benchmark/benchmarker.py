@@ -175,9 +175,9 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 16
+    horizon = 32
     ppo_env = make_env(
-        n_qubits, coupling_map, num_active_swaps=10, horizon=horizon, diff_slope=2
+        n_qubits, coupling_map, num_active_swaps=6, horizon=horizon, diff_slope=2
     )
     ppo_model = MaskablePPO.load(
         "checkpoints/best_model.zip",
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 50
-    bench_circut_gate_count = 64
+    bench_iterations = 100
+    bench_circut_gate_count = 200
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

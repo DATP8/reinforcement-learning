@@ -2,7 +2,6 @@ from stable_baselines3.common.monitor import Monitor
 from ray.tune.schedulers import ASHAScheduler
 from numpy import random
 from ray.tune.search import Repeater
-from stable_baselines3.common.callbacks import BaseCallback
 from ray.tune.search.optuna.optuna_search import OptunaSearch
 from qiskit.transpiler import CouplingMap
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback

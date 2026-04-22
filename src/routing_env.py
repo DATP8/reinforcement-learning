@@ -79,6 +79,7 @@ class RoutingEnv(gymnasium.Env):
 
         self._completion_reward = 1.0
         self._swap_penalty = 0.01
+        self._cancellation_bonus = 0.005
         self._visited_layouts = set()
 
     def _build_dist_pairs(self) -> None:
@@ -195,9 +196,9 @@ class RoutingEnv(gymnasium.Env):
         self.l2p[l0] = p1
         self.l2p[l1] = p0
 
-        self.routed_circuit.swap(p0, p1)
+        #self.routed_circuit.swap(p0, p1)
 
-        gates_executed = self._execute_front_layer()
+        gates_executed, cancellations = self._execute_front_layer(swapped_edge=(p0, p1))
         if gates_executed > 0:
             self._visited_layouts.clear()
 
@@ -208,8 +209,9 @@ class RoutingEnv(gymnasium.Env):
         truncated = self._remaining_swaps == 0 and not terminated
 
         achieved = self._completion_reward if terminated else 0.0
+        cancellation_bonus = cancellations * self._cancellation_bonus
 
-        reward = achieved - self._swap_penalty
+        reward = achieved - self._swap_penalty + cancellation_bonus
 
         self._update_obs()
         return self._get_obs(), reward, terminated, truncated, {}
@@ -218,9 +220,10 @@ class RoutingEnv(gymnasium.Env):
         # self._gnn = self._build_graph()
         self._matrix = self._build_matrix()
 
-    def _execute_front_layer(self) -> int:
+    def _execute_front_layer(self, swapped_edge: tuple[int, int] | None = None) -> tuple[int, int]:
         progress = True
         gates_executed = 0
+        cancellations = 0
         while progress:
             progress = False
             for node in list(self._dag.front_layer()):
@@ -234,12 +237,25 @@ class RoutingEnv(gymnasium.Env):
                 else:
                     p0, p1 = self.l2p[indices[0]], self.l2p[indices[1]]
                     if (p0, p1) in self._edge_set or (p1, p0) in self._edge_set:
-                        self.routed_circuit.append(node.op, [p0, p1])  # pyrefly: ignore
+                        if swapped_edge is not None and {p0, p1} == set(swapped_edge):
+                            sp0, sp1 = swapped_edge
+                            self.routed_circuit.cx(sp0, sp1)
+                            self.routed_circuit.cx(sp1, sp0)
+                            swapped_edge = None
+                            cancellations += 1
+                        else:
+                            if swapped_edge is not None:
+                                self.routed_circuit.swap(*swapped_edge)
+                                swapped_edge = None
+                            self.routed_circuit.append(node.op, [p0, p1])
                         self._dag.remove_op_node(node)
                         gates_executed += 1
                         progress = True
 
-        return gates_executed
+        if swapped_edge is not None:
+            self.routed_circuit.swap(*swapped_edge)
+
+        return gates_executed, cancellations
 
     def _get_obs(self):
         return self._matrix
@@ -350,7 +366,7 @@ class RoutingEnv(gymnasium.Env):
                     if interaction_counts[q, other_q] > 0:
                         p1 = self.l2p[q]
                         p2 = self.l2p[other_q]
-                        dists.append(self._distance_matrix[p1][p2])
+                        dists.append(self._distance_matrix[p1, p2])
                 avg_dist = np.mean(dists) if len(dists) > 0 else 0.0
             else:
                 avg_dist = 0.0

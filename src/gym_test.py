@@ -15,7 +15,7 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 
 
 HORIZON = 32
-MAX_DIFF = 256
+MAX_DIFF = 100
 NUM_QUBITS = 6
 SLOPE = 2
 EVAL_SAMPLES = 3
