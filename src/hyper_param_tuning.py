@@ -15,7 +15,7 @@ import multiprocessing as mp
 import torch
 import os
 import numpy as np
-import sys
+import tempfile
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -32,9 +32,6 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._curriculum_callback = curriculum_callback
         self._eval_freq = eval_freq
         self._seed = seed
-
-        self._last_mean_reward = -sys.float_info.max
-        self._best_mean_reward = -sys.float_info.max
         self._post_curriculum_evals = 0
 
     def _init_callback(self) -> None:
@@ -44,29 +41,28 @@ class RayTuneCurriculumCallback(BaseCallback):
         if self.n_calls % self._eval_freq == 0:
             current_diff = self.training_env.env_method("get_difficulty")[0]
             curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
-            checkpoint = None
             if curriculum_done:
+                self._post_curriculum_evals += 1
+                checkpoint = None
                 self._eval_callback.on_step()
                 self._last_mean_reward = self._eval_callback.last_mean_reward
                 if self._last_mean_reward > self._best_mean_reward:
                     self._best_mean_reward = self._last_mean_reward
 
-                    ckpt_dir = os.path.join(os.getcwd(), "best_model_tmp")
-                    os.makedirs(ckpt_dir, exist_ok=True)
+                    with tempfile.TemporaryDirectory() as ckpt_dir:
+                        self.model.save(os.path.join(ckpt_dir, "best_model"))
+                        checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
 
-                    self.model.save(os.path.join(ckpt_dir, "best_model"))
-                    checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
-
-            tune.report(
-                {
-                    "mean_reward": self._last_mean_reward,
-                    "best_mean_reward": self._best_mean_reward,
-                    "difficulty": current_diff,
-                    "seed": self._seed,
-                    "post_curriculum_evals": self._post_curriculum_evals,
-                },
-                checkpoint=checkpoint,
-            )
+                tune.report(
+                    {
+                        "mean_reward": self._last_mean_reward,
+                        "best_mean_reward": self._best_mean_reward,
+                        "difficulty": current_diff,
+                        "seed": self._seed,
+                        "post_curriculum_evals": self._post_curriculum_evals,
+                    },
+                    checkpoint=checkpoint,
+                )
 
         return True
 
