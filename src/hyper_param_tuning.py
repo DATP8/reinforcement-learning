@@ -18,53 +18,52 @@ import numpy as np
 import tempfile
 
 
-class RayTuneCurriculumCallback(BaseCallback):
+class RayTuneCurriculumCallback(MaskableEvalCallback):
     def __init__(
         self,
-        eval_callback: MaskableEvalCallback,
+        eval_env: Monitor,
         curriculum_callback: CurriculumCallback,
         eval_freq: int,
         seed: int,
         verbose: int = 0,
     ):
-        super().__init__(verbose)
-        self._eval_callback = eval_callback
+        super().__init__(eval_env, eval_freq=eval_freq, verbose=verbose)
         self._curriculum_callback = curriculum_callback
-        self._eval_freq = eval_freq
         self._seed = seed
         self._post_curriculum_evals = 0
-
-    def _init_callback(self) -> None:
-        self._eval_callback.init_callback(self.model)
+        self._tune_best_reward = -float("inf")
 
     def _on_step(self) -> bool:
-        if self.n_calls % self._eval_freq == 0:
-            current_diff = self.training_env.env_method("get_difficulty")[0]
-            curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
-            if curriculum_done:
-                self._post_curriculum_evals += 1
-                checkpoint = None
-                self._eval_callback.on_step()
-                self._last_mean_reward = self._eval_callback.last_mean_reward
-                if self._last_mean_reward > self._best_mean_reward:
-                    self._best_mean_reward = self._last_mean_reward
+        current_diff = self.training_env.env_method("get_difficulty")[0]
+        curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
+        
+        if not curriculum_done:
+            return True
 
-                    with tempfile.TemporaryDirectory() as ckpt_dir:
-                        self.model.save(os.path.join(ckpt_dir, "best_model"))
-                        checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
+        continue_training = super()._on_step()
 
-                tune.report(
-                    {
-                        "mean_reward": self._last_mean_reward,
-                        "best_mean_reward": self._best_mean_reward,
-                        "difficulty": current_diff,
-                        "seed": self._seed,
-                        "post_curriculum_evals": self._post_curriculum_evals,
-                    },
-                    checkpoint=checkpoint,
-                )
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            self._post_curriculum_evals += 1
+            checkpoint = None
+            
+            if self.last_mean_reward > self._tune_best_reward:
+                self._tune_best_reward = self.last_mean_reward
+                with tempfile.TemporaryDirectory() as ckpt_dir:
+                    self.model.save(os.path.join(ckpt_dir, "best_model"))
+                    checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
 
-        return True
+            tune.report(
+                {
+                    "mean_reward": self.last_mean_reward,
+                    "best_mean_reward": self._tune_best_reward,
+                    "difficulty": current_diff,
+                    "seed": self._seed,
+                    "post_curriculum_evals": self._post_curriculum_evals,
+                },
+                checkpoint=checkpoint,
+            )
+
+        return continue_training
 
 
 def maskable_ppo_obj(config):
@@ -109,12 +108,8 @@ def maskable_ppo_obj(config):
     curriculum_callback = CurriculumCallback(config["threshold"])
 
     eval_freq = max(config["base_eval_freq"] // config["num_envs"], 1)
-
-    # called by ray_tune_eval so we just set freq = 1
-    eval_callback = MaskableEvalCallback(eval_env, eval_freq=1, verbose=0)
-
     ray_tune_eval = RayTuneCurriculumCallback(
-        eval_callback, curriculum_callback, eval_freq, seed
+        eval_env, curriculum_callback, eval_freq, seed
     )
 
     model.learn(
