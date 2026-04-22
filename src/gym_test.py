@@ -14,12 +14,12 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 ### of at least 5 runs. Report the seeds for reproducability.
 
 
-HORIZON = 16
-MAX_DIFF = 100
+HORIZON = 32
+MAX_DIFF = 256
 NUM_QUBITS = 6
 SLOPE = 2
 EVAL_SAMPLES = 3
-TOTAL_STEPS = 25_000_000
+TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
 THRESHOLD = 0.85
 BATCH_SIZE = 2048
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         lambda: make_env(
             num_qubits=NUM_QUBITS,
             coupling_map=coupling_map,
-            num_active_swaps=len(coupling_map.get_edges()),
+            num_active_swaps=6,
             horizon=HORIZON,
             initial_difficulty=1,
             max_difficulty=MAX_DIFF,
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     eval_env = make_env(
         num_qubits=NUM_QUBITS,
         coupling_map=coupling_map,
-        num_active_swaps=len(coupling_map.get_edges()),
+        num_active_swaps=6,
         horizon=HORIZON,
         render_mode="ansi",
         initial_difficulty=MAX_DIFF,
@@ -78,18 +78,15 @@ if __name__ == "__main__":
     curriculum_callback = CurriculumCallback(threshold=THRESHOLD, verbose=1)
 
     eval_freq = max(EVAL_FREQ // n_envs, 1)
-    eval_callback = MaskableEvalCallback(
-        eval_env,
+    conditional_eval = PostCurriculumEvalCallback(
+        eval_env=eval_env,
+        curriculum_callback=curriculum_callback,
+        eval_freq=eval_freq,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
-        eval_freq=1,
         deterministic=True,
         render=False,
         verbose=1,
-    )
-
-    conditional_eval = PostCurriculumEvalCallback(
-        eval_callback, curriculum_callback, eval_freq
     )
 
     model.learn(

@@ -1,3 +1,4 @@
+from stable_baselines3.common.monitor import Monitor
 from src.curriculum_callback import CurriculumCallback
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import BaseCallback
@@ -62,26 +63,22 @@ def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layo
     return circuit_to_dag(env.routed_circuit), layout
 
 
-class PostCurriculumEvalCallback(BaseCallback):
+class PostCurriculumEvalCallback(MaskableEvalCallback):
     def __init__(
         self,
-        eval_callback: MaskableEvalCallback,
+        eval_env: Monitor,
         curriculum_callback: CurriculumCallback,
         eval_freq: int,
         verbose: int = 0,
+        **kwargs
     ):
-        super().__init__(verbose)
-        self._eval_callback = eval_callback
+        super().__init__(eval_env, eval_freq=eval_freq, verbose=verbose, **kwargs)
         self._curriculum_callback = curriculum_callback
-        self._eval_freq = eval_freq
-
-    def _init_callback(self) -> None:
-        self._eval_callback.init_callback(self.model)
 
     def _on_step(self) -> bool:
-        if self.n_calls % self._eval_freq == 0:
-            current_diff = self.training_env.env_method("get_difficulty")[0]
-            # Only evaluate if we reached max difficulty
-            if current_diff >= self._curriculum_callback.max_difficulty:
-                return self._eval_callback.on_step()
-        return True
+        current_diff = self.training_env.env_method("get_difficulty")[0]
+
+        if current_diff < self._curriculum_callback.max_difficulty:
+            return True
+
+        return super()._on_step()

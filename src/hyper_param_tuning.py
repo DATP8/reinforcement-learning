@@ -44,24 +44,25 @@ class RayTuneCurriculumCallback(MaskableEvalCallback):
 
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
             self._post_curriculum_evals += 1
-            checkpoint = None
+            
+            metrics = {
+                "mean_reward": self.last_mean_reward,
+                "difficulty": current_diff,
+                "seed": self._seed,
+                "post_curriculum_evals": self._post_curriculum_evals,
+            }
             
             if self.last_mean_reward > self._tune_best_reward:
                 self._tune_best_reward = self.last_mean_reward
+                metrics["best_mean_reward"] = self._tune_best_reward
+                
                 with tempfile.TemporaryDirectory() as ckpt_dir:
                     self.model.save(os.path.join(ckpt_dir, "best_model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
-
-            tune.report(
-                {
-                    "mean_reward": self.last_mean_reward,
-                    "best_mean_reward": self._tune_best_reward,
-                    "difficulty": current_diff,
-                    "seed": self._seed,
-                    "post_curriculum_evals": self._post_curriculum_evals,
-                },
-                checkpoint=checkpoint,
-            )
+                    tune.report(metrics, checkpoint=checkpoint)
+            else:
+                metrics["best_mean_reward"] = self._tune_best_reward
+                tune.report(metrics)
 
         return continue_training
 
