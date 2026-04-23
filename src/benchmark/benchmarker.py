@@ -235,6 +235,6 @@ if __name__ == "__main__":
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 100
-    bench_circut_gate_count = 200
+    bench_circut_gate_count = 100
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

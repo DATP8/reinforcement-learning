@@ -1,7 +1,6 @@
 from stable_baselines3.common.monitor import Monitor
 from ray.tune.schedulers import ASHAScheduler
 from numpy import random
-from ray.tune.search import Repeater
 from ray.tune.search.optuna.optuna_search import OptunaSearch
 from qiskit.transpiler import CouplingMap
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -23,10 +22,16 @@ class RayTuneCurriculumCallback(MaskableEvalCallback):
         eval_env: Monitor,
         curriculum_callback: CurriculumCallback,
         eval_freq: int,
+        n_eval_episodes: int,
         seed: int,
         verbose: int = 0,
     ):
-        super().__init__(eval_env, eval_freq=eval_freq, verbose=verbose)
+        super().__init__(
+            eval_env,
+            eval_freq=eval_freq,
+            n_eval_episodes=n_eval_episodes,
+            verbose=verbose,
+        )
         self._curriculum_callback = curriculum_callback
         self._seed = seed
         self._post_curriculum_evals = 0
@@ -35,7 +40,7 @@ class RayTuneCurriculumCallback(MaskableEvalCallback):
     def _on_step(self) -> bool:
         current_diff = self.training_env.env_method("get_difficulty")[0]
         curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
-        
+
         if not curriculum_done:
             return True
 
@@ -43,18 +48,18 @@ class RayTuneCurriculumCallback(MaskableEvalCallback):
 
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
             self._post_curriculum_evals += 1
-            
+
             metrics = {
                 "mean_reward": self.last_mean_reward,
                 "difficulty": current_diff,
                 "seed": self._seed,
                 "post_curriculum_evals": self._post_curriculum_evals,
             }
-            
+
             if self.last_mean_reward > self._tune_best_reward:
                 self._tune_best_reward = self.last_mean_reward
                 metrics["best_mean_reward"] = self._tune_best_reward
-                
+
                 with tempfile.TemporaryDirectory() as ckpt_dir:
                     self.model.save(os.path.join(ckpt_dir, "best_model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
@@ -109,7 +114,7 @@ def maskable_ppo_obj(config):
 
     eval_freq = max(config["base_eval_freq"] // config["num_envs"], 1)
     ray_tune_eval = RayTuneCurriculumCallback(
-        eval_env, curriculum_callback, eval_freq, seed
+        eval_env, curriculum_callback, eval_freq, config["n_eval_episodes"], seed
     )
 
     model.learn(
@@ -144,6 +149,7 @@ if __name__ == "__main__":
         "diff_slope": 2,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
+        "n_eval_episodes": 10,
         "total_timesteps": 25_000_000,
         "num_active_swaps": 6,
         "num_envs": cpus_per_trial,

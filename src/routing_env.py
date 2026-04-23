@@ -79,7 +79,7 @@ class RoutingEnv(gymnasium.Env):
 
         self._completion_reward = 1.0
         self._swap_penalty = 0.01
-        self._cancellation_bonus = 0.005
+        self._cancellation_bonus = self._swap_penalty / 3
         self._visited_layouts = set()
 
     def _build_dist_pairs(self) -> None:
@@ -196,9 +196,17 @@ class RoutingEnv(gymnasium.Env):
         self.l2p[l0] = p1
         self.l2p[l1] = p0
 
-        #self.routed_circuit.swap(p0, p1)
+        cancelled_nodes = self._pop_recent_cx(p0, p1)
+        cancellation = 0
+        if cancelled_nodes:
+            phys_ctrl, phys_trgt = cancelled_nodes
+            self.routed_circuit.cx(phys_trgt, phys_ctrl)
+            self.routed_circuit.cx(phys_ctrl, phys_trgt)
+            cancellation = 1
+        else:
+            self.routed_circuit.swap(p0, p1)
 
-        gates_executed, cancellations = self._execute_front_layer(swapped_edge=(p0, p1))
+        gates_executed = self._execute_front_layer()
         if gates_executed > 0:
             self._visited_layouts.clear()
 
@@ -208,22 +216,44 @@ class RoutingEnv(gymnasium.Env):
         terminated = self.is_terminal()
         truncated = self._remaining_swaps == 0 and not terminated
 
-        achieved = self._completion_reward if terminated else 0.0
-        cancellation_bonus = cancellations * self._cancellation_bonus
+        cancellation_bonus = cancellation * self._cancellation_bonus
+        achieved = (self._completion_reward if terminated else 0.0) + cancellation_bonus
+        penalty = self._swap_penalty
 
-        reward = achieved - self._swap_penalty + cancellation_bonus
+        reward = achieved - penalty
 
         self._update_obs()
         return self._get_obs(), reward, terminated, truncated, {}
+
+    def _pop_recent_cx(self, p0: int, p1: int) -> tuple[int, int] | None:
+        """
+        Reverse iterate over recent added gates to routed circuit and then if it matches wires
+        where swap just added it checks if CX gate. If cx gate it removes it from circuit and
+        returns orientation of cancelled gate
+        """
+        for i in range(len(self.routed_circuit.data) - 1, -1, -1):
+            instruction = self.routed_circuit.data[i]
+            indices = {self.routed_circuit.qubits.index(q) for q in instruction.qubits}
+
+            if indices == {p0, p1}:
+                if instruction.operation.name == "cx":
+                    ctrl = self.routed_circuit.qubits.index(instruction.qubits[0])
+                    tgt = self.routed_circuit.qubits.index(instruction.qubits[1])
+                    del self.routed_circuit.data[i]
+                    return ctrl, tgt
+                return None
+
+            if p0 in indices or p1 in indices:
+                return None
+        return None
 
     def _update_obs(self):
         # self._gnn = self._build_graph()
         self._matrix = self._build_matrix()
 
-    def _execute_front_layer(self, swapped_edge: tuple[int, int] | None = None) -> tuple[int, int]:
+    def _execute_front_layer(self) -> int:
         progress = True
         gates_executed = 0
-        cancellations = 0
         while progress:
             progress = False
             for node in list(self._dag.front_layer()):
@@ -237,25 +267,12 @@ class RoutingEnv(gymnasium.Env):
                 else:
                     p0, p1 = self.l2p[indices[0]], self.l2p[indices[1]]
                     if (p0, p1) in self._edge_set or (p1, p0) in self._edge_set:
-                        if swapped_edge is not None and {p0, p1} == set(swapped_edge):
-                            sp0, sp1 = swapped_edge
-                            self.routed_circuit.cx(sp0, sp1)
-                            self.routed_circuit.cx(sp1, sp0)
-                            swapped_edge = None
-                            cancellations += 1
-                        else:
-                            if swapped_edge is not None:
-                                self.routed_circuit.swap(*swapped_edge)
-                                swapped_edge = None
-                            self.routed_circuit.append(node.op, [p0, p1])
+                        self.routed_circuit.append(node.op, [p0, p1])
                         self._dag.remove_op_node(node)
                         gates_executed += 1
                         progress = True
 
-        if swapped_edge is not None:
-            self.routed_circuit.swap(*swapped_edge)
-
-        return gates_executed, cancellations
+        return gates_executed
 
     def _get_obs(self):
         return self._matrix

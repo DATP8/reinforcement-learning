@@ -7,7 +7,6 @@ from stable_baselines3.common.env_util import make_vec_env
 from sb3_contrib import MaskablePPO
 import multiprocessing as mp
 
-from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 
 ### INFO
 ### When reporting results, take mean and standard deviation
@@ -18,9 +17,10 @@ HORIZON = 32
 MAX_DIFF = 100
 NUM_QUBITS = 6
 SLOPE = 2
-EVAL_SAMPLES = 3
+TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
+N_EVAL_EPISODES = 10
 THRESHOLD = 0.85
 BATCH_SIZE = 2048
 
@@ -82,11 +82,9 @@ if __name__ == "__main__":
         eval_env=eval_env,
         curriculum_callback=curriculum_callback,
         eval_freq=eval_freq,
+        n_eval_episodes=N_EVAL_EPISODES,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
-        deterministic=True,
-        render=False,
-        verbose=1,
     )
 
     model.learn(
@@ -96,7 +94,7 @@ if __name__ == "__main__":
     )
     model.save("test_model")
 
-    for _ in range(EVAL_SAMPLES):
+    for _ in range(TEST_SAMPLES):
         obs, _ = eval_env.reset()
         flag = True
         while flag:

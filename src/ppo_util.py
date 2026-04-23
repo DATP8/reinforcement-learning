@@ -1,7 +1,6 @@
 from stable_baselines3.common.monitor import Monitor
 from src.curriculum_callback import CurriculumCallback
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
-from stable_baselines3.common.callbacks import BaseCallback
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from src.routing_env import RoutingEnv
@@ -69,15 +68,21 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
         eval_env: Monitor,
         curriculum_callback: CurriculumCallback,
         eval_freq: int,
-        verbose: int = 0,
-        **kwargs
+        n_eval_episodes: int,
+        best_model_save_path: str,
+        log_path: str,
     ):
-        super().__init__(eval_env, eval_freq=eval_freq, verbose=verbose, **kwargs)
+        super().__init__(
+            eval_env,
+            eval_freq=eval_freq,
+            n_eval_episodes=n_eval_episodes,
+            best_model_save_path=best_model_save_path,
+            log_path=log_path,
+        )
         self._curriculum_callback = curriculum_callback
 
     def _on_step(self) -> bool:
         current_diff = self.training_env.env_method("get_difficulty")[0]
-
         if current_diff < self._curriculum_callback.max_difficulty:
             return True
 
