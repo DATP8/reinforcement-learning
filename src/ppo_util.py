@@ -1,3 +1,4 @@
+from enum import Enum
 from stable_baselines3.common.monitor import Monitor
 from src.curriculum_callback import CurriculumCallback
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -89,3 +90,9 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
             return True
 
         return super()._on_step()
+
+
+class PolicyArchitecture(Enum):
+    BASIC = 1
+    SIMPLE_GNN = 2
+    HYBRID_GNN = 3

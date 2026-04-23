@@ -159,7 +159,7 @@ if __name__ == "__main__":
         "num_active_swaps": 6,
         "num_envs": cpus_per_trial,
         "n_steps": 2048,
-        "n_epochs": 10
+        "n_epochs": 10,
     }
 
     algo = OptunaSearch(metric="mean_reward", mode="max")
