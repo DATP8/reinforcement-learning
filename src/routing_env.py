@@ -28,8 +28,8 @@ class RoutingEnv(gymnasium.Env):
         self._horizon = horizon
         self._current_difficulty = initial_difficulty
         self._max_difficulty = max_difficulty
-        self._diff_slope = (diff_slope,)
-        self._layout_exponent = (layout_exponent,)
+        self._diff_slope = diff_slope
+        self._layout_exponent = layout_exponent
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
         self._build_dist_pairs()
@@ -215,7 +215,6 @@ class RoutingEnv(gymnasium.Env):
             self._visited_layouts.clear()
 
         self._visited_layouts.add(tuple(self._p2l))
-
         self._remaining_swaps = max(0, self._remaining_swaps - 1)
         terminated = self.is_terminal()
         truncated = self._remaining_swaps == 0 and not terminated

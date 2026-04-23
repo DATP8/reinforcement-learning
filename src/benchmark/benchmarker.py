@@ -259,12 +259,17 @@ if __name__ == "__main__":
         local_mode=True,
     )
 
-    horizon = 32
+    horizon = 45
     ppo_env = make_env(
-        n_qubits, coupling_map, num_active_swaps=6, horizon=horizon, diff_slope=2
+        n_qubits,
+        coupling_map,
+        num_active_swaps=6,
+        horizon=horizon,
+        diff_slope=2,
+        layout_exponent=1.0,
     )
     ppo_model = MaskablePPO.load(
-        "checkpoints/best_model.zip",
+        "best_model.zip",
         ppo_env,
     )
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
@@ -326,7 +331,7 @@ if __name__ == "__main__":
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 100
+    bench_iterations = 25
     bench_circut_gate_count = 100
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
