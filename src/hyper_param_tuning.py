@@ -109,6 +109,8 @@ def maskable_ppo_obj(config):
         gamma=config["gamma"],
         gae_lambda=config["gae_lambda"],
         batch_size=config["batch_size"],
+        n_steps=config["n_steps"],
+        n_epochs=config["n_epochs"],
         seed=seed,
     )
 
@@ -156,6 +158,8 @@ if __name__ == "__main__":
         "total_timesteps": 25_000_000,
         "num_active_swaps": 6,
         "num_envs": cpus_per_trial,
+        "n_steps": 2048,
+        "n_epochs": 10
     }
 
     algo = OptunaSearch(metric="mean_reward", mode="max")
