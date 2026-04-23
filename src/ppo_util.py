@@ -23,6 +23,7 @@ def make_env(
     num_active_swaps: int,
     horizon: int,
     diff_slope: int,
+    layout_exponent: float,
     render_mode: str | None = None,
     initial_difficulty: int = 1,
     max_difficulty: int = 100,
@@ -35,6 +36,7 @@ def make_env(
         initial_difficulty=initial_difficulty,
         max_difficulty=max_difficulty,
         diff_slope=diff_slope,
+        layout_exponent=layout_exponent,
         render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)

@@ -16,6 +16,7 @@ class RoutingEnv(gymnasium.Env):
         initial_difficulty: int,
         max_difficulty: int,
         diff_slope: int,
+        layout_exponent: float,
         render_mode: str | None = None,
     ) -> None:
         super().__init__()
@@ -27,7 +28,8 @@ class RoutingEnv(gymnasium.Env):
         self._horizon = horizon
         self._current_difficulty = initial_difficulty
         self._max_difficulty = max_difficulty
-        self._diff_slope = diff_slope
+        self._diff_slope = (diff_slope,)
+        self._layout_exponent = (layout_exponent,)
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
         self._build_dist_pairs()
@@ -153,7 +155,9 @@ class RoutingEnv(gymnasium.Env):
             return
 
         num_qubits = self._num_qubits
-        num_swaps = int((sampled_diff / self._max_difficulty) * num_qubits)
+        num_swaps = int(
+            (sampled_diff / self._max_difficulty) ** self._layout_exponent * num_qubits
+        )
         for i in range(num_qubits - 1, num_qubits - num_swaps - 1, -1):
             j = self.np_random.integers(0, i + 1)
             self.l2p[i], self.l2p[j] = self.l2p[j], self.l2p[i]

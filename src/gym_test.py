@@ -14,15 +14,18 @@ import multiprocessing as mp
 
 
 HORIZON = 32
-MAX_DIFF = 100
+MAX_DIFF = 256
 NUM_QUBITS = 6
-SLOPE = 2
+SLOPE = 1
 TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
 N_EVAL_EPISODES = 10
 THRESHOLD = 0.85
 BATCH_SIZE = 2048
+N_STEPS = 2048
+EPOCHS = 10
+LAYOUT_EXPONENT = 1.0
 
 if __name__ == "__main__":
     coupling_map = CouplingMap.from_line(NUM_QUBITS)
@@ -38,6 +41,7 @@ if __name__ == "__main__":
             initial_difficulty=1,
             max_difficulty=MAX_DIFF,
             diff_slope=SLOPE,
+            layout_exponent=LAYOUT_EXPONENT,
         ),
         n_envs=n_envs,
     )
@@ -58,7 +62,14 @@ if __name__ == "__main__":
     #    net_arch=dict(pi=[64, 64], vf=[64, 64]),
     # )
 
-    model = MaskablePPO("MlpPolicy", train_env, verbose=1, batch_size=BATCH_SIZE)
+    model = MaskablePPO(
+        "MlpPolicy",
+        train_env,
+        verbose=1,
+        batch_size=BATCH_SIZE,
+        n_steps=N_STEPS,
+        n_epochs=EPOCHS,
+    )
     # model = MaskablePPO(
     #    "MultiInputPolicy", train_env, policy_kwargs=policy_kwargs, verbose=1
     # )
@@ -72,6 +83,7 @@ if __name__ == "__main__":
         initial_difficulty=MAX_DIFF,
         max_difficulty=MAX_DIFF,
         diff_slope=SLOPE,
+        layout_exponent=LAYOUT_EXPONENT,
     )
     eval_env = Monitor(eval_env)
 

@@ -82,6 +82,7 @@ def maskable_ppo_obj(config):
             num_active_swaps=config["num_active_swaps"],
             horizon=config["horizon"],
             diff_slope=config["diff_slope"],
+            layout_exponent=config["layout_exponent"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
         ),
@@ -95,6 +96,7 @@ def maskable_ppo_obj(config):
         num_active_swaps=config["num_active_swaps"],
         horizon=config["horizon"],
         diff_slope=config["diff_slope"],
+        layout_exponent=config["layout_exponent"],
         initial_difficulty=config["max_difficulty"],  # Strictly eval on max diff
         max_difficulty=config["max_difficulty"],
     )
@@ -147,6 +149,7 @@ if __name__ == "__main__":
         "initial_difficulty": 1,
         "max_difficulty": 256,
         "diff_slope": 2,
+        "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "n_eval_episodes": 10,
