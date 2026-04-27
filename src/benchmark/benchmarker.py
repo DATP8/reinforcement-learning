@@ -1,3 +1,4 @@
+from src.routing.cnot_swap_cancel import CNOTSwapCancelation
 from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
@@ -7,6 +8,7 @@ from src.model import BiCircuitGNNDense
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
+from qiskit.transpiler.passes import CommutativeCancellation
 from qiskit import QuantumCircuit
 from scipy import stats
 from tqdm import tqdm
@@ -25,7 +27,7 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("2Q Depth", 10),
+    ("Decomposed Depth", 10),
 ]
 
 
@@ -43,6 +45,7 @@ class Benchmarker:
         self.coupling_map = coupling_map
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
+        self.commutative_cancellation = CommutativeCancellation()
 
     def _print_header(self, title: str, confidence: float | None = None) -> None:
         header: str = f"{'Config':<30}"
@@ -83,6 +86,10 @@ class Benchmarker:
     def _collect_metrics(self, routed_circuit, transpile_time):
         ops = routed_circuit.count_ops()
 
+        decomposed_circuit = self.commutative_cancellation.run(
+            routed_circuit.decompose(gates_to_decompose="swap").to_dag()
+        ).to_circuit()
+
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
 
@@ -92,9 +99,7 @@ class Benchmarker:
             METRIC_KEYS[2][0]: cx,
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: routed_circuit.depth(
-                filter_function=lambda inst: inst.operation.name in ["cx", "swap"]
-            ),
+            METRIC_KEYS[5][0]: decomposed_circuit.depth(),
         }
         return metrics
 
@@ -283,8 +288,26 @@ if __name__ == "__main__":
         #     PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
         # ),
         (
-            f"TrivialLayout_Dense_Chunking_{chuck_size}",
-            PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass_dense]),
+            "TrivialLayout_SabreSwap_cancel",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    SabreSwap(coupling_map=coupling_map),
+                    CNOTSwapCancelation(),
+                ]
+            ),
+        ),
+        (
+            f"TrivialLayout_Dense_Chunking_cancel{chuck_size}",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    chunck_swap_pass_dense,
+                    CNOTSwapCancelation(),
+                ]
+            ),
         ),
         (
             "SabreLayout_SabreSwap",
