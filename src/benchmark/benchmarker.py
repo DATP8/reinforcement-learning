@@ -1,3 +1,4 @@
+from qiskit.transpiler.passes import VF2Layout
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from sb3_contrib import MaskablePPO
 from src.ppo_util import make_env
@@ -30,6 +31,8 @@ METRIC_KEYS = [
     ("2Q Depth", 10),
 ]
 
+EVAL_SEED = np.random.randint(0, 2**31-1)
+EVAL_TRIALS = 12
 
 class Benchmarker:
     def __init__(
@@ -259,7 +262,7 @@ if __name__ == "__main__":
         local_mode=True,
     )
 
-    horizon = 45
+    horizon = 64
     ppo_env = make_env(
         n_qubits,
         coupling_map,
@@ -269,23 +272,35 @@ if __name__ == "__main__":
         layout_exponent=1.0,
     )
     ppo_model = MaskablePPO.load(
-        "best_model.zip",
+        "checkpoints/best_model.zip",
         ppo_env,
     )
+    
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
     trivial_layout = TrivialLayout(coupling_map)
-    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True, swap_trials=EVAL_TRIALS, layout_trials=EVAL_TRIALS, seed=EVAL_SEED)
 
-    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
     #### Standard qiskit pass manager inserted router
     configs = [
         (
-            "TrivialLayout_SabreSwap",
+            "TrivialLayout_SabreSwap_basic",
             PassManager(
-                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS)]
+            ),
+        ),
+        (
+            "TrivialLayout_SabreSwap_lookahead",
+            PassManager(
+                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS, heuristic="lookahead")]
+            ),
+        ),
+        (
+            "TrivialLayout_SabreSwap_decay",
+            PassManager(
+                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS, heuristic="decay")]
             ),
         ),
         (
@@ -297,12 +312,32 @@ if __name__ == "__main__":
             PassManager([trivial_layout, ApplyLayout(), agentic_router]),
         ),
         (
-            "SabreLayout_SabreSwap",
+            "SabreLayout_SabreSwap_basic",
             PassManager(
                 [
                     sabre_layout,
                     ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
+                    SabreSwap(coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS),
+                ]
+            ),
+        ),
+         (
+            "SabreLayout_SabreSwap_lookahead",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS, heuristic="lookahead"),
+                ]
+            ),
+        ),
+          (
+            "SabreLayout_SabreSwap_decay",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS, heuristic="decay"),
                 ]
             ),
         ),
@@ -330,9 +365,13 @@ if __name__ == "__main__":
 
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
+    
+    print("EVAL_SEED:", EVAL_SEED)
+    print("EVAL_TRIALS:", EVAL_TRIALS)
 
-    bench_iterations = 25
-    bench_circut_gate_count = 100
+
+    bench_iterations = 100
+    bench_circut_gate_count = 150
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
