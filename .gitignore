@@ -13,3 +13,5 @@ test.py
 logs
 *.zip
 !.python-version
+**/tools/**/.venv_*
+**/tools/**/.venv/

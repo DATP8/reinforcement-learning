@@ -14,12 +14,19 @@ from scipy import stats
 from tqdm import tqdm
 import numpy as np
 
-# from mqt.bench import BenchmarkLevel, get_benchmark
-# from mqt.bench.benchmarks import get_available_benchmark_names
-
+import json
+import subprocess
 import time
 import random
+from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent.parent  
+
+# Define the absolute paths
+BRIDGE_DIR = ROOT_DIR / "tools" / "mqt_bridge"
+BRIDGE_PYTHON = str(BRIDGE_DIR / ".venv" / "bin" / "python")
+WORKER_SCRIPT = str(BRIDGE_DIR / "mqt_worker.py")
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -45,6 +52,7 @@ class Benchmarker:
         self.coupling_map = coupling_map
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
+
 
     def _print_header(self, title: str, confidence: float | None = None) -> None:
         header: str = f"{'Config':<30}"
@@ -117,35 +125,55 @@ class Benchmarker:
 
         return qc
 
-    # def run_mqt_benchmarks(
-    #    self,
-    #    configs: list[tuple[str, PassManager]],
-    # ):
-    #    algorithm_name_list = get_available_benchmark_names()
-    #    for algorithm_name in algorithm_name_list:
-    #        success = False
-    #        for q in range(1, self.qubits).__reversed__():
-    #            if success:
-    #                break
-    #            try:
-    #                qc = get_benchmark(
-    #                    algorithm_name, BenchmarkLevel.INDEP, self.qubits
-    #                )
-    #                qc = self._prepare_for_routing(qc)
-    #                if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
-    #                    continue
-    #
-    #                runs = self.bench_circuit(qc, configs, algorithm_name)
-    #                self._print_header(f"Algorithm: {algorithm_name}")
-    #                for config_name, metrics in runs.items():
-    #                    self._print_row(config_name, metrics)
-    #                success = True
-    #
-    #            except AssertionError:
-    #                raise
-    #            except Exception:
-    #                pass
-    #
+
+    def _get_mqt_circuit_via_bridge(self, algo_name: str, qubits: int):
+        """Bridge call to the sidecar environment."""
+    
+        result = subprocess.run(
+            [BRIDGE_PYTHON, WORKER_SCRIPT, "names"], 
+            capture_output=True, text=True, check=True
+        )
+        return QuantumCircuit.from_qasm_str(result.stdout)
+
+    def _get_available_names_via_bridge(self):
+        try:
+            result = subprocess.run(
+                [BRIDGE_PYTHON, WORKER_SCRIPT, "names"], 
+                capture_output=True, text=True, check=True
+            )
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print("\n--- BRIDGE CRASHED ---")
+            print("STDOUT:", e.stdout)
+            print("STDERR:", e.stderr) # THIS is where the real error is hidden
+            raise e
+
+    def run_mqt_benchmarks(self, configs: list[tuple[str, PassManager]]):
+        algorithm_name_list = self._get_available_names_via_bridge()
+        
+        for algorithm_name in algorithm_name_list:
+            success = False
+            for q in range(1, self.qubits).__reversed__():
+                if success: break
+                try:
+                    qc = self._get_mqt_circuit_via_bridge(algorithm_name, q)
+                    
+                    qc = self._prepare_for_routing(qc) 
+                    
+                    if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
+                        continue
+
+                    runs = self.bench_circuit(qc, configs, algorithm_name)
+                    self._print_header(f"Algorithm: {algorithm_name}")
+                    for config_name, metrics in runs.items():
+                        self._print_row(config_name, metrics)
+                    success = True
+    
+                except AssertionError:
+                    raise
+                except Exception:
+                    pass
+    
     def run_rand_benchmarks(
         self,
         configs: list[tuple[str, PassManager]],
@@ -263,11 +291,11 @@ if __name__ == "__main__":
     ppo_env = make_env(
         n_qubits, coupling_map, num_active_swaps=6, horizon=horizon, diff_slope=2
     )
-    ppo_model = MaskablePPO.load(
-        "checkpoints/best_model.zip",
-        ppo_env,
-    )
-    agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
+    # ppo_model = MaskablePPO.load(
+    #     "checkpoints/best_model.zip",
+    #     ppo_env,
+    # )
+    # agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
@@ -287,10 +315,10 @@ if __name__ == "__main__":
             "TrivialLayout_AI_ibm",
             PassManager([trivial_layout, ApplyLayout(), ai_routing]),
         ),
-        (
-            f"TrivialLayout_MaskablePPO_{horizon}",
-            PassManager([trivial_layout, ApplyLayout(), agentic_router]),
-        ),
+        # (
+        #     f"TrivialLayout_MaskablePPO_{horizon}",
+        #     PassManager([trivial_layout, ApplyLayout(), agentic_router]),
+        # ),
         (
             "SabreLayout_SabreSwap",
             PassManager(
@@ -305,16 +333,16 @@ if __name__ == "__main__":
             "SabreLayout_AI_ibm",
             PassManager([trivial_layout, ApplyLayout(), ai_routing]),
         ),
-        (
-            f"SabreLayout_MaskablePPO_{horizon}",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    agentic_router,
-                ]
-            ),
-        ),
+        # (
+        #     f"SabreLayout_MaskablePPO_{horizon}",
+        #     PassManager(
+        #         [
+        #             sabre_layout,
+        #             ApplyLayout(),
+        #             agentic_router,
+        #         ]
+        #     ),
+        # ),
         (
             "Op0 qiskit",
             generate_preset_pass_manager(
@@ -329,6 +357,6 @@ if __name__ == "__main__":
     bench_iterations = 100
     bench_circut_gate_count = 100
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
