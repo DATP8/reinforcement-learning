@@ -9,7 +9,6 @@ dependencies = [
     "qiskit>=2.3.0",
     "seaborn>=0.13.2",
     "cachetools>=7.0.5",
-    "qiskit>=2.3.0",
     "qiskit-ibm-runtime>=0.45.1",
     "rich>=14.3.3",
     "ruff>=0.15.5",
