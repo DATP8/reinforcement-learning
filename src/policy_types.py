@@ -1,6 +1,6 @@
-from gym_extractor import HybridExtractor
-from gym_extractor import SimpleExtractor
 from enum import Enum, auto
+
+from src.gym_extractor import HybridExtractor, SimpleExtractor
 
 
 class ActorCriticPolicyType(Enum):
@@ -19,14 +19,14 @@ class ActorCriticPolicyType(Enum):
         match self.name:
             case self.SIMPLE_MLP.name:
                 return SimpleExtractor
-            case self.HYBRID_GNN.name: 
+            case self.HYBRID_GNN.name:
                 return HybridExtractor
 
     def get_policy_kwargs(self):
         if self.name == self.BASIC.name:
             return None
         return dict(
-                features_extractor_class=self.get_feature_extractor(),
-                features_extractor_kwargs=dict(features_dim=128),
-                net_arch=dict(pi=[64, 64], vf=[64, 64]),
-            )
+            features_extractor_class=self.get_feature_extractor(),
+            features_extractor_kwargs=dict(features_dim=128),
+            net_arch=dict(pi=[64, 64], vf=[64, 64]),
+        )

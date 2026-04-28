@@ -57,7 +57,7 @@ if __name__ == "__main__":
         batch_size=BATCH_SIZE,
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
-        policy_kwargs=POLICY_TYPE.get_policy_kwargs()
+        policy_kwargs=POLICY_TYPE.get_policy_kwargs(),
     )
 
     eval_env = make_env(

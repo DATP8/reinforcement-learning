@@ -8,10 +8,6 @@ import numpy as np
 from qiskit import QuantumCircuit, generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
-from qiskit.transpiler.passes import (
-    ApplyLayout,
-    SabreLayout,
-)
 from qiskit_ibm_transpiler.ai.routing import AIRouting
 from sb3_contrib import MaskablePPO
 from scipy import stats
@@ -30,7 +26,7 @@ METRIC_KEYS = [
     ("2Q Depth", 10),
 ]
 
-EVAL_SEED = np.random.randint(0, 2**31 - 1)
+EVAL_SEED = 1  # np.random.randint(0, 2**31 - 1)
 EVAL_TRIALS = 12
 
 
@@ -277,10 +273,7 @@ if __name__ == "__main__":
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load(
-        "checkpoints/best_model.zip",
-        ppo_env,
-    )
+    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env, seed=EVAL_SEED)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -406,7 +399,9 @@ if __name__ == "__main__":
         (
             "Op0 qiskit",
             generate_preset_pass_manager(
-                optimization_level=0, coupling_map=coupling_map
+                optimization_level=0,
+                coupling_map=coupling_map,
+                seed_transpiler=EVAL_SEED,
             ),
         ),
     ]
@@ -418,7 +413,7 @@ if __name__ == "__main__":
     print("EVAL_TRIALS:", EVAL_TRIALS)
 
     bench_iterations = 10
-    bench_circut_gate_count = 10
+    bench_circut_gate_count = 30
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")

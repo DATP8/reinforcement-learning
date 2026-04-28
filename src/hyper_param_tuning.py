@@ -106,8 +106,9 @@ def maskable_ppo_obj(config):
     eval_env = Monitor(eval_env)
 
     model = MaskablePPO(
-        config["policy_type"].get_sb3_policy(),
-        train_env,
+        policy=config["policy_type"].get_sb3_policy(),
+        policy_kwargs=config["policy_type"].get_policy_kwargs(),
+        env=train_env,
         learning_rate=config["learning_rate"],
         gamma=config["gamma"],
         gae_lambda=config["gae_lambda"],
@@ -163,13 +164,13 @@ if __name__ == "__main__":
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "n_eval_episodes": 10,
-        "total_timesteps": 10_000_000,
+        "total_timesteps": 15_000_000,
         "num_envs": cpus_per_trial,
         "n_epochs": 10,
     }
 
     algo = OptunaSearch(metric="mean_reward", mode="max")
-    # repeated_algo = Repeater(algo, repeat=repeats_per_config) # Can cause problems when using scheduler
+    # repeated_algo = Repeater(algo, repeat=repeats_per_config) #! Can cause problems when using scheduler
 
     max_evals = search_space["total_timesteps"] // search_space["base_eval_freq"]
 
@@ -211,3 +212,5 @@ if __name__ == "__main__":
 
     print(f"\n--- Top Hyperparameters (Averaged over {repeats_per_config} seeds) ---")
     print(agg_df.to_string(index=False))
+
+    agg_df.to_csv("results.csv", index=False)

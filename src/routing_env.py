@@ -53,7 +53,10 @@ class RoutingEnv(gymnasium.Env):
         self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self.action_space = spaces.Discrete(self._num_active_swaps)
 
-        if policy_type is ActorCriticPolicyType.BASIC or policy_type is ActorCriticPolicyType.SIMPLE_MLP:
+        if (
+            policy_type is ActorCriticPolicyType.BASIC
+            or policy_type is ActorCriticPolicyType.SIMPLE_MLP
+        ):
             self.observation_space = spaces.Box(
                 low=-2,
                 high=2,
@@ -256,7 +259,10 @@ class RoutingEnv(gymnasium.Env):
         return None
 
     def _update_obs(self):
-        if self._policy_type is not ActorCriticPolicyType.BASIC and self._policy_type is not ActorCriticPolicyType.SIMPLE_MLP:
+        if (
+            self._policy_type is not ActorCriticPolicyType.BASIC
+            and self._policy_type is not ActorCriticPolicyType.SIMPLE_MLP
+        ):
             self._gnn = self._build_graph()
         self._matrix = self._build_matrix()
 

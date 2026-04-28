@@ -47,7 +47,7 @@ def make_env(
 def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layout]:
     circuit = dag_to_circuit(dag)
     env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
-    obs, _ = env.reset(options={"circuit": circuit})
+    obs, _ = env.reset(seed=model.seed, options={"circuit": circuit})
 
     if env.is_terminal():
         return circuit_to_dag(env.routed_circuit), Layout.generate_trivial_layout(
