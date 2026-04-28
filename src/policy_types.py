@@ -1,4 +1,3 @@
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from gym_extractor import HybridExtractor
 from gym_extractor import SimpleExtractor
 from enum import Enum, auto
@@ -7,7 +6,6 @@ from enum import Enum, auto
 class ActorCriticPolicyType(Enum):
     BASIC = auto()
     SIMPLE_MLP = auto()
-    SIMPLE_GNN = auto()
     HYBRID_GNN = auto()
 
     def get_sb3_policy(self) -> str:

@@ -287,6 +287,8 @@ class RoutingEnv(gymnasium.Env):
         match self._policy_type:
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
                 return self._matrix
+            case _:
+                pass
 
         graph_x, graph_edge_idx = self._gnn
         return {
