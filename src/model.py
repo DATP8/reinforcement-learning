@@ -181,6 +181,62 @@ class BiCircuitGNN(nn.Module):
         return out.squeeze(-1)
 
 
+class BiCircuitGNNDense(nn.Module):
+    def __init__(self, n_qubits, hidden_dim=128):
+        super().__init__()
+
+        self.node_encoder = nn.Linear(n_qubits * 2, hidden_dim)
+        self.edge_encoder = nn.Linear(n_qubits + 1, hidden_dim)
+
+        def make_mlp():
+            return nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, hidden_dim),
+            )
+
+        # forward DAG propagation
+        self.f_conv1 = GINEConv(make_mlp(), flow="source_to_target")
+        self.f_conv2 = GINEConv(make_mlp(), flow="source_to_target")
+        self.f_bn1 = BatchNorm(hidden_dim)
+        self.f_bn2 = BatchNorm(hidden_dim)
+
+        # backward propagation
+        self.b_conv1 = GINEConv(make_mlp(), flow="target_to_source")
+        self.b_conv2 = GINEConv(make_mlp(), flow="target_to_source")
+        self.b_bn1 = BatchNorm(hidden_dim)
+        self.b_bn2 = BatchNorm(hidden_dim)
+
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
+        )
+
+    def forward(self, data: Data):
+
+        x = self.node_encoder(data.x)
+        edge_attr = self.edge_encoder(data.edge_attr)
+
+        edge_index = data.edge_index
+        batch = data.batch
+
+        # forward pass
+        xf = F.relu(self.f_bn1(self.f_conv1(x, edge_index, edge_attr)))
+        xf = F.relu(self.f_bn2(self.f_conv2(xf, edge_index, edge_attr)))
+
+        # backward pass
+        xb = F.relu(self.b_bn1(self.b_conv1(x, edge_index, edge_attr)))
+        xb = F.relu(self.b_bn2(self.b_conv2(xb, edge_index, edge_attr)))
+
+        # combine
+        x = torch.cat([xf, xb], dim=1)
+
+        x = global_add_pool(x, batch)
+
+        out = self.head(x)
+
+        return out.squeeze(-1)
+
+
 class RetardModel(PVModel):
     def __init__(self, n_qubits, horizon, n_actions):
         super().__init__(n_qubits=0, horizon=0, n_actions=n_actions)
