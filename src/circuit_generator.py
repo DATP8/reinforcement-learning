@@ -120,7 +120,7 @@ class CircuitGenerator:
         num_gates: int,
         gateset: set[str] | None = None,
         seed: int | None = None,
-    ) -> list[QuantumCircuit]:
+    ) -> list[QuantumCircuit]: # pyrefly: ignore
         """
         Generates n random quantum circuits based on number of qubits, number of gates, and gateset.
         """
