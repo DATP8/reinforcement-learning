@@ -1,6 +1,7 @@
-from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
+from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap as CM
+
 from src.routing.swap_inserter.swap_inserter import SwapInserter
 
 
@@ -98,13 +99,14 @@ class BadSwapINserter(SwapInserter):
 
 if __name__ == "__main__":
     import random
-    import torch
     import time
 
+    import torch
+
     from src.model import ValueModel
+    from src.routing.bwas_router import BWASRouter
     from src.states.tensor_state import TensorState
     from src.states.tensor_state_handler import TensorStateHandler
-    from src.routing.bwas_router import BWASRouter
 
     def generate_random_2qubit_circuit(
         num_qubits: int, num_gates: int

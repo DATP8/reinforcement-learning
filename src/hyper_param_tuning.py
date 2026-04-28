@@ -1,19 +1,22 @@
-from stable_baselines3.common.monitor import Monitor
-from ray.tune.schedulers import ASHAScheduler
-from numpy import random
-from ray.tune.search.optuna.optuna_search import OptunaSearch
-from qiskit.transpiler import CouplingMap
-from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
-from src.curriculum_callback import CurriculumCallback
-from sb3_contrib import MaskablePPO
-from stable_baselines3.common.env_util import make_vec_env
-from src.ppo_util import make_env
-from ray import tune
 import multiprocessing as mp
-import torch
 import os
-import numpy as np
 import tempfile
+
+import numpy as np
+import torch
+from numpy import random
+from qiskit.transpiler import CouplingMap
+from ray import tune
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna.optuna_search import OptunaSearch
+from sb3_contrib import MaskablePPO
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.monitor import Monitor
+
+from src.curriculum_callback import CurriculumCallback
+from src.policy_types import ActorCriticPolicyType
+from src.ppo_util import make_env
 
 
 class RayTuneCurriculumCallback(MaskableEvalCallback):
@@ -77,7 +80,6 @@ def maskable_ppo_obj(config):
 
     train_env = make_vec_env(
         lambda: make_env(
-            num_qubits=config["num_qubits"],
             coupling_map=coupling_map,
             num_active_swaps=config["num_active_swaps"],
             horizon=config["horizon"],
@@ -85,13 +87,13 @@ def maskable_ppo_obj(config):
             layout_exponent=config["layout_exponent"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
+            policy_type=config["policy_type"],
         ),
         n_envs=config["num_envs"],
         seed=seed,
     )
 
     eval_env = make_env(
-        num_qubits=config["num_qubits"],
         coupling_map=coupling_map,
         num_active_swaps=config["num_active_swaps"],
         horizon=config["horizon"],
@@ -99,6 +101,7 @@ def maskable_ppo_obj(config):
         layout_exponent=config["layout_exponent"],
         initial_difficulty=config["max_difficulty"],  # Strictly eval on max diff
         max_difficulty=config["max_difficulty"],
+        policy_type=config["policy_type"],
     )
     eval_env = Monitor(eval_env)
 
@@ -147,6 +150,7 @@ if __name__ == "__main__":
         "gae_lambda": tune.uniform(0.9, 1.0),
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
+        "policy_type": tune.choice([e for e in ActorCriticPolicyType]),
         "num_qubits": 6,
         "initial_difficulty": 1,
         "max_difficulty": 256,
@@ -155,7 +159,7 @@ if __name__ == "__main__":
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "n_eval_episodes": 10,
-        "total_timesteps": 25_000_000,
+        "total_timesteps": 10_000_000,
         "num_active_swaps": 6,
         "num_envs": cpus_per_trial,
         "n_steps": 2048,

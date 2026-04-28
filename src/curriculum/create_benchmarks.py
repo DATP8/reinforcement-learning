@@ -1,12 +1,14 @@
-from curriculum.curriculum_helper import RoutedCircuitMetrics
-from curriculum.curriculum_helper import CircuitMetrics
-from curriculum.curriculum_helper import CurriculumHelper
 import numpy as np
+from qiskit import QuantumCircuit, transpile
+from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit.transpiler import CouplingMap
 from tqdm import tqdm
 
-from qiskit import transpile, QuantumCircuit
-from qiskit.transpiler import CouplingMap
-from qiskit.providers.fake_provider import GenericBackendV2
+from curriculum.curriculum_helper import (
+    CircuitMetrics,
+    CurriculumHelper,
+    RoutedCircuitMetrics,
+)
 
 
 def generate_random_circuit(num_qubits, num_gates, gateset, seed=None):

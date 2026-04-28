@@ -1,5 +1,6 @@
-from qiskit import QuantumCircuit
 from abc import ABC, abstractmethod
+
+from qiskit import QuantumCircuit
 
 
 class Router(ABC):

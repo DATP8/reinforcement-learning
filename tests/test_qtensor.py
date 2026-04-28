@@ -1,9 +1,10 @@
-from qiskit import QuantumCircuit
-from src.states.qtensor import Qtensor
-
-import unittest
 import random
+import unittest
+
 import torch
+from qiskit import QuantumCircuit
+
+from src.states.qtensor import Qtensor
 
 
 class TestQtensor(unittest.TestCase):

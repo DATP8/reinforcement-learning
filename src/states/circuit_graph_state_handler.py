@@ -1,13 +1,13 @@
+import random
+
+import torch
+from cachetools import LFUCache
+from qiskit import QuantumCircuit
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
-from src.states.state_handler import StateHandler, Batchable
 from src.states.circuit_graph import CircuitGraph
-
-import torch
-import random
-from cachetools import LFUCache
-from qiskit import QuantumCircuit
+from src.states.state_handler import Batchable, StateHandler
 
 
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):

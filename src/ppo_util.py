@@ -1,17 +1,17 @@
-from enum import Enum
-from stable_baselines3.common.monitor import Monitor
-from src.curriculum_callback import CurriculumCallback
-from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
-from sb3_contrib import MaskablePPO
-from sb3_contrib.common.wrappers import ActionMasker
-from src.routing_env import RoutingEnv
 import gymnasium
-from qiskit.transpiler import CouplingMap
 import numpy as np
-from qiskit.converters import circuit_to_dag
-from qiskit.converters import dag_to_circuit
-from qiskit.transpiler.layout import Layout
+from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit
+from qiskit.transpiler import CouplingMap
+from qiskit.transpiler.layout import Layout
+from sb3_contrib import MaskablePPO
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from sb3_contrib.common.wrappers import ActionMasker
+from stable_baselines3.common.monitor import Monitor
+
+from src.curriculum_callback import CurriculumCallback
+from src.policy_types import ActorCriticPolicyType
+from src.routing_env import RoutingEnv
 
 
 def mask_fn(env: gymnasium.Env) -> np.ndarray:
@@ -19,18 +19,17 @@ def mask_fn(env: gymnasium.Env) -> np.ndarray:
 
 
 def make_env(
-    num_qubits: int,
     coupling_map: CouplingMap,
     num_active_swaps: int,
     horizon: int,
+    initial_difficulty: int,
+    max_difficulty: int,
     diff_slope: int,
     layout_exponent: float,
+    policy_type: ActorCriticPolicyType,
     render_mode: str | None = None,
-    initial_difficulty: int = 1,
-    max_difficulty: int = 100,
 ):
     env = RoutingEnv(
-        num_qubits=num_qubits,
         coupling_map=coupling_map,
         num_active_swaps=num_active_swaps,
         horizon=horizon,
@@ -38,6 +37,7 @@ def make_env(
         max_difficulty=max_difficulty,
         diff_slope=diff_slope,
         layout_exponent=layout_exponent,
+        policy_type=policy_type,
         render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)
@@ -90,9 +90,3 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
             return True
 
         return super()._on_step()
-
-
-class PolicyArchitecture(Enum):
-    BASIC = 1
-    SIMPLE_GNN = 2
-    HYBRID_GNN = 3

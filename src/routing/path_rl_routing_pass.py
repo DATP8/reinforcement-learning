@@ -1,8 +1,8 @@
-from src.routing.router import Router
-from qiskit.transpiler import Layout
 from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.transpiler import Layout
 from qiskit.transpiler.basepasses import TransformationPass
 
+from src.routing.router import Router
 from src.routing.swap_inserter.swap_inserter import SwapInserter
 
 

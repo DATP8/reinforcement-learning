@@ -1,5 +1,6 @@
-from src.states.state_handler import StateHandler
 import torch
+
+from src.states.state_handler import StateHandler
 
 
 class GreedySearch:

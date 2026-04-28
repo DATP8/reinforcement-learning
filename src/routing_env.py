@@ -1,15 +1,16 @@
+import gymnasium
+import numpy as np
 from gymnasium import spaces
 from qiskit import QuantumCircuit
-from qiskit.transpiler import CouplingMap
 from qiskit.converters import circuit_to_dag
-import numpy as np
-import gymnasium
+from qiskit.transpiler import CouplingMap
+
+from src.policy_types import ActorCriticPolicyType
 
 
 class RoutingEnv(gymnasium.Env):
     def __init__(
         self,
-        num_qubits: int,
         coupling_map: CouplingMap,
         num_active_swaps: int,
         horizon: int,
@@ -17,12 +18,13 @@ class RoutingEnv(gymnasium.Env):
         max_difficulty: int,
         diff_slope: int,
         layout_exponent: float,
+        policy_type: ActorCriticPolicyType,
         render_mode: str | None = None,
     ) -> None:
         super().__init__()
-        self._num_qubits = num_qubits
-        self._num_logic_qubits = num_qubits
-        self._num_phys_qubits = num_qubits
+        self._num_qubits = len(coupling_map.physical_qubits)
+        self._num_logic_qubits = self._num_qubits
+        self._num_phys_qubits = self._num_qubits
         self._coupling_map = coupling_map
         self._num_active_swaps = num_active_swaps
         self._horizon = horizon
@@ -30,6 +32,7 @@ class RoutingEnv(gymnasium.Env):
         self._max_difficulty = max_difficulty
         self._diff_slope = diff_slope
         self._layout_exponent = layout_exponent
+        self._policy_type = policy_type
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
         self._build_dist_pairs()
@@ -49,35 +52,37 @@ class RoutingEnv(gymnasium.Env):
         self.l2p: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self.action_space = spaces.Discrete(self._num_active_swaps)
-        self.observation_space = spaces.Box(
-            low=-2,
-            high=2,
-            shape=(self._num_active_swaps, self._horizon),
-            dtype=np.int8,
-        )
 
-        # self.observation_space = spaces.Dict(
-        #    {
-        #        "matrix": spaces.Box(
-        #            low=-2,
-        #            high=2,
-        #            shape=(len(self._cmap_edges), self._horizon),
-        #            dtype=np.int8,
-        #        ),
-        #        "graph_x": spaces.Box(
-        #            low=-np.inf,
-        #            high=np.inf,
-        #            shape=(self._num_phys_qubits, 3),
-        #            dtype=np.float32,
-        #        ),
-        #        "graph_edge_idx": spaces.Box(
-        #            low=0,
-        #            high=self._num_phys_qubits,
-        #            shape=(2, 100),
-        #            dtype=np.int64,
-        #        ),
-        #    }
-        # )
+        if policy_type is ActorCriticPolicyType.BASIC:
+            self.observation_space = spaces.Box(
+                low=-2,
+                high=2,
+                shape=(self._num_active_swaps, self._horizon),
+                dtype=np.int8,
+            )
+        else:
+            self.observation_space = spaces.Dict(
+                {
+                    "matrix": spaces.Box(
+                        low=-2,
+                        high=2,
+                        shape=(self._num_active_swaps, self._horizon),
+                        dtype=np.int8,
+                    ),
+                    "graph_x": spaces.Box(
+                        low=-np.inf,
+                        high=np.inf,
+                        shape=(self._num_active_swaps, 3),
+                        dtype=np.float32,
+                    ),
+                    "graph_edge_idx": spaces.Box(
+                        low=0,
+                        high=self._num_active_swaps,
+                        shape=(2, 100),
+                        dtype=np.int64,
+                    ),
+                }
+            )
 
         self._completion_reward = 1.0
         self._swap_penalty = 0.01
@@ -251,7 +256,8 @@ class RoutingEnv(gymnasium.Env):
         return None
 
     def _update_obs(self):
-        # self._gnn = self._build_graph()
+        if self._policy_type is not ActorCriticPolicyType.BASIC:
+            self._gnn = self._build_graph()
         self._matrix = self._build_matrix()
 
     def _execute_front_layer(self) -> int:
@@ -278,13 +284,15 @@ class RoutingEnv(gymnasium.Env):
         return gates_executed
 
     def _get_obs(self):
-        return self._matrix
-        # graph_x, graph_edge_idx = self._gnn
-        # return {
-        #    "matrix": self._cached_matrix,
-        #    "graph_x": graph_x,
-        #    "graph_edge_idx": graph_edge_idx,
-        # }
+        if self._policy_type is ActorCriticPolicyType.BASIC:
+            return self._matrix
+
+        graph_x, graph_edge_idx = self._gnn
+        return {
+            "matrix": self._matrix,
+            "graph_x": graph_x,
+            "graph_edge_idx": graph_edge_idx,
+        }
 
     def _build_matrix(self) -> np.ndarray:
         layers = list(self._dag.layers())

@@ -1,13 +1,13 @@
 import unittest
-import torch
 
+import torch
 from qiskit import QuantumCircuit
 
-from src.states.tensor_state_handler import TensorStateHandler
-from src.states.qtensor import Qtensor
-from src.states.qtensor_state_handler import QtensorStateHandler
 from src.states.circuit_graph import CircuitGraph
 from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.qtensor import Qtensor
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.states.tensor_state_handler import TensorStateHandler
 
 n_qubits = 6
 horizon = 10

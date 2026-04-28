@@ -1,12 +1,14 @@
-from torch_geometric.loader import DataLoader
-from src.states.circuit_graph import CircuitGraph
-from qiskit import QuantumCircuit
 from abc import abstractmethod
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-from torch_geometric.nn import GINEConv, global_add_pool, BatchNorm
+from qiskit import QuantumCircuit
 from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
+from torch_geometric.nn import BatchNorm, GINEConv, global_add_pool
+
+from src.states.circuit_graph import CircuitGraph
 
 # class AttentionModel(nn.Module):
 #     def __init__(self, n_qubits, d_model, nhead, num_layers):

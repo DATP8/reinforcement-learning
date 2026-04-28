@@ -1,5 +1,5 @@
-from qiskit.circuit import CircuitInstruction
 from qiskit import QuantumCircuit
+from qiskit.circuit import CircuitInstruction
 from qiskit.transpiler import CouplingMap as CM
 
 

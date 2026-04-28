@@ -1,6 +1,6 @@
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 import torch
 import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch_geometric.nn import GCNConv, global_mean_pool
 
 

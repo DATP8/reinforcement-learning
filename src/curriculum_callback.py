@@ -1,5 +1,5 @@
-from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
+from stable_baselines3.common.callbacks import BaseCallback
 
 
 class CurriculumCallback(BaseCallback):
@@ -35,6 +35,10 @@ class CurriculumCallback(BaseCallback):
             current_diff += 1
             self.training_env.env_method("set_difficulty", current_diff)
             if self.verbose > 0:
+                print(
+                    f"\n[Curriculum] Rollout success rate: {success_rate:.2f} (Difficulty {current_diff})"
+                )
+
                 print(f"[Curriculum] Difficulty increased to {current_diff}!")
 
         self.rollout_successes.clear()

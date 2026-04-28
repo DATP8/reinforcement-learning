@@ -1,5 +1,7 @@
-import numpy as np
 import unittest
+
+import numpy as np
+
 from src.circuit_generator import CircuitGenerator
 
 
