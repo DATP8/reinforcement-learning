@@ -26,7 +26,7 @@ METRIC_KEYS = [
     ("2Q Depth", 10),
 ]
 
-EVAL_SEED = 1  # np.random.randint(0, 2**31 - 1)
+EVAL_SEED = np.random.randint(0, 2**31 - 1)
 EVAL_TRIALS = 12
 
 
@@ -180,20 +180,25 @@ class Benchmarker:
                 ci_dic[metric] = ci_val
             self._print_row(title, metrics=mean_dic, ci=ci_dic)
 
-    def bench_pass(self, qc, pm, title):
-
+    def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
         has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
         if has_classical_ops:
-            qc = qc.remove_final_measurements(inplace=False)
+            qc = qc.remove_final_measurements(inplace=False) # pyrefly: ignore
 
         start = time.perf_counter()
-        routed = pm.run(qc)
+        routed: QuantumCircuit = pm.run(qc)
         end = time.perf_counter()
 
         transpile_time = end - start
 
         org_op = Operator.from_circuit(qc)
         routed_op = Operator.from_circuit(routed)
+        if not routed_op.equiv(org_op):
+            org_op = Operator.from_circuit(qc, layout=routed.layout.initial_layout)
+            routed_op = Operator.from_circuit(routed, layout=routed.layout.initial_layout)
+            print(routed.layout)
+            print(routed.layout.initial_layout if routed.layout else None)
+            
         assert routed_op.equiv(org_op), (
             f"\n\nFor the following configuration {title}\n"
             f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
@@ -202,7 +207,7 @@ class Benchmarker:
         return self._collect_metrics(routed, transpile_time)
 
     def bench_circuit(
-        self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title
+        self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title: str
     ):
         runs = {}
 
@@ -253,13 +258,6 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    ai_routing = AIRouting(
-        coupling_map=coupling_map,
-        optimization_level=1,
-        layout_mode="keep",
-        local_mode=True,
-    )
-
     horizon = 64
     policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
@@ -293,52 +291,36 @@ if __name__ == "__main__":
         (
             "TrivialLayout_SabreSwap_basic",
             PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    SabreSwap(
-                        coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS
-                    ),
-                ]
+                SabreSwap(
+                    coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS
+                ),
             ),
         ),
         (
             "TrivialLayout_SabreSwap_lookahead",
             PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    SabreSwap(
-                        coupling_map=coupling_map,
-                        seed=EVAL_SEED,
-                        trials=EVAL_TRIALS,
-                        heuristic="lookahead",
-                    ),
-                ]
+                SabreSwap(
+                    coupling_map=coupling_map,
+                    seed=EVAL_SEED,
+                    trials=EVAL_TRIALS,
+                    heuristic="lookahead",
+                ),
             ),
         ),
         (
             "TrivialLayout_SabreSwap_decay",
             PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    SabreSwap(
-                        coupling_map=coupling_map,
-                        seed=EVAL_SEED,
-                        trials=EVAL_TRIALS,
-                        heuristic="decay",
-                    ),
-                ]
+                SabreSwap(
+                    coupling_map=coupling_map,
+                    seed=EVAL_SEED,
+                    trials=EVAL_TRIALS,
+                    heuristic="decay",
+                ),
             ),
         ),
         (
-            "TrivialLayout_AI_ibm",
-            PassManager([trivial_layout, ApplyLayout(), ai_routing]),
-        ),
-        (
             f"TrivialLayout_MaskablePPO_{horizon}",
-            PassManager([trivial_layout, ApplyLayout(), agentic_router]),
+            PassManager(agentic_router),
         ),
         (
             "SabreLayout_SabreSwap_basic",
@@ -383,10 +365,6 @@ if __name__ == "__main__":
             ),
         ),
         (
-            "SabreLayout_AI_ibm",
-            PassManager([trivial_layout, ApplyLayout(), ai_routing]),
-        ),
-        (
             f"SabreLayout_MaskablePPO_{horizon}",
             PassManager(
                 [
@@ -397,7 +375,11 @@ if __name__ == "__main__":
             ),
         ),
         (
-            "Op0 qiskit",
+            "AI_ibm",
+            PassManager(AIRouting(coupling_map=coupling_map, optimization_level=3, optimization_preferences="n_gates"))
+        ),
+        (
+            "Op0_qiskit",
             generate_preset_pass_manager(
                 optimization_level=0,
                 coupling_map=coupling_map,
@@ -412,8 +394,8 @@ if __name__ == "__main__":
     print("EVAL_SEED:", EVAL_SEED)
     print("EVAL_TRIALS:", EVAL_TRIALS)
 
-    bench_iterations = 10
-    bench_circut_gate_count = 30
+    bench_iterations = 100
+    bench_circut_gate_count = 2
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
