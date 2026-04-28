@@ -68,7 +68,7 @@ if __name__ == "__main__":
     # )
 
     model = MaskablePPO(
-        "MlpPolicy",
+        POLICY_TYPE.get_sb3_policy(),
         train_env,
         verbose=1,
         batch_size=BATCH_SIZE,

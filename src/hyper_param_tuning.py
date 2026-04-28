@@ -106,7 +106,7 @@ def maskable_ppo_obj(config):
     eval_env = Monitor(eval_env)
 
     model = MaskablePPO(
-        "MlpPolicy",
+        config["policy_type"].get_sb3_policy(),
         train_env,
         learning_rate=config["learning_rate"],
         gamma=config["gamma"],
@@ -132,7 +132,7 @@ def maskable_ppo_obj(config):
 
 if __name__ == "__main__":
     cpus_per_trial = 4
-    num_unique_samples = 32
+    num_unique_samples = 128
     repeats_per_config = 1
     grace_period = 10
 
@@ -144,6 +144,8 @@ if __name__ == "__main__":
 
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
+    num_qubits = 6
+
     search_space = {
         "learning_rate": tune.loguniform(1e-5, 1e-1),
         "gamma": tune.uniform(0.8, 1.0),
@@ -151,18 +153,18 @@ if __name__ == "__main__":
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
         "policy_type": tune.choice([e for e in ActorCriticPolicyType]),
-        "num_qubits": 6,
+        "n_steps": tune.choice([256, 512, 1024, 2048]),
+        "num_qubits": num_qubits,
+        "num_active_swaps": tune.randint(1, num_qubits + 1),
         "initial_difficulty": 1,
         "max_difficulty": 256,
-        "diff_slope": 2,
+        "diff_slope": 1,
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "n_eval_episodes": 10,
         "total_timesteps": 10_000_000,
-        "num_active_swaps": 6,
         "num_envs": cpus_per_trial,
-        "n_steps": 2048,
         "n_epochs": 10,
     }
 

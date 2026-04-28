@@ -72,7 +72,7 @@ class RoutingEnv(gymnasium.Env):
                     "graph_x": spaces.Box(
                         low=-np.inf,
                         high=np.inf,
-                        shape=(self._num_active_swaps, 3),
+                        shape=(self._num_qubits, 3),
                         dtype=np.float32,
                     ),
                     "graph_edge_idx": spaces.Box(

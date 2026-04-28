@@ -1,7 +1,14 @@
-from enum import Enum
+from enum import Enum, auto
 
 
 class ActorCriticPolicyType(Enum):
-    BASIC = 1
-    SIMPLE_GNN = 2
-    HYBRID_GNN = 3
+    BASIC = auto()
+    SIMPLE_GNN = auto()
+    HYBRID_GNN = auto()
+
+    def get_sb3_policy(self) -> str:
+        match self.name:
+            case self.BASIC.name:
+                return "MlpPolicy"
+            case _:
+                return "MultiInputPolicy"
