@@ -1,5 +1,11 @@
 import matplotlib
 import torch
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
+from src.model import BiCircuitGNNDense
+from src.states.state_handler import StateHandler
+from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.model import ValueModel, BiCircuitGNN
 from torch import nn
 
 from src.model import BiCircuitGNN, ValueModel
@@ -113,11 +119,9 @@ def qtensor():
 def graph():
     n_qubits = 6
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game = CircuitGraphStateHandler(n_qubits, topology)
-    # training_model = BiCircuitGNN(n_qubits, len(topology))
-    # evaluation_model = BiCircuitGNN(n_qubits, len(topology))
-    training_model = BiCircuitGNN(n_qubits)
-    evaluation_model = BiCircuitGNN(n_qubits)
+    game = DenseCircuitGraphStateHandler(n_qubits, topology)
+    training_model = BiCircuitGNNDense(n_qubits)
+    evaluation_model = BiCircuitGNNDense(n_qubits)
 
     trainer = DAVI(training_model, evaluation_model, game)
 
