@@ -192,13 +192,7 @@ class Benchmarker:
         transpile_time = end - start
 
         org_op = Operator.from_circuit(qc)
-        routed_op = Operator.from_circuit(routed)
-        if not routed_op.equiv(org_op):
-            org_op = Operator.from_circuit(qc, layout=routed.layout.initial_layout)
-            routed_op = Operator.from_circuit(routed, layout=routed.layout.initial_layout)
-            print(routed.layout)
-            print(routed.layout.initial_layout if routed.layout else None)
-            
+        routed_op = Operator.from_circuit(routed)          
         assert routed_op.equiv(org_op), (
             f"\n\nFor the following configuration {title}\n"
             f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
