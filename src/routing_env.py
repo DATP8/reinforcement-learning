@@ -89,7 +89,7 @@ class RoutingEnv(gymnasium.Env):
 
         self._completion_reward = 1.0
         self._swap_penalty = 0.01
-        self._cancellation_discount = 2 / 3
+        self._cancellation_discount = 1 / 3
         self._visited_layouts = set()
 
     def _build_dist_pairs(self) -> None:
