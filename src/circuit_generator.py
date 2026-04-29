@@ -114,6 +114,7 @@ class CircuitGenerator:
 
         return qc
 
+    @staticmethod
     def generate_n_random_circuits(
         n: int,
         num_qubits: int,

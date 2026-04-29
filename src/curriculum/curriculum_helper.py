@@ -69,6 +69,7 @@ class CircuitMetrics:
 
         return pd.DataFrame(rows)
 
+    @staticmethod
     def from_df(df: pd.DataFrame):
         circuits = []
 

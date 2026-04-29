@@ -89,7 +89,7 @@ class RoutingEnv(gymnasium.Env):
 
         self._completion_reward = 1.0
         self._swap_penalty = 0.01
-        self._cancellation_bonus = self._swap_penalty / 3
+        self._cancellation_discount = 2 / 3
         self._visited_layouts = set()
 
     def _build_dist_pairs(self) -> None:
@@ -209,12 +209,12 @@ class RoutingEnv(gymnasium.Env):
         self.l2p[l1] = p0
 
         cancelled_nodes = self._pop_recent_cx(p0, p1)
-        cancellation = 0
+        cancellation = False
         if cancelled_nodes:
             phys_ctrl, phys_trgt = cancelled_nodes
             self.routed_circuit.cx(phys_trgt, phys_ctrl)
             self.routed_circuit.cx(phys_ctrl, phys_trgt)
-            cancellation = 1
+            cancellation = True
         else:
             self.routed_circuit.swap(p0, p1)
 
@@ -227,10 +227,9 @@ class RoutingEnv(gymnasium.Env):
         terminated = self.is_terminal()
         truncated = self._remaining_swaps == 0 and not terminated
 
-        cancellation_bonus = cancellation * self._cancellation_bonus
-        achieved = (self._completion_reward if terminated else 0.0) + cancellation_bonus
-        penalty = self._swap_penalty
-
+        cancellation_discount = self._cancellation_discount if cancellation else 1.0
+        achieved = self._completion_reward if terminated else 0.0
+        penalty = self._swap_penalty * cancellation_discount
         reward = achieved - penalty
 
         self._update_obs()

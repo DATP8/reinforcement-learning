@@ -1,5 +1,3 @@
-from src.states.dense_circuit_graph import DenseCircuitGraph
-from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
 import unittest
 
 import torch
@@ -7,6 +5,8 @@ from qiskit import QuantumCircuit
 
 from src.states.circuit_graph import CircuitGraph
 from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.dense_circuit_graph import DenseCircuitGraph
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
 from src.states.qtensor import Qtensor
 from src.states.qtensor_state_handler import QtensorStateHandler
 from src.states.tensor_state_handler import TensorStateHandler

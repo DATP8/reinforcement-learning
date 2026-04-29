@@ -62,7 +62,7 @@ class Benchmarker:
         print(header)
         print(underline)
 
-    def _print_row(self, name, metrics, ci=None):
+    def _print_row(self, name: str, metrics, ci=None):
         row = f"{name:<30}"
         for label, width in METRIC_KEYS:
             value = metrics[label]
@@ -81,7 +81,7 @@ class Benchmarker:
             return qc
         return qc.decompose(reps=5)
 
-    def _collect_metrics(self, routed_circuit, transpile_time):
+    def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
         ops = routed_circuit.count_ops()
 
         swaps = ops.get("swap", 0)
@@ -183,7 +183,7 @@ class Benchmarker:
     def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
         has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
         if has_classical_ops:
-            qc = qc.remove_final_measurements(inplace=False) # pyrefly: ignore
+            qc = qc.remove_final_measurements(inplace=False)  # pyrefly: ignore
 
         start = time.perf_counter()
         routed: QuantumCircuit = pm.run(qc)
@@ -191,8 +191,17 @@ class Benchmarker:
 
         transpile_time = end - start
 
+        # from AIRouting: self.property_set["layout"] = initial_layout_qiskit
+        # print(pm.property_set["layout"])
+
         org_op = Operator.from_circuit(qc)
-        routed_op = Operator.from_circuit(routed)          
+        routed_op = Operator.from_circuit(routed)
+
+        is_equiv = routed_op.equiv(org_op)
+
+        if not is_equiv:
+            routed_op = Operator.from_circuit(routed, layout=pm.property_set["layout"])
+
         assert routed_op.equiv(org_op), (
             f"\n\nFor the following configuration {title}\n"
             f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
@@ -211,7 +220,9 @@ class Benchmarker:
 
         return runs
 
-    def bench_config(self, qc_list, config):
+    def bench_config(
+        self, qc_list: list[QuantumCircuit], config: tuple[str, PassManager]
+    ):
         runs = []
 
         title, pm = config
@@ -252,7 +263,7 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 64
+    horizon = 6
     policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
     ppo_env = make_env(
@@ -279,6 +290,28 @@ if __name__ == "__main__":
         layout_trials=EVAL_TRIALS,
         seed=EVAL_SEED,
     )
+
+    ai_router = AIRouting(
+        coupling_map=coupling_map,
+        layout_mode="keep",
+        optimization_level=3,
+        optimization_preferences="n_gates",
+    )
+
+    original_run = AIRouting.run
+
+    def patched_run(self, dag):
+        """
+        For some reason AIRouting overwrites layout property even with keep
+        """
+        saved_layout = self.property_set.get("layout", None)
+        result_dag = original_run(self, dag)
+        if self.layout_mode == "KEEP" and saved_layout is not None:
+            self.property_set["layout"] = saved_layout
+
+        return result_dag
+
+    AIRouting.run = patched_run
 
     #### Standard qiskit pass manager inserted router
     configs = [
@@ -315,6 +348,10 @@ if __name__ == "__main__":
         (
             f"TrivialLayout_MaskablePPO_{horizon}",
             PassManager(agentic_router),
+        ),
+        (
+            "TrivialLayout_AI_ibm",
+            PassManager([trivial_layout, ApplyLayout(), ai_router]),
         ),
         (
             "SabreLayout_SabreSwap_basic",
@@ -368,10 +405,7 @@ if __name__ == "__main__":
                 ]
             ),
         ),
-        (
-            "AI_ibm",
-            PassManager(AIRouting(coupling_map=coupling_map, optimization_level=3, optimization_preferences="n_gates"))
-        ),
+        ("SabreLayout_AI_ibm", PassManager([sabre_layout, ApplyLayout(), ai_router])),
         (
             "Op0_qiskit",
             generate_preset_pass_manager(
@@ -389,7 +423,7 @@ if __name__ == "__main__":
     print("EVAL_TRIALS:", EVAL_TRIALS)
 
     bench_iterations = 100
-    bench_circut_gate_count = 2
+    bench_circut_gate_count = 100
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
