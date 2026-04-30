@@ -1,3 +1,4 @@
+from cmath import sqrt
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from sb3_contrib import MaskablePPO
 from src.ppo_util import make_env
@@ -5,10 +6,10 @@ from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
 )
+from qiskit.circuit.library import PermutationGate
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
-from qiskit_ibm_transpiler.ai.routing import AIRouting
 from qiskit import QuantumCircuit
 from qiskit import qpy
 from scipy import stats
@@ -187,7 +188,9 @@ class Benchmarker:
         self,
         configs: list[tuple[str, PassManager]],
         iterations: int,
+        title: str,
         confidence: float = 0.95,
+        is_printing: bool = True
     ):
         qc_list = []
 
@@ -198,9 +201,11 @@ class Benchmarker:
                 self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
             )
 
-        self._print_header(
-            title=f"{len(qc_list)} random circuits", confidence=confidence
-        )
+        if (is_printing):
+            self._print_header(
+                title=title, confidence=confidence
+            )
+        results = {}
         for config in configs:
             mean_dic = {}
             ci_dic = {}
@@ -216,7 +221,12 @@ class Benchmarker:
                 )
                 mean_dic[metric] = arr.mean()
                 ci_dic[metric] = ci_val
-            self._print_row(title, metrics=mean_dic, ci=ci_dic)
+
+            results[title] = (mean_dic, ci_dic)
+
+            if (is_printing):
+                self._print_row(title, metrics=mean_dic, ci=ci_dic)
+        return results
 
     def bench_pass(self, qc, pm, title):
 
@@ -230,7 +240,7 @@ class Benchmarker:
         end = time.perf_counter()
 
         transpile_time = end - start
-        
+
         try:
             org_op = Operator.from_circuit(qc)
             routed_op = Operator.from_circuit(routed)
@@ -268,76 +278,96 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter
-    from qiskit.transpiler.passes import ApplyLayout, SabreLayout, TrivialLayout
-    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-
-    from qiskit.transpiler.passes import SabreSwap
-
-    n_qubits = 6
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    state_handler = CircuitGraphStateHandler(n_qubits, topology)
-
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
-
-    swap_inserter = SwapInserter(coupling_map, n_qubits)
-
-    ai_routing = AIRouting(
-        coupling_map=coupling_map,
-        optimization_level=1,
-        layout_mode="KEEP",
-        local_mode=True,
-    )
-
-    ai_routing_op = AIRouting(
-        coupling_map=coupling_map,
-        optimization_level=1,
-        local_mode=True,
-    )
-
-
-    horizon = 32
-    ppo_env = make_env(
-        n_qubits, coupling_map, num_active_swaps=6, horizon=horizon, diff_slope=2
-    )
-
-    trivial_layout = TrivialLayout(coupling_map)
-    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
-
+    from src.benchmark.passmanager_creaters import IbmRlBuilder, SabreBuilder, QiskitTranspiler
     
-    #### Standard qiskit pass manager inserted router
-    configs = [
-        (
-            "TrivialLayout_SabreSwap",
-            PassManager([SabreSwap(coupling_map=coupling_map)])
-        ),
-        (
-            "TrivialLayout_AI_ibm",
-            PassManager([ ai_routing])
-        ),
-        (
-            "SabreLayout_SabreSwap",
-            PassManager([sabre_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)])
-        ),
-        # (
-        #     "layout_AI_ibm",
-        #     PassManager([ai_routing_op])
-        # ),
-        (
-            "Op0 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=0, coupling_map=coupling_map
+    start_qubits = 4
+    end_qubits = 10
+
+    sqrt_qubits = int(sqrt(end_qubits).real)
+    print(sqrt_qubits)
+    [print(f"x: {x}, y: {y}") for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)]
+
+    coupling_map_list = []
+    coupling_map_list.extend([(f"grid",            CouplingMap().from_grid(x, y))              for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
+    coupling_map_list.extend([(f"hex_lattice",     CouplingMap().from_hexagonal_lattice(x, y)) for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
+    coupling_map_list.extend([(f"hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(start_qubits, end_qubits) if x % 2 == 1])
+    coupling_map_list.extend([(f"hex_square",      CouplingMap().from_heavy_square(x))         for x in range(start_qubits, end_qubits) if x % 2 == 1])
+    coupling_map_list.extend([(f"ring",            CouplingMap().from_ring(x))                 for x in range(start_qubits, end_qubits)])
+    coupling_map_list.extend([(f"line",            CouplingMap().from_line(x))                 for x in range(start_qubits, end_qubits)])
+
+    results = {}
+
+    for (title, coupling_map) in coupling_map_list:
+        coupling_map.make_symmetric()
+
+        ai_routing = IbmRlBuilder(
+            op_level=3,
+            layout_mode="KEEP",
+        ).build(coupling_map)
+
+        ai_routing_op = IbmRlBuilder(
+            op_level=3,
+            layout_mode="OPTIMIZE",
+        ).build(coupling_map)
+
+        trivial_sabre = SabreBuilder(
+            use_sabre_layout=False
+        ).build(coupling_map)
+
+        sabre_sabre = SabreBuilder(
+            use_sabre_layout=False
+        ).build(coupling_map)
+
+        qiskit_transpiler = QiskitTranspiler(
+            op_level=3
+        ).build(coupling_map)
+
+        configs = [
+            (
+                "layout_AI_ibm",
+                ai_routing_op
             ),
-        ),
-    ]
+            (
+                "TrivialLayout_SabreSwap",
+                trivial_sabre
+            ),
+            (
+                "TrivialLayout_AI_ibm",
+                ai_routing
+            ),
+            (
+                "SabreLayout_SabreSwap",
+                sabre_sabre
+            ),
+            (
+                "Op0 qiskit",
+                qiskit_transpiler
+            ),
+        ]
 
-    #### Pass manager with only routing stage
-    # configs = [(title, PassManager([router])) for title, router in routers]
+        bench_iterations = 2
+        bench_circut_gate_count = 100
+        n_qubits = coupling_map.size()
+        bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
+        #bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+        
+        temp_results = bench.run_rand_benchmarks(configs, bench_iterations, title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",is_printing=True)  # pyrefly: ignore
+        if title not in results:
+            results[title] = {} 
 
-    bench_iterations = 100
-    bench_circut_gate_count = 100
-    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
-    print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+        for config in temp_results:
+
+            if config not in results[title]:
+                results[title][config] = {} 
+
+            mean, ci = temp_results[config]
+            results[title][config][n_qubits] = {
+                metric: {"mean": mean[metric], "ci": ci[metric]}
+                for metric, _ in METRIC_KEYS
+            }
+
+        results_dir = ROOT_DIR / "results"
+        results_dir.mkdir(exist_ok=True)
+        results_file = results_dir / "benchmark_results.json"
+        with open(results_file, "w") as f:
+            json.dump(results, f, indent=2)
