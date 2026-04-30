@@ -28,7 +28,7 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 6
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.DENSE_GRAPH_GNN
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.HYBRID_GNN
 
 if __name__ == "__main__":
     coupling_map = CouplingMap.from_line(NUM_QUBITS)
