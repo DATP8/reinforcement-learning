@@ -184,8 +184,9 @@ class BiCircuitGNN(nn.Module):
 
 
 class BiCircuitGNNDense(nn.Module):
-    def __init__(self, n_qubits, hidden_dim=128):
+    def __init__(self, n_qubits, hidden_dim=128, ppo_mode=False):
         super().__init__()
+        self._ppo_mode = ppo_mode
 
         self.node_encoder = nn.Linear(n_qubits * 2, hidden_dim)
         self.edge_encoder = nn.Linear(n_qubits + 1, hidden_dim)
@@ -209,8 +210,12 @@ class BiCircuitGNNDense(nn.Module):
         self.b_bn1 = BatchNorm(hidden_dim)
         self.b_bn2 = BatchNorm(hidden_dim)
 
-        self.head = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
+        self.head =  nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim), 
+        ) if ppo_mode else nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim), 
+            nn.ReLU(), 
+            nn.Linear(hidden_dim, 1)
         )
 
     def forward(self, data: Data):

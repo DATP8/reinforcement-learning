@@ -13,7 +13,6 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-
 HORIZON = 64
 MAX_DIFF = 256
 SLOPE = 1
@@ -29,7 +28,7 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 6
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.DENSE_GRAPH_GNN
 
 if __name__ == "__main__":
     coupling_map = CouplingMap.from_line(NUM_QUBITS)

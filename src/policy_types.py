@@ -1,12 +1,13 @@
 from enum import Enum, auto
 
-from src.gym_extractor import HybridExtractor, SimpleExtractor
+from src.gym_extractor import HybridExtractor, SimpleExtractor, DenseDagExtractor
 
 
 class ActorCriticPolicyType(Enum):
     BASIC = auto()
     SIMPLE_MLP = auto()
     HYBRID_GNN = auto()
+    DENSE_GRAPH_GNN = auto()
 
     def get_sb3_policy(self) -> str:
         match self.name:
@@ -21,6 +22,8 @@ class ActorCriticPolicyType(Enum):
                 return SimpleExtractor
             case self.HYBRID_GNN.name:
                 return HybridExtractor
+            case self.DENSE_GRAPH_GNN.name:
+                return DenseDagExtractor
 
     def get_policy_kwargs(self):
         if self.name == self.BASIC.name:

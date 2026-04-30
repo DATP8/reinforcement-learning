@@ -28,6 +28,10 @@ class DenseCircuitGraph(Data):
         return hash(hashlib.blake2b(t.numpy().tobytes(), digest_size=8).digest())
 
     @classmethod
+    def from_tensors(cls, x, edge_index, edge_attr):
+        return cls(x=x, edge_index=edge_index, edge_attr=edge_attr)
+
+    @classmethod
     def from_circuit(cls, qc: QuantumCircuit):
         n_qubits = qc.num_qubits
         two_qubit_gates = []

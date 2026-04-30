@@ -1,11 +1,14 @@
+from qiskit.converters import dag_to_circuit
 import gymnasium
 import numpy as np
 from gymnasium import spaces
 from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
+import torch
 
 from src.policy_types import ActorCriticPolicyType
+from src.states.dense_circuit_graph import DenseCircuitGraph
 
 
 class RoutingEnv(gymnasium.Env):
@@ -53,39 +56,70 @@ class RoutingEnv(gymnasium.Env):
         self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self.action_space = spaces.Discrete(self._num_active_swaps)
 
-        if (
-            policy_type is ActorCriticPolicyType.BASIC
-            or policy_type is ActorCriticPolicyType.SIMPLE_MLP
-        ):
-            self.observation_space = spaces.Box(
-                low=-2,
-                high=2,
-                shape=(self._num_active_swaps, self._horizon),
-                dtype=np.int8,
-            )
-        else:
-            self.observation_space = spaces.Dict(
-                {
-                    "matrix": spaces.Box(
-                        low=-2,
-                        high=2,
-                        shape=(self._num_active_swaps, self._horizon),
-                        dtype=np.int8,
-                    ),
-                    "graph_x": spaces.Box(
-                        low=-np.inf,
-                        high=np.inf,
-                        shape=(self._num_qubits, 3),
-                        dtype=np.float32,
-                    ),
-                    "graph_edge_idx": spaces.Box(
-                        low=0,
-                        high=self._num_active_swaps,
-                        shape=(2, 100),
-                        dtype=np.int64,
-                    ),
-                }
-            )
+        match(policy_type):
+                    case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
+                        self.observation_space = spaces.Box(
+                            low=-2,
+                            high=2,
+                            shape=(self._num_active_swaps, self._horizon),
+                            dtype=np.int8,
+                        )
+                    case ActorCriticPolicyType.DENSE_GRAPH_GNN:
+                        self.observation_space = spaces.Dict(
+                            {
+                                "matrix": spaces.Box(
+                                    low=-2,
+                                    high=2,
+                                    shape=(self._num_active_swaps, self._horizon),
+                                    dtype=np.int8,
+                                ),
+                                "graph_x": spaces.Box(
+                                    low=-np.inf,
+                                    high=np.inf,
+                                    shape=(horizon + 1, self._num_qubits * 2),
+                                    dtype=np.float32,
+                                ),
+                                "graph_edge_index": spaces.Box(
+                                    low=0,
+                                    high=self._num_active_swaps,
+                                    # shape=(2, 100),
+                                    shape=(100, 2),
+                                    dtype=np.int64,
+                                ),
+                                "graph_edge_attr": spaces.Box(
+                                    low=0,
+                                    high=self._num_active_swaps,
+                                    # shape=(self._num_qubits + 1, 100),
+                                    shape=(100, self._num_qubits + 1),
+                                    dtype=np.int64,
+                                ),
+                                "graph_num_nodes": spaces.Box(low=1, high=horizon + 1, shape=(1,), dtype=np.int64),
+                                "graph_num_edges": spaces.Box(low=1, high=100, shape=(1,), dtype=np.int64),
+                            }
+                        )
+                    case _:
+                        self.observation_space = spaces.Dict(
+                            {
+                                "matrix": spaces.Box(
+                                    low=-2,
+                                    high=2,
+                                    shape=(self._num_active_swaps, self._horizon),
+                                    dtype=np.int8,
+                                ),
+                                "graph_x": spaces.Box(
+                                    low=-np.inf,
+                                    high=np.inf,
+                                    shape=(self._num_qubits, 3),
+                                    dtype=np.float32,
+                                ),
+                                "graph_edge_idx": spaces.Box(
+                                    low=0,
+                                    high=self._num_active_swaps,
+                                    shape=(2, 100),
+                                    dtype=np.int64,
+                                ),
+                            }
+                        )
 
         self._completion_reward = 1.0
         self._swap_penalty = 0.01
@@ -290,19 +324,56 @@ class RoutingEnv(gymnasium.Env):
 
         return gates_executed
 
+    def _dense_graph_to_obs(self, graph: DenseCircuitGraph, horizon: int, n_qubits: int) -> dict:
+        max_nodes = horizon + 1
+        max_edges = 100
+    
+        num_nodes = graph.x.shape[0]
+        num_edges = graph.edge_index.shape[1]
+    
+        # Pad x to (max_nodes, n_qubits*2)
+        x_padded = np.zeros((max_nodes, n_qubits * 2), dtype=np.float32)
+        x_padded[:num_nodes] = graph.x.numpy()
+    
+        # edge_index: (2, E) -> transpose to (E, 2), then pad to (max_edges, 2)
+        ei_padded = np.zeros((max_edges, 2), dtype=np.int64)
+        ei_padded[:num_edges] = graph.edge_index.t().numpy()
+    
+        # edge_attr: (E, n_qubits+1), pad to (max_edges, n_qubits+1)
+        ea_padded = np.zeros((max_edges, n_qubits + 1), dtype=np.int64)
+        ea_padded[:num_edges] = graph.edge_attr.numpy()
+    
+        return {
+            "matrix": self._matrix,
+            "graph_x": x_padded,
+            "graph_edge_index": ei_padded,
+            "graph_edge_attr": ea_padded,
+            "graph_num_nodes": np.array([num_nodes], dtype=np.int64),
+            "graph_num_edges": np.array([num_edges], dtype=np.int64),
+        }
+
     def _get_obs(self):
+        def pad_to(tensor, target_shape, pad_value=0):
+            result = torch.full(target_shape, pad_value, dtype=tensor.dtype)
+            slices = tuple(slice(0, min(s, t)) for s, t in zip(tensor.shape, target_shape))
+            result[slices] = tensor[slices]
+            return result
+
         match self._policy_type:
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
                 return self._matrix
-            case _:
-                pass
+            case ActorCriticPolicyType.HYBRID_GNN:
+                graph_x, graph_edge_idx = self._gnn
+                return {
+                    "matrix": self._matrix,
+                    "graph_x": graph_x,
+                    "graph_edge_idx": graph_edge_idx,
+                }
+            case ActorCriticPolicyType.DENSE_GRAPH_GNN:
+                circuit = dag_to_circuit(self._dag)
+                graph = DenseCircuitGraph.from_circuit(circuit)
+                return self._dense_graph_to_obs(graph, self._horizon, self._num_qubits)
 
-        graph_x, graph_edge_idx = self._gnn
-        return {
-            "matrix": self._matrix,
-            "graph_x": graph_x,
-            "graph_edge_idx": graph_edge_idx,
-        }
 
     def _build_matrix(self) -> np.ndarray:
         layers = list(self._dag.layers())
