@@ -64,7 +64,7 @@ class RayTuneCurriculumCallback(MaskableEvalCallback):
                 metrics["best_mean_reward"] = self._tune_best_reward
 
                 with tempfile.TemporaryDirectory() as ckpt_dir:
-                    self.model.save(os.path.join(ckpt_dir, "best_model"))
+                    self.model.save(os.path.join(ckpt_dir, "model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
                     tune.report(metrics, checkpoint=checkpoint)
             else:
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     cpus_per_trial = 4
     num_unique_samples = 128
     repeats_per_config = 1
-    grace_period = 10
+    grace_period = 5
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // cpus_per_trial)
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
-    num_qubits = 6
+    num_qubits = 3
 
     search_space = {
         "learning_rate": tune.loguniform(1e-5, 1e-1),
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         "threshold": 0.85,
         "base_eval_freq": 100_000,
         "n_eval_episodes": 10,
-        "total_timesteps": 15_000_000,
+        "total_timesteps": 10_000_000,
         "num_envs": cpus_per_trial,
         "n_epochs": 10,
     }

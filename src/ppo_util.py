@@ -24,7 +24,7 @@ def make_env(
     horizon: int,
     initial_difficulty: int,
     max_difficulty: int,
-    diff_slope: int,
+    diff_slope: float,
     layout_exponent: float,
     policy_type: ActorCriticPolicyType,
     render_mode: str | None = None,

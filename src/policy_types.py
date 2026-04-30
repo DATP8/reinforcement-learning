@@ -1,6 +1,6 @@
 from enum import Enum, auto
 
-from src.gym_extractor import HybridExtractor, SimpleExtractor, DenseDagExtractor
+from src.gym_extractor import DenseDagExtractor, HybridExtractor, SimpleExtractor
 
 
 class ActorCriticPolicyType(Enum):

@@ -210,12 +210,16 @@ class BiCircuitGNNDense(nn.Module):
         self.b_bn1 = BatchNorm(hidden_dim)
         self.b_bn2 = BatchNorm(hidden_dim)
 
-        self.head =  nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim), 
-        ) if ppo_mode else nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim), 
-            nn.ReLU(), 
-            nn.Linear(hidden_dim, 1)
+        self.head = (
+            nn.Sequential(
+                nn.Linear(hidden_dim * 2, hidden_dim),
+            )
+            if ppo_mode
+            else nn.Sequential(
+                nn.Linear(hidden_dim * 2, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, 1),
+            )
         )
 
     def forward(self, data: Data):
