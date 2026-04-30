@@ -114,13 +114,14 @@ class CircuitGenerator:
 
         return qc
 
+    @staticmethod
     def generate_n_random_circuits(
         n: int,
         num_qubits: int,
         num_gates: int,
         gateset: set[str] | None = None,
         seed: int | None = None,
-    ) -> list[QuantumCircuit]:
+    ) -> list[QuantumCircuit]:  # pyrefly: ignore
         """
         Generates n random quantum circuits based on number of qubits, number of gates, and gateset.
         """
