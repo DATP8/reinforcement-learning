@@ -1,10 +1,7 @@
-from src.routing.cnot_swap_cancel import CNOTSwapCancelation
 from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
 )
-from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
-from src.model import BiCircuitGNNDense
 from qiskit import generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
@@ -238,6 +235,13 @@ if __name__ == "__main__":
     from src.model import BiCircuitGNN
     from src.routing.rl_routing_pass import RlRoutingPass
     from qiskit.transpiler.passes import SabreSwap
+    from src.routing.bwas_router import BWASRouter
+    from src.routing.cnot_swap_cancel import CNOTSwapCancelation
+    from src.states.dense_circuit_graph_state_handler import (
+        DenseCircuitGraphStateHandler,
+    )
+    from src.model import BiCircuitGNNDense
+    from src.routing.receding_horizon import RecedingHorizon
     import torch
 
     n_qubits = 6
@@ -271,6 +275,12 @@ if __name__ == "__main__":
     )
     chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
 
+    bwas_router = BWASRouter(model_dense, state_handler_dense)
+    receding_horizon_router = RecedingHorizon(
+        horizon_length=chuck_size, step_size=chuck_size // 2, router=bwas_router
+    )
+    receding_horizon_pass = RlRoutingPass(receding_horizon_router, swap_inserter)
+
     trivial_layout = TrivialLayout(coupling_map)
     sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
 
@@ -283,10 +293,6 @@ if __name__ == "__main__":
                 [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
             ),
         ),
-        # (
-        #     f"TrivialLayout_Chunking_{chuck_size}",
-        #     PassManager([trivial_layout, ApplyLayout(), chunck_swap_pass]),
-        # ),
         (
             "TrivialLayout_SabreSwap_cancel",
             PassManager(
@@ -299,7 +305,18 @@ if __name__ == "__main__":
             ),
         ),
         (
-            f"TrivialLayout_Dense_Chunking_cancel{chuck_size}",
+            f"TrivialLayout_RecedingHorizon_Dense_cancel{chuck_size}",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    receding_horizon_pass,
+                    CNOTSwapCancelation(),
+                ]
+            ),
+        ),
+        (
+            f"TrivialLayout_Chunking_Dense_cancel{chuck_size}",
             PassManager(
                 [
                     trivial_layout,
