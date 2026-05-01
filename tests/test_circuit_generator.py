@@ -42,19 +42,50 @@ class TestCircuitGenerator(unittest.TestCase):
             rqc_gates = set(gate_dict.keys())
             self.assertLessEqual(rqc_gates, gateset)
 
+        # Singleton gateset
+        gateset = self._make_random_singleton_gateset(rng, num_qubits)
+        rqcs = CircuitGenerator.generate_n_random_circuits(
+            self._NUM_TESTS, num_qubits, num_gates, gateset, seed
+        )
+
+        for rqc in rqcs:
+            self.assertEqual(num_qubits, rqc.num_qubits)
+
+            gate_dict = rqc.count_ops()
+
+            rqc_gate_count: int = sum(gate_dict.values())
+
+            if num_qubits == 0:
+                self.assertEqual(0, rqc_gate_count)
+            else:
+                self.assertEqual(num_gates, rqc_gate_count)
+
     def _make_random_gateset(
         self, rng: np.random.Generator, num_qubits: int
     ) -> set[str]:
-        if num_qubits == 0:
+        if num_qubits < 1:
             return set()
 
-        valid_gate_names = [
-            name
-            for name, gate_info in CircuitGenerator._GATE_MAP.items()
-            if gate_info[1] <= num_qubits
-        ]
+        valid_gate_names = self._get_valid_gatenames(num_qubits)
         num_gate_types = rng.choice(range(len(valid_gate_names)))
         selected_gates = rng.choice(
             valid_gate_names, size=num_gate_types, replace=False
         )
         return set(selected_gates)
+
+    def _make_random_singleton_gateset(
+        self, rng: np.random.Generator, num_qubits: int
+    ) -> str:
+        if num_qubits < 1:
+            raise ValueError(f"No gates for {num_qubits}")
+
+        valid_gate_names = self._get_valid_gatenames(num_qubits)
+        chosen_gate = rng.choice(valid_gate_names)
+        return chosen_gate
+
+    def _get_valid_gatenames(self, num_qubits: int) -> list[str]:
+        return [
+            name
+            for name, gate_info in CircuitGenerator._GATE_MAP.items()
+            if gate_info[1] <= num_qubits
+        ]

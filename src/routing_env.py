@@ -315,7 +315,7 @@ class RoutingEnv(gymnasium.Env):
                 indices = [self._qubit_indices[q] for q in node.qargs]
                 if len(indices) == 1:
                     p0 = self.l2p[indices[0]]
-                    self.routed_circuit._append(node.op, [p0])  # pyrefly: ignore
+                    self.routed_circuit.append(node.op, [p0])
                     self._dag.remove_op_node(node)
                     gates_executed += 1
                     progress = True

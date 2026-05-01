@@ -1,5 +1,6 @@
 import gymnasium
 import numpy as np
+from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit
 from qiskit.transpiler import CouplingMap
@@ -44,8 +45,12 @@ def make_env(
     return env
 
 
-def route_circuit(model: MaskablePPO, dag: DAGCircuit) -> tuple[DAGCircuit, Layout]:
-    circuit = dag_to_circuit(dag)
+def route_circuit(
+    model: MaskablePPO, circuit: DAGCircuit | QuantumCircuit
+) -> tuple[DAGCircuit, Layout]:
+    if isinstance(circuit, DAGCircuit):
+        circuit = dag_to_circuit(circuit)
+
     env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
     obs, _ = env.reset(seed=model.seed, options={"circuit": circuit})
 

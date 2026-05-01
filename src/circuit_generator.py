@@ -83,8 +83,6 @@ class CircuitGenerator:
         if gateset is None:  # Allow all gates
             gateset = set(CircuitGenerator._GATE_MAP.keys())
 
-        if seed is None:
-            seed = np.random.randint(0, np.iinfo(int).max)
         rng = np.random.default_rng(seed)
 
         filtered_gates = [
@@ -118,21 +116,50 @@ class CircuitGenerator:
     def generate_n_random_circuits(
         n: int,
         num_qubits: int,
-        num_gates: int,
-        gateset: set[str] | None = None,
+        num_gates: int | list[int],
+        gateset: str | set[str] | None = None,
         seed: int | None = None,
     ) -> list[QuantumCircuit]:
         """
         Generates n random quantum circuits based on number of qubits, number of gates, and gateset.
         """
+        len_num_gates = 0
+        if isinstance(num_gates, list):
+            if not all(isinstance(x, int) for x in num_gates):
+                raise ValueError("Must be an integer list")
+            len_num_gates = len(num_gates)
+
+        if isinstance(gateset, str):
+            gateset = {gateset}
+
+        rng = np.random.default_rng(seed)
+        seeds = rng.integers(0, np.iinfo(np.int32).max, size=n)
+
         circuits = []
-        for _ in range(n):
-            if seed is not None:
-                np.random.randint(0, np.iinfo(int).max)
+        for i, seed in enumerate(seeds):
             circuits.append(
                 CircuitGenerator.generate_random_circuit(
-                    num_qubits, num_gates, gateset, seed
+                    num_qubits,
+                    num_gates[i % len_num_gates]
+                    if isinstance(num_gates, list)
+                    else num_gates,
+                    gateset,
+                    seed,
                 )
             )
 
         return circuits
+
+    @staticmethod
+    def generate_n_random_cx_circuits(
+        n: int,
+        num_qubits: int,
+        num_gates: int | list[int],
+        seed: int | None = None,
+    ) -> list[QuantumCircuit]:
+        """
+        Generates n random cx quantum circuits based on number of qubits, number of gates.
+        """
+        return CircuitGenerator.generate_n_random_circuits(
+            n, num_qubits, num_gates, gateset="cx", seed=seed
+        )

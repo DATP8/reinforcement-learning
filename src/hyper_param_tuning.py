@@ -1,44 +1,52 @@
 import multiprocessing as mp
 import os
+import sys
 import tempfile
 
-import numpy as np
 import torch
 from numpy import random
 from qiskit.transpiler import CouplingMap
 from ray import tune
+from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna.optuna_search import OptunaSearch
 from sb3_contrib import MaskablePPO
-from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 
+from circuit_generator import CircuitGenerator
 from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
+from src.routing_env import RoutingEnv
 
 
-class RayTuneCurriculumCallback(MaskableEvalCallback):
+class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
         self,
         eval_env: Monitor,
         curriculum_callback: CurriculumCallback,
         eval_freq: int,
         n_eval_episodes: int,
+        num_qubits: int,
         seed: int,
+        eval_set_seed: int,
         verbose: int = 0,
     ):
-        super().__init__(
-            eval_env,
-            eval_freq=eval_freq,
-            n_eval_episodes=n_eval_episodes,
-            verbose=verbose,
-        )
+        super().__init__(verbose)
+        self._eval_env: RoutingEnv = eval_env.unwrapped  # pyrefly: ignore
+        self._eval_freq = eval_freq
         self._curriculum_callback = curriculum_callback
         self._seed = seed
         self._post_curriculum_evals = 0
-        self._tune_best_reward = -float("inf")
+        self._best_avg_num_swaps = sys.float_info.max
+        self._eval_circuits = CircuitGenerator.generate_n_random_cx_circuits(
+            n=n_eval_episodes,
+            num_qubits=num_qubits,
+            num_gates=[i * 8 for i in range(1, 26)],
+            seed=eval_set_seed,
+        )
 
     def _on_step(self) -> bool:
         current_diff = self.training_env.env_method("get_difficulty")[0]
@@ -47,31 +55,53 @@ class RayTuneCurriculumCallback(MaskableEvalCallback):
         if not curriculum_done:
             return True
 
-        continue_training = super()._on_step()
-
-        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+        if self._eval_freq > 0 and self.n_calls % self._eval_freq == 0:
             self._post_curriculum_evals += 1
 
+            avg_num_swaps = self._compute_num_avg_swaps()
+
             metrics = {
-                "mean_reward": self.last_mean_reward,
-                "difficulty": current_diff,
+                "avg_swaps": avg_num_swaps,
+                "diff": current_diff,
                 "seed": self._seed,
-                "post_curriculum_evals": self._post_curriculum_evals,
+                "pc_evals": self._post_curriculum_evals,
             }
 
-            if self.last_mean_reward > self._tune_best_reward:
-                self._tune_best_reward = self.last_mean_reward
-                metrics["best_mean_reward"] = self._tune_best_reward
-
+            if avg_num_swaps < self._best_avg_num_swaps:
+                self._best_avg_num_swaps = avg_num_swaps
+                metrics["best_swaps"] = self._best_avg_num_swaps
                 with tempfile.TemporaryDirectory() as ckpt_dir:
                     self.model.save(os.path.join(ckpt_dir, "model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
                     tune.report(metrics, checkpoint=checkpoint)
             else:
-                metrics["best_mean_reward"] = self._tune_best_reward
+                metrics["best_swaps"] = self._best_avg_num_swaps
                 tune.report(metrics)
 
-        return continue_training
+        return True
+
+    def _compute_num_avg_swaps(self) -> float:
+        if not isinstance(self.model, MaskablePPO):
+            raise ValueError("Must be maskable PPO")
+
+        num_swaps = 0
+        for circuit in self._eval_circuits:
+            obs, info = self._eval_env.reset(options={"circuit": circuit})
+            done = False
+            while not done:
+                mask = self._eval_env.valid_action_mask()
+                action, _ = self.model.predict(
+                    obs, action_masks=mask, deterministic=True
+                )
+
+                obs, reward, terminated, truncated, info = self._eval_env.step(action)
+                done = terminated
+
+            routed_circuit = self._eval_env.routed_circuit
+            ops = routed_circuit.count_ops()
+            num_swaps += ops.get("swap", 0)
+
+        return num_swaps / len(self._eval_circuits)
 
 
 def maskable_ppo_obj(config):
@@ -99,7 +129,7 @@ def maskable_ppo_obj(config):
         horizon=config["horizon"],
         diff_slope=config["diff_slope"],
         layout_exponent=config["layout_exponent"],
-        initial_difficulty=config["max_difficulty"],  # Strictly eval on max diff
+        initial_difficulty=config["max_difficulty"],
         max_difficulty=config["max_difficulty"],
         policy_type=config["policy_type"],
     )
@@ -116,13 +146,20 @@ def maskable_ppo_obj(config):
         n_steps=config["n_steps"],
         n_epochs=config["n_epochs"],
         seed=seed,
+        ent_coef=config["ent_coef"],
     )
 
     curriculum_callback = CurriculumCallback(config["threshold"])
 
     eval_freq = max(config["base_eval_freq"] // config["num_envs"], 1)
     ray_tune_eval = RayTuneCurriculumCallback(
-        eval_env, curriculum_callback, eval_freq, config["n_eval_episodes"], seed
+        eval_env,
+        curriculum_callback,
+        eval_freq,
+        config["n_eval_episodes"],
+        config["num_qubits"],
+        seed,
+        eval_set_seed=EVAL_SEED,
     )
 
     model.learn(
@@ -132,16 +169,20 @@ def maskable_ppo_obj(config):
 
 
 if __name__ == "__main__":
-    cpus_per_trial = 4
-    num_unique_samples = 128
-    repeats_per_config = 1
-    grace_period = 5
+    os.environ["RAY_DEDUP_LOGS"] = "0"
+    os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
+
+    EVAL_SEED = 2026
+    CPUS_PER_TRIAL = 4
+    NUM_UNIQUE_SAMPLES = 128
+    REPEATS_PER_CONFIG = 1
+    GRACE_PERIOD = 1
 
     total_cpus = mp.cpu_count()
-    num_concurrent_trials = max(1, total_cpus // cpus_per_trial)
+    num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
 
     # num_samples = repeats_per_config * num_unique_samples # when using Repeater
-    num_samples = num_unique_samples
+    num_samples = NUM_UNIQUE_SAMPLES
 
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
@@ -153,43 +194,53 @@ if __name__ == "__main__":
         "gae_lambda": tune.uniform(0.9, 1.0),
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
-        "policy_type": tune.choice([e for e in ActorCriticPolicyType]),
+        "policy_type": ActorCriticPolicyType.BASIC,  # tune.choice([e for e in ActorCriticPolicyType]),
         "n_steps": tune.choice([256, 512, 1024, 2048]),
-        "num_qubits": num_qubits,
         "num_active_swaps": tune.randint(1, num_qubits + 1),
+        "ent_coef": tune.loguniform(1e-5, 0.05),
+        "num_qubits": num_qubits,
         "initial_difficulty": 1,
         "max_difficulty": 256,
         "diff_slope": 1,
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": 100_000,
-        "n_eval_episodes": 10,
+        "n_eval_episodes": 100,
         "total_timesteps": 10_000_000,
-        "num_envs": cpus_per_trial,
+        "num_envs": CPUS_PER_TRIAL,
         "n_epochs": 10,
     }
 
-    algo = OptunaSearch(metric="mean_reward", mode="max")
+    algo = OptunaSearch(metric="best_swaps", mode="min")
     # repeated_algo = Repeater(algo, repeat=repeats_per_config) #! Can cause problems when using scheduler
 
     max_evals = search_space["total_timesteps"] // search_space["base_eval_freq"]
 
     scheduler = ASHAScheduler(
-        time_attr="post_curriculum_evals",
-        metric="mean_reward",
-        mode="max",
+        time_attr="pc_evals",
+        metric="avg_swaps",
+        mode="min",
         max_t=max_evals,
-        grace_period=grace_period,
+        grace_period=GRACE_PERIOD,
+    )
+
+    reporter = CLIReporter(
+        infer_limit=10,
+        print_intermediate_tables=True,
+        metric="best_swaps",
+        mode="min",
+        sort_by_metric=True,
     )
 
     tuner = tune.Tuner(
         tune.with_resources(
-            maskable_ppo_obj, resources={"cpu": cpus_per_trial, "gpu": gpus_per_trial}
+            maskable_ppo_obj, resources={"cpu": CPUS_PER_TRIAL, "gpu": gpus_per_trial}
         ),
         param_space=search_space,
         tune_config=tune.TuneConfig(
             num_samples=num_samples, search_alg=algo, scheduler=scheduler
         ),
+        run_config=tune.RunConfig(progress_reporter=reporter),
     )
 
     results = tuner.fit()
@@ -201,16 +252,16 @@ if __name__ == "__main__":
     agg_df = (
         df.groupby(config_cols)
         .agg(
-            avg_reward=("mean_reward", "mean"),
-            std_reward=("mean_reward", np.std),
+            best_swaps=("best_swaps", "min"),
+            final_avg_swaps=("avg_swaps", "last"),
             seeds_used=("seed", lambda x: list(x)),
         )
         .reset_index()
     )
 
-    agg_df = agg_df.sort_values("avg_reward", ascending=False)
+    agg_df = agg_df.sort_values("best_swaps", ascending=True)
 
-    print(f"\n--- Top Hyperparameters (Averaged over {repeats_per_config} seeds) ---")
+    print(f"\n--- Top Hyperparameters (Averaged over {REPEATS_PER_CONFIG} seeds) ---")
     print(agg_df.to_string(index=False))
 
     agg_df.to_csv("results.csv", index=False)

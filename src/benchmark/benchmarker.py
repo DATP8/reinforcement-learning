@@ -1,5 +1,3 @@
-import random
-
 # from mqt.bench import BenchmarkLevel, get_benchmark
 # from mqt.bench.benchmarks import get_available_benchmark_names
 import time
@@ -13,6 +11,7 @@ from sb3_contrib import MaskablePPO
 from scipy import stats
 from tqdm import tqdm
 
+from src.circuit_generator import CircuitGenerator
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
@@ -34,13 +33,13 @@ class Benchmarker:
     def __init__(
         self,
         qubits,
-        max_gates,
+        num_gates,
         coupling_map,
         decompose_before_routing=True,
         decompose_reps=2,
     ):
         self.qubits = qubits
-        self.max_gates = max_gates
+        self.max_gates = num_gates
         self.coupling_map = coupling_map
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
@@ -99,23 +98,6 @@ class Benchmarker:
         }
         return metrics
 
-    def generate_random_2qubit_circuit(
-        self, num_qubits: int, num_gates: int
-    ) -> QuantumCircuit:
-        if num_qubits < 2:
-            raise ValueError("Number of qubits must be at least 2 for 2-qubit gates.")
-
-        qc = QuantumCircuit(num_qubits)
-
-        for _ in range(num_gates):
-            control = random.randint(0, num_qubits - 1)
-            target = random.randint(0, num_qubits - 1)
-            while target == control:
-                target = random.randint(0, num_qubits - 1)
-            qc.cx(control, target)
-
-        return qc
-
     # def run_mqt_benchmarks(
     #    self,
     #    configs: list[tuple[str, PassManager]],
@@ -151,14 +133,12 @@ class Benchmarker:
         iterations: int,
         confidence: float = 0.95,
     ):
-        qc_list = []
-
-        for _ in tqdm(
-            range(iterations), desc="List of random circuits", position=0, leave=False
-        ):
-            qc_list.append(
-                self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
-            )
+        qc_list = CircuitGenerator.generate_n_random_cx_circuits(
+            n=iterations,
+            num_qubits=self.qubits,
+            num_gates=self.max_gates,
+            seed=EVAL_SEED,
+        )
 
         self._print_header(
             title=f"{len(qc_list)} random circuits", confidence=confidence
@@ -245,7 +225,7 @@ if __name__ == "__main__":
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 
-    num_qubits = 4
+    num_qubits = 6
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(num_qubits, topology)
 
@@ -263,7 +243,7 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 6
+    horizon = 64
     policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
     ppo_env = make_env(
