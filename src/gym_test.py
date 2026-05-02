@@ -1,6 +1,6 @@
+from qiskit.transpiler import CouplingMap
 import multiprocessing as mp
 
-from qiskit.transpiler import CouplingMap
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
@@ -9,28 +9,33 @@ from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 
+from qiskit_ibm_runtime.fake_provider import FakeTorino
+
+
 ### INFO
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
 HORIZON = 64
-MAX_DIFF = 256
+MAX_DIFF = 100
 SLOPE = 1
 TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
 N_EVAL_EPISODES = 10
 THRESHOLD = 0.85
-BATCH_SIZE = 2048
-N_STEPS = 512
+BATCH_SIZE = 256 # 2048
+N_STEPS = 2048 # 512
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
-NUM_QUBITS = 6
-NUM_ACTIVE_SWAPS = 6
+NUM_QUBITS = 6 # 6
+NUM_ACTIVE_SWAPS = 4
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.HYBRID_GNN
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
 
 if __name__ == "__main__":
+    # backend = FakeTorino()
+    # coupling_map = backend.coupling_map
     coupling_map = CouplingMap.from_line(NUM_QUBITS)
     n_envs = mp.cpu_count() - 1
     print(f"Using {n_envs} envs")
@@ -57,6 +62,11 @@ if __name__ == "__main__":
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
         policy_kwargs=POLICY_TYPE.get_policy_kwargs(),
+        # gamma=0.99,
+        # gae_lambda=0.95,
+        # clip_range=0.2,
+        # ent_coef=0.01,
+        # vf_coef=0.5,
     )
 
     eval_env = make_env(

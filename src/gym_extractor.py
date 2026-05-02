@@ -107,31 +107,6 @@ class HybridExtractor(BaseFeaturesExtractor):
 
         return self.final(combined)
 
-
-# class DenseDagExtractor(BaseFeaturesExtractor):
-#     def __init__(self, observation_space, features_dim=128):
-#         super().__init__(observation_space, features_dim)
-#
-#         self.model = BiCircuitGNNDense(6, ppo_mode=True)
-#
-#     def forward(self, obs):
-#         # --- matrix ---
-#         matrix = obs["matrix"]
-#         x = obs["graph_x"]
-#         edge_index = obs["graph_edge_index"]
-#         edge_attr = obs["graph_edge_attr"]
-#         print("[Extractor] Shapes:")
-#         print(x.shape)
-#         print(edge_index.shape)
-#         print(edge_attr.shape)
-#         data = DenseCircuitGraph.from_tensors(x,edge_index,edge_attr)
-#         print("[Extractor] Graph Shapes:")
-#         print(data.x.shape)
-#         print(data.edge_index.shape)
-#         print(data.edge_attr.shape)
-#         return self.model(data)
-
-
 class DenseDagExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim: int):
         super().__init__(observation_space, features_dim=features_dim)
@@ -152,9 +127,7 @@ class DenseDagExtractor(BaseFeaturesExtractor):
                 i, :num_edges
             ].float()  # (num_edges, n_qubits+1)
 
-            data_list.append(
-                DenseCircuitGraph.from_tensors(x=x, edge_index=ei, edge_attr=ea)
-            )
+            data_list.append(DenseCircuitGraph(x=x, edge_index=ei, edge_attr=ea))
 
         batch = Batch.from_data_list(data_list).to(obs["graph_x"].device)
         return self.gnn(batch)  # (N, hidden_dim)

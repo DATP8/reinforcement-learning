@@ -9,6 +9,8 @@ from torch import Tensor
 
 from src.policy_types import ActorCriticPolicyType
 from src.states.dense_circuit_graph import DenseCircuitGraph
+from src.vibed_ppo.integration import make_observation_space as make_vibed_obs_space
+from src.vibed_ppo.graph_obs import build_graph_obs
 
 
 class RoutingEnv(gymnasium.Env):
@@ -93,14 +95,12 @@ class RoutingEnv(gymnasium.Env):
                             shape=(100, self._num_qubits + 1),
                             dtype=np.int64,
                         ),
-                        "graph_num_nodes": spaces.Box(
-                            low=1, high=horizon + 1, shape=(1,), dtype=np.int64
-                        ),
-                        "graph_num_edges": spaces.Box(
-                            low=1, high=100, shape=(1,), dtype=np.int64
-                        ),
+                        "graph_num_nodes": spaces.Box(low=1, high=horizon + 1, shape=(1,), dtype=np.int64),
+                        "graph_num_edges": spaces.Box(low=1, high=100, shape=(1,), dtype=np.int64),
                     }
                 )
+            case ActorCriticPolicyType.VIBE_GRAPH:
+                self.observation_space = make_vibed_obs_space(self._num_active_swaps, self._horizon, self._num_qubits, len(self._cmap_edges))
             case _:
                 self.observation_space = spaces.Dict(
                     {
@@ -299,12 +299,33 @@ class RoutingEnv(gymnasium.Env):
         return None
 
     def _update_obs(self):
+        self._matrix = self._build_matrix()
         if (
             self._policy_type is not ActorCriticPolicyType.BASIC
             and self._policy_type is not ActorCriticPolicyType.SIMPLE_MLP
         ):
             self._gnn = self._build_graph()
-        self._matrix = self._build_matrix()
+        if self._policy_type is ActorCriticPolicyType.VIBE_GRAPH:
+            graph = build_graph_obs(
+                num_qubits      = self._num_qubits,
+                l2p             = self.l2p,
+                p2l             = self._p2l,
+                cmap_edges      = self._cmap_edges,
+                active_swaps    = self._active_swaps,
+                dag             = self._dag,
+                qubit_indices   = self._qubit_indices,
+                distance_matrix = self._distance_matrix,
+                horizon         = self._horizon,
+            )
+                                                                      
+            self._graph_obs = {
+                "matrix":               self._matrix,
+                "node_features":        graph["node_features"],
+                "coupling_edge_index":  graph["coupling_edge_index"],
+                "coupling_edge_attr":   graph["coupling_edge_attr"],
+                "interact_edge_index":  graph["interact_edge_index"],
+                "interact_edge_attr":   graph["interact_edge_attr"],
+            }
 
     def _execute_front_layer(self) -> int:
         progress = True
@@ -386,6 +407,8 @@ class RoutingEnv(gymnasium.Env):
                 circuit = dag_to_circuit(self._dag)
                 graph = DenseCircuitGraph.from_circuit(circuit)
                 return self._dense_graph_to_obs(graph, self._horizon, self._num_qubits)
+            case ActorCriticPolicyType.VIBE_GRAPH:
+                return self._graph_obs
 
     def _build_matrix(self) -> np.ndarray:
         layers = list(self._dag.layers())

@@ -244,7 +244,6 @@ class BiCircuitGNNDense(nn.Module):
         x = global_add_pool(x, batch)
 
         out = self.head(x)
-
         return out.squeeze(-1)
 
 
