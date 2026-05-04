@@ -12,6 +12,7 @@ from scipy import stats
 from tqdm import tqdm
 
 from src.circuit_generator import CircuitGenerator
+from src.eval_circuits import EvalCircuits
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
@@ -139,26 +140,7 @@ class Benchmarker:
             num_gates=self.max_gates,
             seed=EVAL_SEED,
         )
-
-        self._print_header(
-            title=f"{len(qc_list)} random circuits", confidence=confidence
-        )
-        for config in configs:
-            mean_dic = {}
-            ci_dic = {}
-            title, _ = config
-            runs = self.bench_config(qc_list, config)
-            for metric, _ in METRIC_KEYS:
-                metric_values = [run[metric] for run in runs]
-                arr = np.array(metric_values, dtype=float)
-                n = len(arr)
-                se = stats.sem(arr) if n > 1 else 0.0
-                ci_val = (
-                    se * stats.t.ppf((1 + confidence) / 2, df=n - 1) if n > 1 else 0.0
-                )
-                mean_dic[metric] = arr.mean()
-                ci_dic[metric] = ci_val
-            self._print_row(title, metrics=mean_dic, ci=ci_dic)
+        self._run_benchmark(configs, confidence, qc_list, "random")
 
     def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
         has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
@@ -212,6 +194,45 @@ class Benchmarker:
 
         return runs
 
+    def run_eval_benchmarks(
+        self,
+        configs: list[tuple[str, PassManager]],
+        iterations: int,
+        num_qubits: int,
+        confidence: float = 0.95,
+    ) -> None:
+        qc_list = EvalCircuits.get_eval_circuits(
+            n_eval_episodes=iterations, num_qubits=num_qubits
+        )
+        self._run_benchmark(configs, confidence, qc_list, "eval")
+
+    def _run_benchmark(
+        self,
+        configs: list[tuple[str, PassManager]],
+        confidence: float,
+        qc_list: list[QuantumCircuit],
+        header_title: str,
+    ):
+        self._print_header(
+            title=f"{len(qc_list)} {header_title} circuits", confidence=confidence
+        )
+        for config in configs:
+            mean_dic = {}
+            ci_dic = {}
+            title, _ = config
+            runs = self.bench_config(qc_list, config)
+            for metric, _ in METRIC_KEYS:
+                metric_values = [run[metric] for run in runs]
+                arr = np.array(metric_values, dtype=float)
+                n = len(arr)
+                se = stats.sem(arr) if n > 1 else 0.0
+                ci_val = (
+                    se * stats.t.ppf((1 + confidence) / 2, df=n - 1) if n > 1 else 0.0
+                )
+                mean_dic[metric] = arr.mean()
+                ci_dic[metric] = ci_val
+            self._print_row(title, metrics=mean_dic, ci=ci_dic)
+
 
 if __name__ == "__main__":
     # from src.routing.rl_routing_pass import RlRoutingPass
@@ -225,7 +246,7 @@ if __name__ == "__main__":
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 
-    num_qubits = 6
+    num_qubits = 3
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(num_qubits, topology)
 
@@ -233,7 +254,7 @@ if __name__ == "__main__":
     # model = BiCircuitGNN(n_qubits)
     # model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    coupling_map = CouplingMap.from_ring(num_qubits)
+    coupling_map = CouplingMap.from_line(num_qubits)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, num_qubits)
@@ -243,12 +264,12 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 64
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+    horizon = 54
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
 
     ppo_env = make_env(
         coupling_map,
-        num_active_swaps=6,
+        num_active_swaps=2,
         horizon=horizon,
         initial_difficulty=1,
         max_difficulty=100,
@@ -256,7 +277,7 @@ if __name__ == "__main__":
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env, seed=EVAL_SEED)
+    ppo_model = MaskablePPO.load("model.zip", ppo_env, seed=EVAL_SEED)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -408,3 +429,4 @@ if __name__ == "__main__":
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+    bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)

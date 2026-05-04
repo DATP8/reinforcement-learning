@@ -39,12 +39,11 @@ Observation space expected
 
 from __future__ import annotations
 
+import gymnasium as gym
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GATConv, global_mean_pool
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-import gymnasium as gym
-
+from torch_geometric.nn import GATConv, global_mean_pool
 
 # ---------------------------------------------------------------------------
 # Coupling Graph GNN
@@ -54,6 +53,7 @@ import gymnasium as gym
 #
 # Output: per-node embeddings → we extract embeddings for each SWAP edge pair
 #         and pool them → gives a fixed-size "SWAP quality" summary.
+
 
 class CouplingGNN(nn.Module):
     def __init__(
@@ -67,25 +67,33 @@ class CouplingGNN(nn.Module):
         super().__init__()
         # GATConv with edge_dim supports edge attributes natively
         self.conv1 = GATConv(
-            node_in, hidden, heads=heads,
-            edge_dim=edge_in, concat=True, dropout=0.0,
+            node_in,
+            hidden,
+            heads=heads,
+            edge_dim=edge_in,
+            concat=True,
+            dropout=0.0,
         )
         self.conv2 = GATConv(
-            hidden * heads, out_dim, heads=1,
-            edge_dim=edge_in, concat=False, dropout=0.0,
+            hidden * heads,
+            out_dim,
+            heads=1,
+            edge_dim=edge_in,
+            concat=False,
+            dropout=0.0,
         )
         self.act = nn.ELU()
 
     def forward(
         self,
-        x: torch.Tensor,          # (B*N, node_in)
-        edge_index: torch.Tensor, # (2, B*E)
+        x: torch.Tensor,  # (B*N, node_in)
+        edge_index: torch.Tensor,  # (2, B*E)
         edge_attr: torch.Tensor,  # (B*E, edge_in)
-        batch: torch.Tensor,      # (B*N,)
+        batch: torch.Tensor,  # (B*N,)
     ) -> torch.Tensor:
         x = self.act(self.conv1(x, edge_index, edge_attr))
         x = self.act(self.conv2(x, edge_index, edge_attr))
-        return global_mean_pool(x, batch)   # (B, out_dim)
+        return global_mean_pool(x, batch)  # (B, out_dim)
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +102,7 @@ class CouplingGNN(nn.Module):
 # Encodes gate demand urgency. Edge attributes are (urgency, dist, executable).
 # Same GAT architecture but separate weights — the two graphs have very
 # different semantics and should not share parameters.
+
 
 class InteractionGNN(nn.Module):
     def __init__(
@@ -106,12 +115,20 @@ class InteractionGNN(nn.Module):
     ):
         super().__init__()
         self.conv1 = GATConv(
-            node_in, hidden, heads=heads,
-            edge_dim=edge_in, concat=True, dropout=0.0,
+            node_in,
+            hidden,
+            heads=heads,
+            edge_dim=edge_in,
+            concat=True,
+            dropout=0.0,
         )
         self.conv2 = GATConv(
-            hidden * heads, out_dim, heads=1,
-            edge_dim=edge_in, concat=False, dropout=0.0,
+            hidden * heads,
+            out_dim,
+            heads=1,
+            edge_dim=edge_in,
+            concat=False,
+            dropout=0.0,
         )
         self.act = nn.ELU()
 
@@ -124,17 +141,18 @@ class InteractionGNN(nn.Module):
     ) -> torch.Tensor:
         x = self.act(self.conv1(x, edge_index, edge_attr))
         x = self.act(self.conv2(x, edge_index, edge_attr))
-        return global_mean_pool(x, batch)   # (B, out_dim)
+        return global_mean_pool(x, batch)  # (B, out_dim)
 
 
 # ---------------------------------------------------------------------------
 # Batched graph helper
 # ---------------------------------------------------------------------------
 
+
 def _batch_graphs(
-    x_batch: torch.Tensor,           # (B, N, F)
+    x_batch: torch.Tensor,  # (B, N, F)
     edge_index_batch: torch.Tensor,  # (B, 2, E)
-    edge_attr_batch: torch.Tensor,   # (B, E, edge_f)
+    edge_attr_batch: torch.Tensor,  # (B, E, edge_f)
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Flatten a batched graph observation (as produced by SB3's VecEnv) into
@@ -153,8 +171,8 @@ def _batch_graphs(
 
     ei_list, ea_list = [], []
     for i in range(B):
-        ei = edge_index_batch[i]        # (2, E)
-        ea = edge_attr_batch[i]         # (E, edge_f)
+        ei = edge_index_batch[i]  # (2, E)
+        ea = edge_attr_batch[i]  # (E, edge_f)
 
         # Remove padding: keep edges where at least one endpoint is non-zero,
         # OR the edge appears as the very first entry (to allow real (0,0) edges
@@ -177,6 +195,7 @@ def _batch_graphs(
 # ---------------------------------------------------------------------------
 # HybridExtractor
 # ---------------------------------------------------------------------------
+
 
 class HybridExtractor(BaseFeaturesExtractor):
     """
@@ -202,10 +221,10 @@ class HybridExtractor(BaseFeaturesExtractor):
         super().__init__(observation_space, features_dim)
 
         # -- infer shapes from observation space --
-        matrix_shape = observation_space["matrix"].shape          # (A, H)
-        node_shape = observation_space["node_features"].shape     # (N, NODE_F)
-        coup_ea_shape = observation_space["coupling_edge_attr"].shape   # (E_c, 3)
-        int_ea_shape = observation_space["interact_edge_attr"].shape    # (E_i, 3)
+        matrix_shape = observation_space["matrix"].shape  # (A, H)
+        node_shape = observation_space["node_features"].shape  # (N, NODE_F)
+        coup_ea_shape = observation_space["coupling_edge_attr"].shape  # (E_c, 3)
+        int_ea_shape = observation_space["interact_edge_attr"].shape  # (E_i, 3)
 
         node_in = node_shape[1]
         coup_edge_in = coup_ea_shape[1]
@@ -250,32 +269,32 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 1. Matrix branch
         # ----------------------------------------------------------------
-        matrix = obs["matrix"].float()            # (B, A, H)
-        matrix_feat = self.matrix_mlp(matrix)     # (B, matrix_out)
+        matrix = obs["matrix"].float()  # (B, A, H)
+        matrix_feat = self.matrix_mlp(matrix)  # (B, matrix_out)
 
         # ----------------------------------------------------------------
         # 2. Shared node features (both GNNs use the same node matrix)
         # ----------------------------------------------------------------
-        node_x = obs["node_features"].float()     # (B, N, NODE_F)
+        node_x = obs["node_features"].float()  # (B, N, NODE_F)
 
         # ----------------------------------------------------------------
         # 3. Coupling graph branch
         # ----------------------------------------------------------------
-        coup_ei = obs["coupling_edge_index"].long()     # (B, 2, E_c)
-        coup_ea = obs["coupling_edge_attr"].float()     # (B, E_c, 3)
+        coup_ei = obs["coupling_edge_index"].long()  # (B, 2, E_c)
+        coup_ea = obs["coupling_edge_attr"].float()  # (B, E_c, 3)
 
         cx, c_ei, c_ea, c_batch = _batch_graphs(node_x, coup_ei, coup_ea)
-        coupling_feat = self.coupling_gnn(cx, c_ei, c_ea, c_batch)   # (B, gnn_out)
+        coupling_feat = self.coupling_gnn(cx, c_ei, c_ea, c_batch)  # (B, gnn_out)
 
         # ----------------------------------------------------------------
         # 4. Interaction graph branch
         # ----------------------------------------------------------------
-        int_ei = obs["interact_edge_index"].long()      # (B, 2, E_i)
-        int_ea = obs["interact_edge_attr"].float()      # (B, E_i, 3)
+        int_ei = obs["interact_edge_index"].long()  # (B, 2, E_i)
+        int_ea = obs["interact_edge_attr"].float()  # (B, E_i, 3)
 
         # Interaction graph reuses the same node features
         ix, i_ei, i_ea, i_batch = _batch_graphs(node_x, int_ei, int_ea)
-        interact_feat = self.interact_gnn(ix, i_ei, i_ea, i_batch)   # (B, gnn_out)
+        interact_feat = self.interact_gnn(ix, i_ei, i_ea, i_batch)  # (B, gnn_out)
 
         # ----------------------------------------------------------------
         # 5. Fuse all branches

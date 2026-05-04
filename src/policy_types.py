@@ -1,7 +1,7 @@
 from enum import Enum, auto
 
-from src.gym_extractor import HybridExtractor, SimpleExtractor, DenseDagExtractor
 import src.vibed_ppo.hybrid_extractor as vibed
+from src.gym_extractor import DenseDagExtractor, HybridExtractor, SimpleExtractor
 
 
 class ActorCriticPolicyType(Enum):
@@ -39,11 +39,11 @@ class ActorCriticPolicyType(Enum):
                     features_extractor_kwargs=dict(
                         features_dim=256,
                         gnn_hidden=64,
-                        gnn_heads=2, # 2 for 6-qubit topology, 4 to torino
+                        gnn_heads=2,  # 2 for 6-qubit topology, 4 to torino
                         gnn_out=64,
                         matrix_out=128,
                     ),
-                    net_arch=[256, 256],   # policy/value MLP after extractor
+                    net_arch=[256, 256],  # policy/value MLP after extractor
                 )
             case _:
                 return dict(

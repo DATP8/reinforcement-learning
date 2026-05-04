@@ -25,8 +25,8 @@ class CurriculumCallback(BaseCallback):
 
         success_rate = np.mean(self.rollout_successes)
         current_diff = self.training_env.env_method("get_difficulty")[0]
-        
-        if current_diff < self.max_difficulty:
+
+        if current_diff < self.max_difficulty and self.verbose > 0:
             print(
                 f"\n[Curriculum] Rollout success rate: {success_rate:.2f} (Difficulty {current_diff})"
             )
@@ -34,7 +34,6 @@ class CurriculumCallback(BaseCallback):
             current_diff += 1
             self.training_env.env_method("set_difficulty", current_diff)
             if self.verbose > 0:
-
                 print(f"[Curriculum] Difficulty increased to {current_diff}!")
 
         self.rollout_successes.clear()

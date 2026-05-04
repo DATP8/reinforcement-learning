@@ -36,16 +36,14 @@ INTERACTION edge features = 3
 from __future__ import annotations
 
 import numpy as np
-from qiskit.converters import circuit_to_dag
-
 
 # ---------------------------------------------------------------------------
 # Constants – tune these to your largest topology (ibm_torino has 133 qubits)
 # ---------------------------------------------------------------------------
-NODE_F = 5          # number of node feature channels
-COUP_EDGE_F = 3     # coupling edge feature channels
-INT_EDGE_F = 3      # interaction edge feature channels
-MAX_INTERACT_EDGES = 200   # pad/clip interaction edges to this fixed size
+NODE_F = 5  # number of node feature channels
+COUP_EDGE_F = 3  # coupling edge feature channels
+INT_EDGE_F = 3  # interaction edge feature channels
+MAX_INTERACT_EDGES = 200  # pad/clip interaction edges to this fixed size
 
 
 # ---------------------------------------------------------------------------
@@ -60,10 +58,10 @@ MAX_INTERACT_EDGES = 200   # pad/clip interaction edges to this fixed size
 #
 def build_node_features(
     num_qubits: int,
-    p2l: list[int],               # physical → logical mapping
+    p2l: list[int],  # physical → logical mapping
     cmap_edges: list[tuple[int, int]],
-    front_layer_pairs: list[tuple[int, int]],   # physical qubit pairs
-    horizon_gate_count: np.ndarray,             # shape (num_qubits,)
+    front_layer_pairs: list[tuple[int, int]],  # physical qubit pairs
+    horizon_gate_count: np.ndarray,  # shape (num_qubits,)
     distance_matrix: np.ndarray,
     horizon: int,
 ) -> np.ndarray:
@@ -104,7 +102,7 @@ def build_node_features(
             )
             x[q, 3] = min_d / diam
         else:
-            x[q, 3] = 1.0   # no active gates → maximally far
+            x[q, 3] = 1.0  # no active gates → maximally far
 
     # -- 4: normalised gate demand within horizon --
     max_count = horizon_gate_count.max() if horizon_gate_count.max() > 0 else 1.0
@@ -125,8 +123,8 @@ def build_node_features(
 def build_coupling_graph(
     num_qubits: int,
     cmap_edges: list[tuple[int, int]],
-    active_swaps: list[int],            # indices into cmap_edges
-    horizon_traffic: np.ndarray,        # shape (len(cmap_edges),) gate counts
+    active_swaps: list[int],  # indices into cmap_edges
+    horizon_traffic: np.ndarray,  # shape (len(cmap_edges),) gate counts
     front_layer_pairs: list[tuple[int, int]],
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -144,9 +142,7 @@ def build_coupling_graph(
     for idx, (p0, p1) in enumerate(cmap_edges):
         is_action = float(idx in active_set)
         traffic = horizon_traffic[idx] / max_traffic
-        is_front = float(
-            (p0, p1) in front_set or (p1, p0) in front_set
-        )
+        is_front = float((p0, p1) in front_set or (p1, p0) in front_set)
         feat = [is_action, traffic, is_front]
 
         # both directions
@@ -169,9 +165,9 @@ def build_coupling_graph(
 #  2  is this gate executable right now (distance == 1)?          {0, 1}
 #
 def build_interaction_graph(
-    layers: list,                       # dag.layers() output
-    l2p: list[int],                     # logical → physical mapping
-    qubit_indices: dict,                # Qubit → int index
+    layers: list,  # dag.layers() output
+    l2p: list[int],  # logical → physical mapping
+    qubit_indices: dict,  # Qubit → int index
     distance_matrix: np.ndarray,
     horizon: int,
     max_edges: int = MAX_INTERACT_EDGES,
@@ -226,6 +222,7 @@ def build_interaction_graph(
 # Horizon gate count helper  (used in node features)
 # ---------------------------------------------------------------------------
 
+
 def compute_horizon_gate_count(
     layers: list,
     l2p: list[int],
@@ -248,6 +245,7 @@ def compute_horizon_gate_count(
 # ---------------------------------------------------------------------------
 # Horizon traffic helper  (used in coupling edge features)
 # ---------------------------------------------------------------------------
+
 
 def compute_horizon_traffic(
     layers: list,
@@ -281,6 +279,7 @@ def compute_horizon_traffic(
 # Front-layer gate pairs helper
 # ---------------------------------------------------------------------------
 
+
 def get_front_layer_pairs(
     layers: list,
     l2p: list[int],
@@ -302,13 +301,14 @@ def get_front_layer_pairs(
 # Master builder — call this from _update_obs
 # ---------------------------------------------------------------------------
 
+
 def build_graph_obs(
     num_qubits: int,
     l2p: list[int],
     p2l: list[int],
     cmap_edges: list[tuple[int, int]],
     active_swaps: list[int],
-    dag,                          # Qiskit DAGCircuit
+    dag,  # Qiskit DAGCircuit
     qubit_indices: dict,
     distance_matrix: np.ndarray,
     horizon: int,
@@ -332,14 +332,27 @@ def build_graph_obs(
     )
 
     node_features = build_node_features(
-        num_qubits, p2l, cmap_edges, front_pairs, gate_counts,
-        distance_matrix, horizon,
+        num_qubits,
+        p2l,
+        cmap_edges,
+        front_pairs,
+        gate_counts,
+        distance_matrix,
+        horizon,
     )
     coup_ei, coup_ea = build_coupling_graph(
-        num_qubits, cmap_edges, active_swaps, traffic, front_pairs,
+        num_qubits,
+        cmap_edges,
+        active_swaps,
+        traffic,
+        front_pairs,
     )
     int_ei, int_ea = build_interaction_graph(
-        layers, l2p, qubit_indices, distance_matrix, horizon,
+        layers,
+        l2p,
+        qubit_indices,
+        distance_matrix,
+        horizon,
     )
 
     return {

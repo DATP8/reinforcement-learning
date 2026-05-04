@@ -107,6 +107,7 @@ class HybridExtractor(BaseFeaturesExtractor):
 
         return self.final(combined)
 
+
 class DenseDagExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim: int):
         super().__init__(observation_space, features_dim=features_dim)

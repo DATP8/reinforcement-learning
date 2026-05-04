@@ -15,7 +15,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 
-from circuit_generator import CircuitGenerator
+from eval_circuits import EvalCircuits
 from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
@@ -31,7 +31,6 @@ class RayTuneCurriculumCallback(BaseCallback):
         n_eval_episodes: int,
         num_qubits: int,
         seed: int,
-        eval_set_seed: int,
         verbose: int = 0,
     ):
         super().__init__(verbose)
@@ -40,12 +39,9 @@ class RayTuneCurriculumCallback(BaseCallback):
         self._curriculum_callback = curriculum_callback
         self._seed = seed
         self._post_curriculum_evals = 0
-        self._best_avg_num_swaps = sys.float_info.max
-        self._eval_circuits = CircuitGenerator.generate_n_random_cx_circuits(
-            n=n_eval_episodes,
-            num_qubits=num_qubits,
-            num_gates=[i * 8 for i in range(1, 26)],
-            seed=eval_set_seed,
+        self._best_avg_decomposed_cx = sys.float_info.max
+        self._eval_circuits = EvalCircuits.get_eval_circuits(
+            n_eval_episodes=n_eval_episodes, num_qubits=num_qubits
         )
 
     def _on_step(self) -> bool:
@@ -58,33 +54,33 @@ class RayTuneCurriculumCallback(BaseCallback):
         if self._eval_freq > 0 and self.n_calls % self._eval_freq == 0:
             self._post_curriculum_evals += 1
 
-            avg_num_swaps = self._compute_num_avg_swaps()
+            avg_decomposed_cx = self._compute_num_avg_decomposed_cx()
 
             metrics = {
-                "avg_swaps": avg_num_swaps,
+                "avg_d_cx": avg_decomposed_cx,
                 "diff": current_diff,
                 "seed": self._seed,
                 "pc_evals": self._post_curriculum_evals,
             }
 
-            if avg_num_swaps < self._best_avg_num_swaps:
-                self._best_avg_num_swaps = avg_num_swaps
-                metrics["best_swaps"] = self._best_avg_num_swaps
+            if avg_decomposed_cx < self._best_avg_decomposed_cx:
+                self._best_avg_decomposed_cx = avg_decomposed_cx
+                metrics["best_avg_d_cx"] = self._best_avg_decomposed_cx
                 with tempfile.TemporaryDirectory() as ckpt_dir:
                     self.model.save(os.path.join(ckpt_dir, "model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
                     tune.report(metrics, checkpoint=checkpoint)
             else:
-                metrics["best_swaps"] = self._best_avg_num_swaps
+                metrics["best_avg_d_cx"] = self._best_avg_decomposed_cx
                 tune.report(metrics)
 
         return True
 
-    def _compute_num_avg_swaps(self) -> float:
+    def _compute_num_avg_decomposed_cx(self) -> float:
         if not isinstance(self.model, MaskablePPO):
             raise ValueError("Must be maskable PPO")
 
-        num_swaps = 0
+        num_decomposed_cx = 0
         for circuit in self._eval_circuits:
             obs, info = self._eval_env.reset(options={"circuit": circuit})
             done = False
@@ -99,9 +95,9 @@ class RayTuneCurriculumCallback(BaseCallback):
 
             routed_circuit = self._eval_env.routed_circuit
             ops = routed_circuit.count_ops()
-            num_swaps += ops.get("swap", 0)
-
-        return num_swaps / len(self._eval_circuits)
+            num_decomposed_cx += ops.get("swap", 0) * 3
+            num_decomposed_cx += ops.get("cx", 0)
+        return num_decomposed_cx / len(self._eval_circuits)
 
 
 def maskable_ppo_obj(config):
@@ -159,7 +155,6 @@ def maskable_ppo_obj(config):
         config["n_eval_episodes"],
         config["num_qubits"],
         seed,
-        eval_set_seed=EVAL_SEED,
     )
 
     model.learn(
@@ -172,11 +167,10 @@ if __name__ == "__main__":
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
 
-    EVAL_SEED = 2026
     CPUS_PER_TRIAL = 4
     NUM_UNIQUE_SAMPLES = 128
     REPEATS_PER_CONFIG = 1
-    GRACE_PERIOD = 1
+    GRACE_PERIOD = 3
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
@@ -197,7 +191,7 @@ if __name__ == "__main__":
         # "policy_type": tune.choice([ActorCriticPolicyType.BASIC, ActorCriticPolicyType.SIMPLE_MLP, ActorCriticPolicyType.VIBE_GRAPH]),
         "policy_type": tune.choice([ActorCriticPolicyType.VIBE_GRAPH]),
         "n_steps": tune.choice([256, 512, 1024, 2048]),
-        "num_active_swaps": tune.randint(1, num_qubits + 1),
+        "num_active_swaps": tune.randint(1, num_qubits),
         "ent_coef": tune.loguniform(1e-5, 0.05),
         "num_qubits": num_qubits,
         "initial_difficulty": 1,
@@ -212,14 +206,14 @@ if __name__ == "__main__":
         "n_epochs": 10,
     }
 
-    algo = OptunaSearch(metric="best_swaps", mode="min")
+    algo = OptunaSearch(metric="best_avg_d_cx", mode="min")
     # repeated_algo = Repeater(algo, repeat=repeats_per_config) #! Can cause problems when using scheduler
 
     max_evals = search_space["total_timesteps"] // search_space["base_eval_freq"]
 
     scheduler = ASHAScheduler(
         time_attr="pc_evals",
-        metric="avg_swaps",
+        metric="avg_d_cx",
         mode="min",
         max_t=max_evals,
         grace_period=GRACE_PERIOD,
@@ -228,7 +222,7 @@ if __name__ == "__main__":
     reporter = CLIReporter(
         infer_limit=10,
         print_intermediate_tables=True,
-        metric="best_swaps",
+        metric="best_avg_d_cx",
         mode="min",
         sort_by_metric=True,
     )
@@ -253,14 +247,13 @@ if __name__ == "__main__":
     agg_df = (
         df.groupby(config_cols)
         .agg(
-            best_swaps=("best_swaps", "min"),
-            final_avg_swaps=("avg_swaps", "last"),
+            best_avg_d_cx=("best_avg_d_cx", "min"),
             seeds_used=("seed", lambda x: list(x)),
         )
         .reset_index()
     )
 
-    agg_df = agg_df.sort_values("best_swaps", ascending=True)
+    agg_df = agg_df.sort_values("best_avg_d_cx", ascending=True)
 
     print(f"\n--- Top Hyperparameters (Averaged over {REPEATS_PER_CONFIG} seeds) ---")
     print(agg_df.to_string(index=False))

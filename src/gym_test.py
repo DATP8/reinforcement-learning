@@ -1,6 +1,6 @@
-from qiskit.transpiler import CouplingMap
 import multiprocessing as mp
 
+from qiskit.transpiler import CouplingMap
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
@@ -8,9 +8,6 @@ from stable_baselines3.common.monitor import Monitor
 from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
-
-from qiskit_ibm_runtime.fake_provider import FakeTorino
-
 
 ### INFO
 ### When reporting results, take mean and standard deviation
@@ -24,11 +21,11 @@ TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
 N_EVAL_EPISODES = 10
 THRESHOLD = 0.85
-BATCH_SIZE = 256 # 2048
-N_STEPS = 2048 # 512
+BATCH_SIZE = 256  # 2048
+N_STEPS = 2048  # 512
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
-NUM_QUBITS = 6 # 6
+NUM_QUBITS = 6  # 6
 NUM_ACTIVE_SWAPS = 4
 INITIAL_DIFFICULTY = 1
 POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
