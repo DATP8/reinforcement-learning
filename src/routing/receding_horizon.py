@@ -28,10 +28,13 @@ class RecedingHorizon(Router):
         while not self._is_terminal(circuit_dag, layout):
             window_circuit = self._get_window(circuit_dag, self.horizon_length)
             actions = self.router.solve(pm.run(window_circuit.to_circuit()))
-            for action in actions[: self.step_size]:
+            resolved_gates = 0
+            for action in actions:
                 all_actions.append(action)
-                self._prune(circuit_dag, layout)
+                resolved_gates += self._prune(circuit_dag, layout)
                 layout.swap(*self.router.state_handler.get_topology()[action])
+                if resolved_gates >= self.step_size:
+                    break
 
         return all_actions
 
