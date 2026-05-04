@@ -103,7 +103,7 @@ class WeightedAStarSearch[S](Router):
 
 
 if __name__ == "__main__":
-    from src.routing.relaxed_heurisitc import RelaxedCountHeuristic, RelaxedDijkstraHeuristic, RelaxedDepthHeuristic
+    from src.routing.heurisitc import CountHeuristic, RelaxedDijkstraHeuristic, DepthHeuristic, TotalQubitDistanceHeuristic, SabreBasicHeuristic
     from src.circuit_generator import CircuitGenerator
     from qiskit.qpy import load, dump
     import torch
@@ -121,18 +121,20 @@ if __name__ == "__main__":
     coupling_map = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    circuit = CircuitGenerator.generate_random_circuit(6, gateset={"cx"}, num_gates=20)
-    with open("circuits/dud4.qpy", "wb") as f:
-        dump(circuit, f)
+    # circuit = CircuitGenerator.generate_random_circuit(6, gateset={"cx"}, num_gates=20)
+    # with open("circuits/dud4.qpy", "wb") as f:
+    #     dump(circuit, f)
 
-    # with open("circuits/dud2.qpy", "rb") as f:
-    #     circuit = load(f)[0]
+    with open("circuits/dud4.qpy", "rb") as f:
+        circuit = load(f)[0]
 
     print(circuit)
 
     state_handler = DAGCircuitStateHandler(n_qubits, coupling_map)
-    #heuristic = RelaxedCountHeuristic(state_handler)
-    heuristic = RelaxedDepthHeuristic(state_handler)
+    #heuristic = SabreBasicHeuristic(state_handler)
+    heuristic = TotalQubitDistanceHeuristic(state_handler)
+    #heuristic = CountHeuristic(state_handler)
+    #heuristic = DepthHeuristic(state_handler)
     #heuristic = RelaxedDijkstraHeuristic(state_handler)
 
     router = WeightedAStarSearch(state_handler, heuristic, weight=1.0)
