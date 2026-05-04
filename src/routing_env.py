@@ -66,6 +66,18 @@ class RoutingEnv(gymnasium.Env):
                     shape=(self._num_active_swaps, self._horizon),
                     dtype=np.int8,
                 )
+            case ActorCriticPolicyType.BASIC_CANCEL:
+                self.observation_space = spaces.Dict(
+                    {
+                        "matrix": spaces.Box(
+                            low=-2,
+                            high=2,
+                            shape=(self._num_active_swaps, self._horizon),
+                            dtype=np.int8,
+                        ),
+                        "swap_cancellation": spaces.MultiBinary(len(self._cmap_edges)),
+                    }
+                )
             case ActorCriticPolicyType.DENSE_GRAPH_GNN:
                 self.observation_space = spaces.Dict(
                     {
@@ -285,7 +297,7 @@ class RoutingEnv(gymnasium.Env):
         self._update_obs()
         return self._get_obs(), reward, terminated, truncated, {}
 
-    def _pop_recent_cx(self, p0: int, p1: int) -> tuple[int, int] | None:
+    def _pop_recent_cx(self, p0: int, p1: int, dry_run = False) -> tuple[int, int] | None:
         """
         Reverse iterate over recent added gates to routed circuit and then if it matches wires
         where swap just added it checks if CX gate. If cx gate it removes it from circuit and
@@ -299,16 +311,19 @@ class RoutingEnv(gymnasium.Env):
                 if instruction.operation.name == "cx":
                     ctrl = self.routed_circuit.qubits.index(instruction.qubits[0])
                     tgt = self.routed_circuit.qubits.index(instruction.qubits[1])
-                    del self.routed_circuit.data[i]
+                    if not dry_run:
+                        del self.routed_circuit.data[i]
                     return ctrl, tgt
                 return None
 
+            # Return early if indice is used elsewhere
             if p0 in indices or p1 in indices:
                 return None
         return None
 
     def _update_obs(self):
         self._matrix = self._build_matrix()
+        self._cancellation = self._build_cancellation()
         if (
             self._policy_type is not ActorCriticPolicyType.BASIC
             and self._policy_type is not ActorCriticPolicyType.SIMPLE_MLP
@@ -328,12 +343,13 @@ class RoutingEnv(gymnasium.Env):
             )
 
             self._graph_obs = {
-                "matrix": self._matrix,
-                "node_features": graph["node_features"],
-                "coupling_edge_index": graph["coupling_edge_index"],
-                "coupling_edge_attr": graph["coupling_edge_attr"],
-                "interact_edge_index": graph["interact_edge_index"],
-                "interact_edge_attr": graph["interact_edge_attr"],
+                "matrix":               self._matrix,
+                "swap_cancellation":    self._cancellation,
+                "node_features":        graph["node_features"],
+                "coupling_edge_index":  graph["coupling_edge_index"],
+                "coupling_edge_attr":   graph["coupling_edge_attr"],
+                "interact_edge_index":  graph["interact_edge_index"],
+                "interact_edge_attr":   graph["interact_edge_attr"],
             }
 
     def _execute_front_layer(self) -> int:
@@ -405,6 +421,11 @@ class RoutingEnv(gymnasium.Env):
         match self._policy_type:
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
                 return self._matrix
+            case ActorCriticPolicyType.BASIC_CANCEL:
+                return {
+                    "matrix": self._matrix,
+                    "swap_cancellation": self._cancellation
+                }
             case ActorCriticPolicyType.HYBRID_GNN:
                 graph_x, graph_edge_idx = self._gnn
                 return {
@@ -540,6 +561,10 @@ class RoutingEnv(gymnasium.Env):
             edge_index[:, :n_edges] = edge_array[:, :n_edges]
 
         return x, edge_index
+
+    def _build_cancellation(self):
+        return np.array([True if self._pop_recent_cx(p0, p1, dry_run=True) else False for (p0, p1) in self._cmap_edges])
+                
 
     def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(self._num_active_swaps, dtype=bool)

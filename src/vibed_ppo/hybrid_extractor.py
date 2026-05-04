@@ -221,14 +221,16 @@ class HybridExtractor(BaseFeaturesExtractor):
         super().__init__(observation_space, features_dim)
 
         # -- infer shapes from observation space --
-        matrix_shape = observation_space["matrix"].shape  # (A, H)
-        node_shape = observation_space["node_features"].shape  # (N, NODE_F)
-        coup_ea_shape = observation_space["coupling_edge_attr"].shape  # (E_c, 3)
-        int_ea_shape = observation_space["interact_edge_attr"].shape  # (E_i, 3)
+        matrix_shape = observation_space["matrix"].shape          # (A, H)
+        swap_cancellation_shape = observation_space["swap_cancellation"].shape    # (S)
+        node_shape = observation_space["node_features"].shape     # (N, NODE_F)
+        coup_ea_shape = observation_space["coupling_edge_attr"].shape   # (E_c, 3)
+        int_ea_shape = observation_space["interact_edge_attr"].shape    # (E_i, 3)
 
         node_in = node_shape[1]
         coup_edge_in = coup_ea_shape[1]
         int_edge_in = int_ea_shape[1]
+        swap_cancellation_in = swap_cancellation_shape[0]
 
         # -- matrix branch --
         matrix_flat = matrix_shape[0] * matrix_shape[1]
@@ -257,7 +259,7 @@ class HybridExtractor(BaseFeaturesExtractor):
         )
 
         # -- final fusion MLP --
-        combined_dim = matrix_out + gnn_out + gnn_out
+        combined_dim = matrix_out + gnn_out + gnn_out + swap_cancellation_in
         self.fusion = nn.Sequential(
             nn.Linear(combined_dim, features_dim),
             nn.ELU(),
@@ -299,5 +301,6 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 5. Fuse all branches
         # ----------------------------------------------------------------
-        combined = torch.cat([matrix_feat, coupling_feat, interact_feat], dim=-1)
+        swap_can = obs["swap_cancellation"].float()      # (B, S)
+        combined = torch.cat([matrix_feat, coupling_feat, interact_feat, swap_can], dim=-1)
         return self.fusion(combined)

@@ -6,6 +6,7 @@ from src.gym_extractor import DenseDagExtractor, HybridExtractor, SimpleExtracto
 
 class ActorCriticPolicyType(Enum):
     BASIC = auto()
+    BASIC_CANCEL = auto()
     SIMPLE_MLP = auto()
     HYBRID_GNN = auto()
     DENSE_GRAPH_GNN = auto()
@@ -31,6 +32,8 @@ class ActorCriticPolicyType(Enum):
     def get_policy_kwargs(self):
         match self.name:
             case self.BASIC.name:
+                return None
+            case self.BASIC_CANCEL.name:
                 return None
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")
