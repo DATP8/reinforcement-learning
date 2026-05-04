@@ -19,7 +19,7 @@ class BWASNode:
         self.parent_node = None
         self.action = None
 
-    def get_child(self, next_state: torch.Tensor, action: int, action_cost: float):
+    def get_child(self, next_state, action: int, action_cost: float):
         child_node = BWASNode(next_state, self.g + action_cost)
         child_node.parent_node = self
         child_node.action = action
