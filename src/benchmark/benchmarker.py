@@ -1,3 +1,9 @@
+from src.routing.cnot_swap_cancel import CNOTSwapCancelation
+from src.routing.DAGCircuit_router import WeightedAStarSearch
+from src.routing.heurisitc import DepthHeuristic, RelaxedDijkstraHeuristic, CountHeuristic, SabreBasicHeuristic
+from src.states.DAGCircuit_state_handler import DAGCircuitStateHandler
+from concurrent.futures import as_completed
+from concurrent.futures import ProcessPoolExecutor
 from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
@@ -36,6 +42,7 @@ class Benchmarker:
         coupling_map,
         decompose_before_routing=True,
         decompose_reps=2,
+        csv_mode=False,
     ):
         self.qubits = qubits
         self.max_gates = max_gates
@@ -43,37 +50,56 @@ class Benchmarker:
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
         self.commutative_cancellation = CommutativeCancellation()
+        self.csv_mode = csv_mode
 
     def _print_header(self, title: str, confidence: float | None = None) -> None:
-        header: str = f"{'Config':<30}"
-        underline: str = "".ljust(30, "-")
-        if confidence is not None:
-            for label, width in METRIC_KEYS:
-                header += f"{label:>{width}}{'  ±CI':<10}"
-                underline += f"{'-' * width}{'-' * 10}"
+        if not self.csv_mode:
+            header: str = f"{'Config':<30}"
+            underline: str = "".ljust(30, "-")
+            if confidence is not None:
+                for label, width in METRIC_KEYS:
+                    header += f"{label:>{width}}{'  ±CI':<10}"
+                    underline += f"{'-' * width}{'-' * 10}"
+            else:
+                for label, width in METRIC_KEYS:
+                    header += f"{label:>{width}}"
+                    underline += f"{'-' * width}"
+            print("\n")
+            print(underline)
+            print(title)
+            print(header)
+            print(underline)
         else:
+            header = "name"
             for label, width in METRIC_KEYS:
-                header += f"{label:>{width}}"
-                underline += f"{'-' * width}"
-        print("\n")
-        print(underline)
-        print(title)
-        print(header)
-        print(underline)
+                header += f",{label}"
+                if confidence is not None:
+                    header += f",ci_{confidence:.4f}_{label}"
+            print(header)
 
     def _print_row(self, name, metrics, ci=None):
-        row = f"{name:<30}"
-        for label, width in METRIC_KEYS:
-            value = metrics[label]
-            value_str = f"{value:>{width}.4f}"
-            ci_val = ci[label] if ci is not None else None
-            if ci_val is not None:
-                ci_str = f" ±{ci_val:<8.4f}"
-                value_str += ci_str
-            else:
-                value_str
-            row += value_str
-        print(row)
+        if not self.csv_mode:
+            row = f"{name:<30}"
+            for label, width in METRIC_KEYS:
+                value = metrics[label]
+                value_str = f"{value:>{width}.4f}"
+                ci_val = ci[label] if ci is not None else None
+                if ci_val is not None:
+                    ci_str = f" ±{ci_val:<8.4f}"
+                    value_str += ci_str
+                else:
+                    value_str
+                row += value_str
+            print(row)
+        else:
+            row = f"{name}"
+            for label, width in METRIC_KEYS:
+                value = metrics[label]
+                row += f",{value}"
+                ci_val = ci[label] if ci is not None else None
+                if ci_val is not None:
+                    row += f",{ci_val}"
+            print(row)
 
     def _prepare_for_routing(self, qc: QuantumCircuit) -> QuantumCircuit:
         if not self.decompose_before_routing:
@@ -202,6 +228,11 @@ class Benchmarker:
 
         return self._collect_metrics(routed, transpile_time)
 
+    @staticmethod
+    def _bench_pass_wrapper(args):
+        self, qc, pm, title = args
+        return self.bench_pass(qc, pm, title)
+
     def bench_circuit(
         self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title
     ):
@@ -218,8 +249,17 @@ class Benchmarker:
 
         title, pm = config
 
-        for qc in tqdm(qc_list, desc=title, position=0, leave=False):
-            runs.append(self.bench_pass(qc, pm, title))
+        with ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(self._bench_pass_wrapper, (self, qc, pm, title))
+                for qc in qc_list
+            ]
+
+            for f in tqdm(as_completed(futures), total=len(futures), desc=title):
+                runs.append(f.result())
+
+        # for qc in tqdm(qc_list, desc=title, position=0, leave=False):
+        #     runs.append(self.bench_pass(qc, pm, title))
 
         return runs
 
@@ -247,6 +287,12 @@ if __name__ == "__main__":
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+    trivial_layout = TrivialLayout(coupling_map)
+    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+
     state_handler = CircuitGraphStateHandler(n_qubits, topology)
     state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
 
@@ -259,83 +305,280 @@ if __name__ == "__main__":
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
 
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
-
     swap_inserter = SwapInserter(coupling_map, n_qubits)
 
     chuck_size = 18
+    step_size = chuck_size // 2  # could be changed
     chunk_router = ChunkRouter(
         chunk_size=chuck_size, model=model, state_handler=state_handler
     )
     chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
-    chuck_router_dense = ChunkRouter(
-        chunk_size=chuck_size, model=model_dense, state_handler=state_handler_dense
-    )
-    chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
+    configs = []
 
-    bwas_router = BWASRouter(model_dense, state_handler_dense)
-    receding_horizon_router = RecedingHorizon(
-        horizon_length=chuck_size, step_size=chuck_size // 2, router=bwas_router
-    )
-    receding_horizon_pass = RlRoutingPass(receding_horizon_router, swap_inserter)
+    # batch_size = 1
+    # weights = [1.0 * (1.5**i) for i in range(-10, 10)]
+    # # weights = np.linspace(0.5, 1.0, num=10)
+    # for i, weight in enumerate(weights):
+    #     router_dense = BWASRouter(
+    #         model=model_dense,
+    #         state_handler=state_handler_dense,
+    #         batch_size=batch_size,
+    #         weight=weight,
+    #     )
+    #     bwas_swap_pass_dense = RlRoutingPass(router_dense, swap_inserter)
+    #     configs.append(
+    #         (
+    #             f"TrivialLayout_BWAS_b{batch_size}_w{weight:.3f}",
+    #             PassManager(
+    #                 [
+    #                     trivial_layout,
+    #                     ApplyLayout(),
+    #                     bwas_swap_pass_dense,
+    #                     CNOTSwapCancelation(),
+    #                 ]
+    #             ),
+    #         )
+    #     )
 
-    trivial_layout = TrivialLayout(coupling_map)
-    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+    # weight = 0.2
+    # batch_sizes = [int(1.5**i) for i in range(1, 20)]
+    # for i, batch_size in enumerate(batch_sizes):
+    #     router_dense = BWASRouter(
+    #         model=model_dense,
+    #         state_handler=state_handler_dense,
+    #         batch_size=batch_size,
+    #         weight=weight,
+    #     )
+    #     bwas_swap_pass_dense = RlRoutingPass(router_dense, swap_inserter)
+    #     configs.append(
+    #         (
+    #             f"TrivialLayout_BWAS_b{batch_size}_w{weight:.3f}",
+    #             PassManager(
+    #                 [
+    #                     trivial_layout,
+    #                     ApplyLayout(),
+    #                     bwas_swap_pass_dense,
+    #                     CNOTSwapCancelation(),
+    #                 ]
+    #             ),
+    #         )
+    #     )
+    
+    
+    state_handler = DAGCircuitStateHandler(n_qubits, coupling_map)
+    count_heuristic = CountHeuristic(state_handler)
+    depth_heuristic = DepthHeuristic(state_handler)
+    relaxed_dijkstra_heuristic = RelaxedDijkstraHeuristic(state_handler)
+    sabre_basic_heuristic = SabreBasicHeuristic(state_handler)
+ 
+    swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)
 
-    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
-    #### Standard qiskit pass manager inserted router
+
+    
+    ### Standard qiskit pass manager inserted router
     configs = [
         (
-            "TrivialLayout_SabreSwap",
-            PassManager(
-                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
-            ),
-        ),
-        (
-            "TrivialLayout_SabreSwap_cancel",
+            "TrivialLayout_relaxed_dijkstra_heurisitc",
             PassManager(
                 [
                     trivial_layout,
                     ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
+                    RlRoutingPass(
+                        WeightedAStarSearch(
+                            state_handler,
+                            relaxed_dijkstra_heuristic,
+                            weight=1.0,
+                        ),
+                        swap_inserter,
+                    ),
                     CNOTSwapCancelation(),
                 ]
             ),
         ),
-        (
-            f"TrivialLayout_RecedingHorizon_Dense_cancel{chuck_size}",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    receding_horizon_pass,
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            f"TrivialLayout_Chunking_Dense_cancel{chuck_size}",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            "SabreLayout_SabreSwap",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                ]
-            ),
-        ),
+        # (
+        #     "TrivialLayout_sabre_basic_heurisitc_1.0",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             RlRoutingPass(
+        #                 WeightedAStarSearch(
+        #                     state_handler,
+        #                     sabre_basic_heuristic,
+        #                     weight=1.0,
+        #                 ),
+        #                 swap_inserter,
+        #             ),
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "TrivialLayout_depth_heurisitc_1.5",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             RlRoutingPass(
+        #                 WeightedAStarSearch(
+        #                     state_handler,
+        #                     depth_heuristic,
+        #                     weight=1.5,
+        #                 ),
+        #                 swap_inserter,
+        #             ),
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "TrivialLayout_count_heurisitc_1.0",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             RlRoutingPass(
+        #                 WeightedAStarSearch(
+        #                     state_handler,
+        #                     count_heuristic,
+        #                     weight=1.0,
+        #                 ),
+        #                 swap_inserter,
+        #             ),
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "TrivialLayout_count_heurisitc_1.5",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             RlRoutingPass(
+        #                 WeightedAStarSearch(
+        #                     state_handler,
+        #                     count_heuristic,
+        #                     weight=1.5,
+        #                 ),
+        #                 swap_inserter,
+        #             ),
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "TrivialLayout_count_heurisitc_3.0",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             RlRoutingPass(
+        #                 WeightedAStarSearch(
+        #                     state_handler,
+        #                     count_heuristic,
+        #                     weight=3.0,
+        #                 ),
+        #                 swap_inserter,
+        #             ),
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "TrivialLayout_SabreSwap",
+        #     PassManager(
+        #         [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+        #     ),
+        # ),
+        # (
+        #     "TrivialLayout_SabreSwap_cancel",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             SabreSwap(coupling_map=coupling_map),
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     f"TrivialLayout_RecedingHorizon_Dense_cancel_c{chuck_size}_s{step_size}",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             receding_horizon_pass,
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     f"TrivialLayout_BWAS_b1_w001_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             bwas_swap_pass_dense_w001,
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        #   (
+        #     f"TrivialLayout_BWAS_b1_w01_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             bwas_swap_pass_dense_w01,
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     f"TrivialLayout_BWAS_b1_w03_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             bwas_swap_pass_dense_w03,
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     f"TrivialLayout_BWAS_b1_w1_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             bwas_swap_pass_dense_b64,
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     f"TrivialLayout_BWAS_b1_w100_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             trivial_layout,
+        #             ApplyLayout(),
+        #             bwas_swap_pass_dense_b1000,
+        #             CNOTSwapCancelation(),
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "SabreLayout_SabreSwap",
+        #     PassManager(
+        #         [
+        #             sabre_layout,
+        #             ApplyLayout(),
+        #             SabreSwap(coupling_map=coupling_map),
+        #         ]
+        #     ),
+        # ),
         # (
         #     f"SabreLayout_Chunking_{chuck_size}",
         #     PassManager(
@@ -346,42 +589,42 @@ if __name__ == "__main__":
         #         ]
         #     ),
         # ),
-        (
-            f"SabreLayout_Dense_Chunking_{chuck_size}",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                ]
-            ),
-        ),
-        (
-            "Op1 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=1, coupling_map=coupling_map
-            ),
-        ),
-        (
-            "Op2 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=2, coupling_map=coupling_map
-            ),
-        ),
-        (
-            "Op3 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=3, coupling_map=coupling_map
-            ),
-        ),
+        # (
+        #     f"SabreLayout_Dense_Chunking_{chuck_size}",
+        #     PassManager(
+        #         [
+        #             sabre_layout,
+        #             ApplyLayout(),
+        #             chunck_swap_pass_dense,
+        #         ]
+        #     ),
+        # ),
+        # (
+        #     "Op1 qiskit",
+        #     generate_preset_pass_manager(
+        #         optimization_level=1, coupling_map=coupling_map
+        #     ),
+        # ),
+        # (
+        #     "Op2 qiskit",
+        #     generate_preset_pass_manager(
+        #         optimization_level=2, coupling_map=coupling_map
+        #     ),
+        # ),
+        # (
+        #     "Op3 qiskit",
+        #     generate_preset_pass_manager(
+        #         optimization_level=3, coupling_map=coupling_map
+        #     ),
+        # ),
     ]
 
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 10
-    bench_circut_gate_count = 100
-    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+    bench_circut_gate_count = 8
+    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map, csv_mode=False)
+    # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
