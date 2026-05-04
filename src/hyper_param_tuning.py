@@ -133,7 +133,13 @@ def maskable_ppo_obj(config):
 
     model = MaskablePPO(
         policy=config["policy_type"].get_sb3_policy(),
-        policy_kwargs=config["policy_type"].get_policy_kwargs(),
+        policy_kwargs=config["policy_type"].get_policy_kwargs(
+            features_dim=config["vibe_features_dim"],
+            gnn_hidden=config["vibe_gnn_hidden"],
+            gnn_heads=config["vibe_gnn_heads"],  # 2 for 6-qubit topology, 4 to torino
+            gnn_out=config["vibe_gnn_out"],
+            matrix_out=config["vibe_matrix_out"],
+        ),
         env=train_env,
         learning_rate=config["learning_rate"],
         gamma=config["gamma"],
@@ -171,6 +177,7 @@ if __name__ == "__main__":
     NUM_UNIQUE_SAMPLES = 128
     REPEATS_PER_CONFIG = 1
     GRACE_PERIOD = 3
+    NUM_QUBITS = 6
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
@@ -180,20 +187,29 @@ if __name__ == "__main__":
 
     gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
-    num_qubits = 3
-
     search_space = {
-        "learning_rate": tune.loguniform(1e-5, 1e-1),
+        "learning_rate": tune.loguniform(1e-5, 3e-3),
         "gamma": tune.uniform(0.8, 1.0),
-        "gae_lambda": tune.uniform(0.9, 1.0),
+        # "gae_lambda": tune.uniform(0.9, 1.0),
+        "gae_lambda": 0.95,
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
-        # "policy_type": tune.choice([ActorCriticPolicyType.BASIC, ActorCriticPolicyType.SIMPLE_MLP, ActorCriticPolicyType.VIBE_GRAPH]),
-        "policy_type": tune.choice([ActorCriticPolicyType.VIBE_GRAPH]),
+        # "policy_type": tune.choice([
+        #     ActorCriticPolicyType.BASIC, 
+        #     ActorCriticPolicyType.SIMPLE_MLP, 
+        #     ActorCriticPolicyType.BASIC_CANCEL, 
+        #     ActorCriticPolicyType.VIBE_GRAPH
+        # ]),
+        "policy_type": ActorCriticPolicyType.VIBE_GRAPH,
+        "vibe_features_dim": tune.choice([128, 256, 512]),
+        "vibe_gnn_hidden": tune.choice([32, 64, 128]),
+        "vibe_gnn_heads": tune.choice([2, 4, 8]), # hidden % heads == 0
+        "vibe_gnn_out": tune.choice([32, 64, 128]),
+        "vibe_matrix_out": tune.choice([64, 128, 256]),
         "n_steps": tune.choice([256, 512, 1024, 2048]),
-        "num_active_swaps": tune.randint(1, num_qubits),
+        "num_active_swaps": tune.randint(2, NUM_QUBITS),
         "ent_coef": tune.loguniform(1e-5, 0.05),
-        "num_qubits": num_qubits,
+        "num_qubits": NUM_QUBITS,
         "initial_difficulty": 1,
         "max_difficulty": 256,
         "diff_slope": 1,

@@ -29,7 +29,7 @@ class ActorCriticPolicyType(Enum):
                 print("Using dense dag extractor")
                 return DenseDagExtractor
 
-    def get_policy_kwargs(self):
+    def get_policy_kwargs(self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128):
         match self.name:
             case self.BASIC.name:
                 return None
@@ -40,11 +40,11 @@ class ActorCriticPolicyType(Enum):
                 return dict(
                     features_extractor_class=vibed.HybridExtractor,
                     features_extractor_kwargs=dict(
-                        features_dim=256,
-                        gnn_hidden=64,
-                        gnn_heads=2,  # 2 for 6-qubit topology, 4 to torino
-                        gnn_out=64,
-                        matrix_out=128,
+                        features_dim=features_dim,
+                        gnn_hidden=gnn_hidden,
+                        gnn_heads=gnn_heads,  # 2 for 6-qubit topology, 4 to torino
+                        gnn_out=gnn_out,
+                        matrix_out=matrix_out,
                     ),
                     net_arch=[256, 256],  # policy/value MLP after extractor
                 )
