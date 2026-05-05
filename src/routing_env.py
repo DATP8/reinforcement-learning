@@ -297,7 +297,7 @@ class RoutingEnv(gymnasium.Env):
         self._update_obs()
         return self._get_obs(), reward, terminated, truncated, {}
 
-    def _pop_recent_cx(self, p0: int, p1: int, dry_run = False) -> tuple[int, int] | None:
+    def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
         """
         Reverse iterate over recent added gates to routed circuit and then if it matches wires
         where swap just added it checks if CX gate. If cx gate it removes it from circuit and
@@ -343,13 +343,13 @@ class RoutingEnv(gymnasium.Env):
             )
 
             self._graph_obs = {
-                "matrix":               self._matrix,
-                "swap_cancellation":    self._cancellation,
-                "node_features":        graph["node_features"],
-                "coupling_edge_index":  graph["coupling_edge_index"],
-                "coupling_edge_attr":   graph["coupling_edge_attr"],
-                "interact_edge_index":  graph["interact_edge_index"],
-                "interact_edge_attr":   graph["interact_edge_attr"],
+                "matrix": self._matrix,
+                "swap_cancellation": self._cancellation,
+                "node_features": graph["node_features"],
+                "coupling_edge_index": graph["coupling_edge_index"],
+                "coupling_edge_attr": graph["coupling_edge_attr"],
+                "interact_edge_index": graph["interact_edge_index"],
+                "interact_edge_attr": graph["interact_edge_attr"],
             }
 
     def _execute_front_layer(self) -> int:
@@ -422,10 +422,7 @@ class RoutingEnv(gymnasium.Env):
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
                 return self._matrix
             case ActorCriticPolicyType.BASIC_CANCEL:
-                return {
-                    "matrix": self._matrix,
-                    "swap_cancellation": self._cancellation
-                }
+                return {"matrix": self._matrix, "swap_cancellation": self._cancellation}
             case ActorCriticPolicyType.HYBRID_GNN:
                 graph_x, graph_edge_idx = self._gnn
                 return {
@@ -563,8 +560,12 @@ class RoutingEnv(gymnasium.Env):
         return x, edge_index
 
     def _build_cancellation(self):
-        return np.array([True if self._pop_recent_cx(p0, p1, dry_run=True) else False for (p0, p1) in self._cmap_edges])
-                
+        return np.array(
+            [
+                True if self._pop_recent_cx(p0, p1, dry_run=True) else False
+                for (p0, p1) in self._cmap_edges
+            ]
+        )
 
     def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(self._num_active_swaps, dtype=bool)

@@ -29,7 +29,9 @@ class ActorCriticPolicyType(Enum):
                 print("Using dense dag extractor")
                 return DenseDagExtractor
 
-    def get_policy_kwargs(self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128):
+    def get_policy_kwargs(
+        self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128
+    ):
         match self.name:
             case self.BASIC.name:
                 return None

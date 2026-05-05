@@ -428,5 +428,5 @@ if __name__ == "__main__":
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+    bench.run_rand_benchmarks(configs, bench_iterations)
     bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)

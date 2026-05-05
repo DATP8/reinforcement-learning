@@ -36,6 +36,7 @@ INTERACTION edge features = 3
 from __future__ import annotations
 
 import numpy as np
+from numpy import NDArray, ndarray
 
 # ---------------------------------------------------------------------------
 # Constants – tune these to your largest topology (ibm_torino has 133 qubits)
@@ -58,13 +59,13 @@ MAX_INTERACT_EDGES = 200  # pad/clip interaction edges to this fixed size
 #
 def build_node_features(
     num_qubits: int,
-    p2l: list[int],  # physical → logical mapping
-    cmap_edges: list[tuple[int, int]],
+    p2l: NDArray[np.int64],  # physical → logical mapping
+    cmap_edges: NDArray[np.int64],
     front_layer_pairs: list[tuple[int, int]],  # physical qubit pairs
-    horizon_gate_count: np.ndarray,  # shape (num_qubits,)
-    distance_matrix: np.ndarray,
+    horizon_gate_count: ndarray,  # shape (num_qubits,)
+    distance_matrix: ndarray,
     horizon: int,
-) -> np.ndarray:
+) -> ndarray:
     """Return float32 array of shape (num_qubits, NODE_F)."""
 
     x = np.zeros((num_qubits, NODE_F), dtype=np.float32)
@@ -122,11 +123,11 @@ def build_node_features(
 #
 def build_coupling_graph(
     num_qubits: int,
-    cmap_edges: list[tuple[int, int]],
+    cmap_edges: NDArray[np.int64],
     active_swaps: list[int],  # indices into cmap_edges
-    horizon_traffic: np.ndarray,  # shape (len(cmap_edges),) gate counts
+    horizon_traffic: ndarray,  # shape (len(cmap_edges),) gate counts
     front_layer_pairs: list[tuple[int, int]],
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[ndarray, ndarray]:
     """
     Returns
     -------
@@ -166,12 +167,12 @@ def build_coupling_graph(
 #
 def build_interaction_graph(
     layers: list,  # dag.layers() output
-    l2p: list[int],  # logical → physical mapping
+    l2p: NDArray[np.int64],  # logical → physical mapping
     qubit_indices: dict,  # Qubit → int index
-    distance_matrix: np.ndarray,
+    distance_matrix: ndarray,
     horizon: int,
     max_edges: int = MAX_INTERACT_EDGES,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[ndarray, ndarray]:
     """
     Returns fixed-size zero-padded arrays:
     edge_index : (2, max_edges)  int64
@@ -225,11 +226,11 @@ def build_interaction_graph(
 
 def compute_horizon_gate_count(
     layers: list,
-    l2p: list[int],
+    l2p: NDArray[np.int64],
     qubit_indices: dict,
     num_qubits: int,
     horizon: int,
-) -> np.ndarray:
+) -> ndarray:
     """Count how many gates each physical qubit participates in within the horizon."""
     counts = np.zeros(num_qubits, dtype=np.float32)
     for h in range(min(len(layers), horizon)):
@@ -249,12 +250,12 @@ def compute_horizon_gate_count(
 
 def compute_horizon_traffic(
     layers: list,
-    l2p: list[int],
+    l2p: NDArray[np.int64],
     qubit_indices: dict,
-    cmap_edges: list[tuple[int, int]],
-    distance_matrix: np.ndarray,
+    cmap_edges: NDArray[np.int64],
+    distance_matrix: ndarray,
     horizon: int,
-) -> np.ndarray:
+) -> ndarray:
     """
     For each coupling edge, count how many upcoming gates 'need' to cross it.
     A gate needs an edge if performing that SWAP would reduce the gate's distance.
@@ -282,7 +283,7 @@ def compute_horizon_traffic(
 
 def get_front_layer_pairs(
     layers: list,
-    l2p: list[int],
+    l2p: NDArray[np.int64],
     qubit_indices: dict,
 ) -> list[tuple[int, int]]:
     """Return physical qubit pairs from the first (front) layer."""
@@ -304,13 +305,13 @@ def get_front_layer_pairs(
 
 def build_graph_obs(
     num_qubits: int,
-    l2p: list[int],
-    p2l: list[int],
-    cmap_edges: list[tuple[int, int]],
+    l2p: NDArray[np.int64],
+    p2l: NDArray[np.int64],
+    cmap_edges: NDArray[np.int64],
     active_swaps: list[int],
     dag,  # Qiskit DAGCircuit
     qubit_indices: dict,
-    distance_matrix: np.ndarray,
+    distance_matrix: ndarray,
     horizon: int,
 ) -> dict:
     """

@@ -178,6 +178,8 @@ if __name__ == "__main__":
     REPEATS_PER_CONFIG = 1
     GRACE_PERIOD = 3
     NUM_QUBITS = 6
+    TOTAL_TIMESTEPS = 10_000_000
+    BASE_EVAL_FREQ = 100_000
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
@@ -195,15 +197,15 @@ if __name__ == "__main__":
         "batch_size": tune.choice([512, 1024, 2048, 4096]),
         "horizon": tune.randint(4, 64),
         # "policy_type": tune.choice([
-        #     ActorCriticPolicyType.BASIC, 
-        #     ActorCriticPolicyType.SIMPLE_MLP, 
-        #     ActorCriticPolicyType.BASIC_CANCEL, 
+        #     ActorCriticPolicyType.BASIC,
+        #     ActorCriticPolicyType.SIMPLE_MLP,
+        #     ActorCriticPolicyType.BASIC_CANCEL,
         #     ActorCriticPolicyType.VIBE_GRAPH
         # ]),
         "policy_type": ActorCriticPolicyType.VIBE_GRAPH,
         "vibe_features_dim": tune.choice([128, 256, 512]),
         "vibe_gnn_hidden": tune.choice([32, 64, 128]),
-        "vibe_gnn_heads": tune.choice([2, 4, 8]), # hidden % heads == 0
+        "vibe_gnn_heads": tune.choice([2, 4, 8]),  # hidden % heads == 0
         "vibe_gnn_out": tune.choice([32, 64, 128]),
         "vibe_matrix_out": tune.choice([64, 128, 256]),
         "n_steps": tune.choice([256, 512, 1024, 2048]),
@@ -225,7 +227,7 @@ if __name__ == "__main__":
     algo = OptunaSearch(metric="best_avg_d_cx", mode="min")
     # repeated_algo = Repeater(algo, repeat=repeats_per_config) #! Can cause problems when using scheduler
 
-    max_evals = search_space["total_timesteps"] // search_space["base_eval_freq"]
+    max_evals = TOTAL_TIMESTEPS // BASE_EVAL_FREQ
 
     scheduler = ASHAScheduler(
         time_attr="pc_evals",
