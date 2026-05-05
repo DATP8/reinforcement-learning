@@ -87,8 +87,8 @@ if __name__ == "__main__":
     from qiskit.qpy import dump
     from qiskit.quantum_info import Operator
     from qiskit.transpiler import PassManager
-    from src.routing.rl_routing_pass import RlRoutingPass
 
+    from src.routing.rl_routing_pass import RlRoutingPass
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.dense_circuit_graph_state_handler import (
         DenseCircuitGraphStateHandler,
