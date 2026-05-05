@@ -1,3 +1,4 @@
+from src.gym_extractor import SimpleExtractor2
 from enum import Enum, auto
 
 import src.vibed_ppo.hybrid_extractor as vibed
@@ -20,7 +21,9 @@ class ActorCriticPolicyType(Enum):
                 return "MultiInputPolicy"
 
     def get_feature_extractor(self):
-        match self.name:
+        match self.name: 
+            case self.BASIC | self.BASIC_CANCEL.name:
+                return SimpleExtractor2
             case self.SIMPLE_MLP.name:
                 return SimpleExtractor
             case self.HYBRID_GNN.name:

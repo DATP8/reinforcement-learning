@@ -14,21 +14,21 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### of at least 5 runs. Report the seeds for reproducability.
 
 HORIZON = 64
-MAX_DIFF = 100
+MAX_DIFF = 256
 SLOPE = 1
 TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
 N_EVAL_EPISODES = 10
 THRESHOLD = 0.85
-BATCH_SIZE = 256  # 2048
-N_STEPS = 2048  # 512
+BATCH_SIZE = 2048
+N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
-NUM_QUBITS = 6  # 6
-NUM_ACTIVE_SWAPS = 4
+NUM_QUBITS = 6
+NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
 
 if __name__ == "__main__":
     # backend = FakeTorino()

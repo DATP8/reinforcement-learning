@@ -75,7 +75,7 @@ class RoutingEnv(gymnasium.Env):
                             shape=(self._num_active_swaps, self._horizon),
                             dtype=np.int8,
                         ),
-                        "swap_cancellation": spaces.MultiBinary(len(self._cmap_edges)),
+                        "swap_cancellation": spaces.MultiBinary(self._num_active_swaps),
                     }
                 )
             case ActorCriticPolicyType.DENSE_GRAPH_GNN:
@@ -560,12 +560,12 @@ class RoutingEnv(gymnasium.Env):
         return x, edge_index
 
     def _build_cancellation(self):
-        return np.array(
-            [
-                True if self._pop_recent_cx(p0, p1, dry_run=True) else False
-                for (p0, p1) in self._cmap_edges
-            ]
-        )
+        cancellation = np.zeros(self._num_active_swaps, dtype=np.int8)
+        for slot, edge_idx in enumerate(self._active_swaps):
+            p0, p1 = self._cmap_edges[edge_idx]
+            if self._pop_recent_cx(p0, p1, dry_run=True):
+                cancellation[slot] = True
+        return cancellation
 
     def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(self._num_active_swaps, dtype=bool)

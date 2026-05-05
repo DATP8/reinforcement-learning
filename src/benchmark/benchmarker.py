@@ -16,6 +16,7 @@ from src.eval_circuits import EvalCircuits
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
+import random
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -23,10 +24,13 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Depth", 10),
+    ("Decomposed Gates", 10),
 ]
 
-EVAL_SEED = np.random.randint(0, 2**31 - 1)
+EVAL_SEED = 2026#np.random.randint(0, 2**31 - 1)
+random.seed(EVAL_SEED)
+np.random.seed(EVAL_SEED)
+
 EVAL_TRIALS = 12
 
 
@@ -264,11 +268,11 @@ if __name__ == "__main__":
     # )
 
     horizon = 64
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
 
     ppo_env = make_env(
         coupling_map,
-        num_active_swaps=6,
+        num_active_swaps=5,
         horizon=horizon,
         initial_difficulty=1,
         max_difficulty=100,
@@ -276,7 +280,7 @@ if __name__ == "__main__":
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env, seed=EVAL_SEED)
+    ppo_model = MaskablePPO.load("checkpoints/best_model_basic_cancel.zip", ppo_env, seed=EVAL_SEED)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -346,7 +350,7 @@ if __name__ == "__main__":
             ),
         ),
         (
-            f"TrivialLayout_MaskablePPO_{horizon}",
+            f"TrivialLayout_MaskablePPO_{horizon}_{policy_type.name}",
             PassManager(agentic_router),
         ),
         (
@@ -396,7 +400,7 @@ if __name__ == "__main__":
             ),
         ),
         (
-            f"SabreLayout_MaskablePPO_{horizon}",
+            f"SabreLayout_MaskablePPO_{horizon}_{policy_type.name}",
             PassManager(
                 [
                     sabre_layout,
@@ -427,5 +431,5 @@ if __name__ == "__main__":
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)
     print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations)
+    #bench.run_rand_benchmarks(configs, bench_iterations)
     bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)
