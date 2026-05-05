@@ -49,7 +49,7 @@ def make_observation_space(
                 shape=(num_active_swaps, horizon),
                 dtype=np.int8,
             ),
-            "swap_cancellation": spaces.MultiBinary(num_coupling_edges),
+            "swap_cancellation": spaces.MultiBinary(num_active_swaps),
             # --- new graph observations ---
             "node_features": spaces.Box(
                 low=-np.inf,
