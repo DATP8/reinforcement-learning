@@ -152,5 +152,5 @@ class DenseDagExtractor(BaseFeaturesExtractor):
 
             data_list.append(DenseCircuitGraph(x=x, edge_index=ei, edge_attr=ea))
 
-        batch = Batch.from_data_list(data_list).to(obs["graph_x"].device)
+        batch = Batch.from_data_list(data_list).to(obs["graph_x"].device)  # pyrefly: ignore
         return self.gnn(batch)  # (N, hidden_dim)
