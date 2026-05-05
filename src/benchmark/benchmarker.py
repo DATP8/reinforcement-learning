@@ -1,5 +1,6 @@
 # from mqt.bench import BenchmarkLevel, get_benchmark
 # from mqt.bench.benchmarks import get_available_benchmark_names
+import random
 import time
 
 import numpy as np
@@ -16,7 +17,6 @@ from src.eval_circuits import EvalCircuits
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
-import random
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -27,7 +27,7 @@ METRIC_KEYS = [
     ("Decomposed Gates", 10),
 ]
 
-EVAL_SEED = 2026#np.random.randint(0, 2**31 - 1)
+EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
 random.seed(EVAL_SEED)
 np.random.seed(EVAL_SEED)
 
@@ -280,7 +280,9 @@ if __name__ == "__main__":
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load("checkpoints/best_model_basic_cancel.zip", ppo_env, seed=EVAL_SEED)
+    ppo_model = MaskablePPO.load(
+        "checkpoints/best_model_basic_cancel.zip", ppo_env, seed=EVAL_SEED
+    )
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -431,5 +433,5 @@ if __name__ == "__main__":
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)
     print("\n")
-    #bench.run_rand_benchmarks(configs, bench_iterations)
+    # bench.run_rand_benchmarks(configs, bench_iterations)
     bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)

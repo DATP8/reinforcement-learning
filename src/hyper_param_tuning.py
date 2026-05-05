@@ -82,7 +82,9 @@ class RayTuneCurriculumCallback(BaseCallback):
 
         num_decomposed_cx = 0
         for circuit in self._eval_circuits:
-            obs, info = self._eval_env.reset(seed=self._seed, options={"circuit": circuit})
+            obs, info = self._eval_env.reset(
+                seed=self._seed, options={"circuit": circuit}
+            )
             done = False
             while not done:
                 mask = self._eval_env.valid_action_mask()

@@ -25,12 +25,15 @@ class SimpleExtractor(BaseFeaturesExtractor):
 
     def forward(self, obs):
         return self.net(obs)
-    
+
+
 class SimpleExtractor2(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim=128):
         super().__init__(observation_space, features_dim)
 
-        matrix_dim = observation_space["matrix"].shape[0] * observation_space["matrix"].shape[1]
+        matrix_dim = (
+            observation_space["matrix"].shape[0] * observation_space["matrix"].shape[1]
+        )
         cancel_dim = observation_space["swap_cancellation"].shape[0]
         input_dim = matrix_dim + cancel_dim
 
@@ -44,6 +47,7 @@ class SimpleExtractor2(BaseFeaturesExtractor):
 
     def forward(self, obs):
         return self.net(obs)
+
 
 class SimpleGNN(nn.Module):
     def __init__(self, in_dim, hidden_dim):
