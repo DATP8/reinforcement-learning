@@ -1,8 +1,4 @@
-from qiskit.transpiler.passes import (
-    SabreLayout,
-    ApplyLayout,
-)
-from qiskit import generate_preset_pass_manager
+from cmath import sqrt
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
 from qiskit.transpiler.passes import CommutativeCancellation
@@ -11,12 +7,21 @@ from scipy import stats
 from tqdm import tqdm
 import numpy as np
 
-from mqt.bench import BenchmarkLevel, get_benchmark
-from mqt.bench.benchmarks import get_available_benchmark_names
-
+import pickle
+import json
+import subprocess
 import time
-import random
+from pathlib import Path
 
+from src.circuit_generator import CircuitGenerator
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent.parent
+
+# Define the absolute paths
+BRIDGE_DIR = ROOT_DIR / "tools" / "mqt_bridge"
+BRIDGE_PYTHON = str(BRIDGE_DIR / ".venv" / "bin" / "python")
+WORKER_SCRIPT = str(BRIDGE_DIR / "mqt_worker.py")
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -44,9 +49,11 @@ class Benchmarker:
         self.decompose_reps = decompose_reps
         self.commutative_cancellation = CommutativeCancellation()
 
-    def _print_header(self, title: str, confidence: float | None = None) -> None:
-        header: str = f"{'Config':<30}"
-        underline: str = "".ljust(30, "-")
+    def _print_header(
+        self, title: str, confidence: float | None = None, title_size: int = 30
+    ) -> None:
+        header: str = f"{'Config':<{title_size}}"
+        underline: str = "".ljust(title_size, "-")
         if confidence is not None:
             for label, width in METRIC_KEYS:
                 header += f"{label:>{width}}{'  ±CI':<10}"
@@ -61,8 +68,8 @@ class Benchmarker:
         print(header)
         print(underline)
 
-    def _print_row(self, name, metrics, ci=None):
-        row = f"{name:<30}"
+    def _print_row(self, name, metrics, ci=None, title_size: int = 30):
+        row = f"{name:<{title_size}}"
         for label, width in METRIC_KEYS:
             value = metrics[label]
             value_str = f"{value:>{width}.4f}"
@@ -76,9 +83,19 @@ class Benchmarker:
         print(row)
 
     def _prepare_for_routing(self, qc: QuantumCircuit) -> QuantumCircuit:
-        if not self.decompose_before_routing:
-            return qc
-        return qc.decompose(reps=5)
+        qc_prep = qc.decompose(reps=5) if self.decompose_before_routing else qc
+
+        # Build a clean anonymous circuit with no classical registers
+        num_physical = max(qc_prep.num_qubits, self.coupling_map.size())
+        qc_clean = QuantumCircuit(num_physical)
+        for inst in qc_prep.data:
+            if len(inst.clbits) == 0:
+                new_qubits = [
+                    qc_clean.qubits[qc_prep.find_bit(q).index] for q in inst.qubits
+                ]
+                qc_clean.append(inst.operation, new_qubits)
+
+        return qc_clean
 
     def _collect_metrics(self, routed_circuit, transpile_time):
         ops = routed_circuit.count_ops()
@@ -100,70 +117,79 @@ class Benchmarker:
         }
         return metrics
 
-    def generate_random_2qubit_circuit(
-        self, num_qubits: int, num_gates: int
-    ) -> QuantumCircuit:
-        if num_qubits < 2:
-            raise ValueError("Number of qubits must be at least 2 for 2-qubit gates.")
+    def _get_mqt_circuit_via_bridge(self, algo_name: str, qubits: int):
+        result = subprocess.run(
+            [BRIDGE_PYTHON, WORKER_SCRIPT, "circuit", algo_name, str(qubits)],
+            capture_output=True,
+            check=True,
+        )
+        if result.stdout.strip() == b"err":
+            raise RuntimeError("err")
+        return pickle.loads(result.stdout)
 
-        qc = QuantumCircuit(num_qubits)
+    def _get_available_names_via_bridge(self):
+        try:
+            result = subprocess.run(
+                [BRIDGE_PYTHON, WORKER_SCRIPT, "names"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return json.loads(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print("\n--- BRIDGE CRASHED ---")
+            print("STDOUT:", e.stdout)
+            print("STDERR:", e.stderr)  # THIS is where the real error is hidden
+            raise e
 
-        for _ in range(num_gates):
-            control = random.randint(0, num_qubits - 1)
-            target = random.randint(0, num_qubits - 1)
-            while target == control:
-                target = random.randint(0, num_qubits - 1)
-            qc.cx(control, target)
+    def run_mqt_benchmarks(self, configs: list[tuple[str, PassManager]]):
+        name_lengths = [len(elem[0]) for elem in configs]
+        name_size = max(name_lengths)
 
-        return qc
-
-    def run_mqt_benchmarks(
-        self,
-        configs: list[tuple[str, PassManager]],
-    ):
-        algorithm_name_list = get_available_benchmark_names()
+        algorithm_name_list = self._get_available_names_via_bridge()
+        results = {}
         for algorithm_name in algorithm_name_list:
-            success = False
-            for q in range(1, self.qubits).__reversed__():
-                if success:
-                    break
-                try:
-                    qc = get_benchmark(
-                        algorithm_name, BenchmarkLevel.INDEP, self.qubits
-                    )
-                    qc = self._prepare_for_routing(qc)
-                    if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
-                        continue
+            try:
+                qc = self._get_mqt_circuit_via_bridge(algorithm_name, self.qubits)
+                qc = self._prepare_for_routing(qc)
+                qc.remove_final_measurements()
+                runs = self.bench_circuit(qc, configs, algorithm_name)
+                self._print_header(f"Algorithm: {algorithm_name}", title_size=name_size)
+                results[algorithm_name] = {}
+                for config_name, metrics in runs.items():
+                    results[algorithm_name][config_name] = metrics
+                    self._print_row(config_name, metrics, title_size=name_size)
 
-                    runs = self.bench_circuit(qc, configs, algorithm_name)
-                    self._print_header(f"Algorithm: {algorithm_name}")
-                    for config_name, metrics in runs.items():
-                        self._print_row(config_name, metrics)
-                    success = True
+            except AssertionError:
+                raise
+            except RuntimeError:
+                pass
+            except Exception as e:
+                raise e
 
-                except AssertionError:
-                    raise
-                except Exception:
-                    pass
+        return results
 
     def run_rand_benchmarks(
         self,
         configs: list[tuple[str, PassManager]],
         iterations: int,
+        title: str,
         confidence: float = 0.95,
+        is_printing: bool = True,
+        seed=1
     ):
-        qc_list = []
-
-        for _ in tqdm(
-            range(iterations), desc="List of random circuits", position=0, leave=False
-        ):
-            qc_list.append(
-                self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
-            )
-
-        self._print_header(
-            title=f"{len(qc_list)} random circuits", confidence=confidence
+        name_lengths = [len(elem[0]) for elem in configs]
+        name_size = max(name_lengths)
+        qc_list = CircuitGenerator.generate_n_random_cx_circuits(
+            n=iterations,
+            num_qubits=self.qubits,
+            num_gates=self.max_gates,
+            seed=seed,
         )
+
+        if is_printing:
+            self._print_header(title=title, confidence=confidence, title_size=name_size)
+        results = {}
         for config in configs:
             mean_dic = {}
             ci_dic = {}
@@ -179,7 +205,14 @@ class Benchmarker:
                 )
                 mean_dic[metric] = arr.mean()
                 ci_dic[metric] = ci_val
-            self._print_row(title, metrics=mean_dic, ci=ci_dic)
+
+            results[title] = (mean_dic, ci_dic)
+
+            if is_printing:
+                self._print_row(
+                    title, metrics=mean_dic, ci=ci_dic, title_size=name_size
+                )
+        return results
 
     def bench_pass(self, qc, pm, title):
 
@@ -193,12 +226,17 @@ class Benchmarker:
 
         transpile_time = end - start
 
-        org_op = Operator.from_circuit(qc)
-        routed_op = Operator.from_circuit(routed)
-        assert routed_op.equiv(org_op), (
-            f"\n\nFor the following configuration {title}\n"
-            f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
-        )
+        try:
+            org_op = Operator.from_circuit(qc)
+            routed_op = Operator.from_circuit(routed)
+            assert routed_op.equiv(org_op), (
+                f"\n\nFor the following configuration {title}\n"
+                f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+            )
+        except Exception as e:
+            if isinstance(e, AssertionError):
+                raise
+            pass
 
         return self._collect_metrics(routed, transpile_time)
 
@@ -225,163 +263,81 @@ class Benchmarker:
 
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter
-    from qiskit.transpiler.passes import ApplyLayout
-    from qiskit.transpiler.passes import SabreLayout
-    from qiskit.transpiler.passes import TrivialLayout
-    from src.routing.bwas_chunck_router import ChunkRouter
-    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-    from qiskit.transpiler import CouplingMap
-    from src.model import BiCircuitGNN
-    from src.routing.rl_routing_pass import RlRoutingPass
-    from qiskit.transpiler.passes import SabreSwap
-    from src.routing.bwas_router import BWASRouter
-    from src.routing.cnot_swap_cancel import CNOTSwapCancelation
-    from src.states.dense_circuit_graph_state_handler import (
-        DenseCircuitGraphStateHandler,
+    from src.benchmark.passmanager_creaters import (
+        IbmRlBuilder,
+        SabreBuilder,
+        QiskitTranspiler,
     )
-    from src.model import BiCircuitGNNDense
-    from src.routing.receding_horizon import RecedingHorizon
-    import torch
 
-    n_qubits = 6
-    horizon = 100
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    state_handler = CircuitGraphStateHandler(n_qubits, topology)
-    state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
+    start_qubits = 3
+    end_qubits = 6
 
-    path = "models/graph/difficulty62_updates7_iteration25150.pt"
-    model = BiCircuitGNN(n_qubits)
-    model.load_state_dict(torch.load(path, map_location="cpu"))
+    sqrt_qubits = int(sqrt(end_qubits).real)
 
-    path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
-    # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
-    model_dense = BiCircuitGNNDense(n_qubits)
-    model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
-
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
-
-    swap_inserter = SwapInserter(coupling_map, n_qubits)
-
-    chuck_size = 18
-    chunk_router = ChunkRouter(
-        chunk_size=chuck_size, model=model, state_handler=state_handler
+    coupling_map_list = []
+    # coupling_map_list.extend([("grid",            CouplingMap().from_grid(x, y))              for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
+    # coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, y)) for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
+    # coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(start_qubits, end_qubits) if x % 2 == 1])
+    # coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(start_qubits, end_qubits) if x % 2 == 1])
+    coupling_map_list.extend(
+        [("ring", CouplingMap().from_ring(x)) for x in range(start_qubits, end_qubits)]
     )
-    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
-
-    chuck_router_dense = ChunkRouter(
-        chunk_size=chuck_size, model=model_dense, state_handler=state_handler_dense
+    coupling_map_list.extend(
+        [("line", CouplingMap().from_line(x)) for x in range(start_qubits, end_qubits)]
     )
-    chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
 
-    bwas_router = BWASRouter(model_dense, state_handler_dense)
-    receding_horizon_router = RecedingHorizon(
-        horizon_length=chuck_size, step_size=chuck_size // 2, router=bwas_router
-    )
-    receding_horizon_pass = RlRoutingPass(receding_horizon_router, swap_inserter)
+    results = {}
 
-    trivial_layout = TrivialLayout(coupling_map)
-    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+    for title, coupling_map in coupling_map_list:
+        coupling_map.make_symmetric()
 
-    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
-    #### Standard qiskit pass manager inserted router
-    configs = [
-        (
-            "TrivialLayout_SabreSwap",
-            PassManager(
-                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
-            ),
-        ),
-        (
-            "TrivialLayout_SabreSwap_cancel",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            f"TrivialLayout_RecedingHorizon_Dense_cancel{chuck_size}",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    receding_horizon_pass,
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            f"TrivialLayout_Chunking_Dense_cancel{chuck_size}",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            "SabreLayout_SabreSwap",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                ]
-            ),
-        ),
-        # (
-        #     f"SabreLayout_Chunking_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             chunck_swap_pass,
-        #         ]
-        #     ),
-        # ),
-        (
-            f"SabreLayout_Dense_Chunking_{chuck_size}",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                ]
-            ),
-        ),
-        (
-            "Op1 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=1, coupling_map=coupling_map
-            ),
-        ),
-        (
-            "Op2 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=2, coupling_map=coupling_map
-            ),
-        ),
-        (
-            "Op3 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=3, coupling_map=coupling_map
-            ),
-        ),
-    ]
+        trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
 
-    #### Pass manager with only routing stage
-    # configs = [(title, PassManager([router])) for title, router in routers]
+        sabre_ai_ibm = IbmRlBuilder(op_level=3, use_sabre_layout=True).build(
+            coupling_map
+        )
 
-    bench_iterations = 10
-    bench_circut_gate_count = 100
-    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
-    print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+        trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
+
+        sabre_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
+
+        qiskit_transpiler = QiskitTranspiler(op_level=0).build(coupling_map)
+
+        configs = [
+            ("trivial layout ai routing (ibm)", trivial_ai_ibm),
+            ("trivial layout sabre", trivial_sabre),
+            ("sabre layout ai routing (ibm)", sabre_ai_ibm),
+            ("sabre layout sabre", sabre_sabre),
+            ("optimization level 0 qiskit standard transpiler", qiskit_transpiler),
+        ]
+
+        bench_iterations = 10
+        bench_circut_gate_count = 100
+        n_qubits = coupling_map.size()
+        bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
+        bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+
+        temp_results = bench.run_rand_benchmarks(
+            configs,
+            bench_iterations,
+            title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
+            is_printing=True,
+        )  # pyrefly: ignore
+        if title not in results:
+            results[title] = {}
+
+        for config in temp_results:
+            if config not in results[title]:
+                results[title][config] = {}
+
+            mean, ci = temp_results[config]
+            results[title][config][n_qubits] = {
+                metric: {"mean": mean[metric], "ci": ci[metric]}
+                for metric, _ in METRIC_KEYS
+            }
+
+        results_dir = ROOT_DIR / "results"
+        results_dir.mkdir(exist_ok=True)
+        results_file = results_dir / "benchmark_results.json"
+        with open(results_file, "w") as f:
+            json.dump(results, f, indent=2)
