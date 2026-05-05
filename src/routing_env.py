@@ -336,6 +336,7 @@ class RoutingEnv(gymnasium.Env):
                 p2l=self._p2l,
                 cmap_edges=self._cmap_edges,
                 active_swaps=self._active_swaps,
+                num_active_swaps=self._num_active_swaps,
                 dag=self._dag,
                 qubit_indices=self._qubit_indices,
                 distance_matrix=self._distance_matrix,

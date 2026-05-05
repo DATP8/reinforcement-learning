@@ -244,6 +244,14 @@ class HybridExtractor(BaseFeaturesExtractor):
             nn.ELU(),
         )
 
+
+        self.cancel_mlp = nn.Sequential(
+            nn.Linear(swap_cancellation_in, swap_cancellation_in),
+            nn.ELU(),
+            # nn.Linear(swap_cancellation_in, swap_cancellation_in),
+            # nn.ELU(),
+        )
+
         # -- graph branches --
         self.coupling_gnn = CouplingGNN(
             node_in=node_in,
@@ -261,7 +269,8 @@ class HybridExtractor(BaseFeaturesExtractor):
         )
 
         # -- final fusion MLP --
-        combined_dim = matrix_out + gnn_out + gnn_out + swap_cancellation_in
+        # combined_dim = matrix_out + gnn_out + gnn_out + swap_cancellation_in
+        combined_dim = gnn_out + gnn_out + swap_cancellation_in
         self.fusion = nn.Sequential(
             nn.Linear(combined_dim, features_dim),
             nn.ELU(),
@@ -273,8 +282,8 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 1. Matrix branch
         # ----------------------------------------------------------------
-        matrix = obs["matrix"].float()  # (B, A, H)
-        matrix_feat = self.matrix_mlp(matrix)  # (B, matrix_out)
+        # matrix = obs["matrix"].float()  # (B, A, H)
+        # matrix_feat = self.matrix_mlp(matrix)  # (B, matrix_out)
 
         # ----------------------------------------------------------------
         # 2. Shared node features (both GNNs use the same node matrix)
@@ -301,10 +310,14 @@ class HybridExtractor(BaseFeaturesExtractor):
         interact_feat = self.interact_gnn(ix, i_ei, i_ea, i_batch)  # (B, gnn_out)
 
         # ----------------------------------------------------------------
-        # 5. Fuse all branches
+        # 5. Interaction graph branch
         # ----------------------------------------------------------------
-        swap_can = obs["swap_cancellation"].float()  # (B, S)
-        combined = torch.cat(
-            [matrix_feat, coupling_feat, interact_feat, swap_can], dim=-1
-        )
+        swap_can = obs["swap_cancellation"].float()      # (B, S)
+        can_feat = self.cancel_mlp(swap_can)
+
+        # ----------------------------------------------------------------
+        # 6. Fuse all branches
+        # ----------------------------------------------------------------
+        # combined = torch.cat([matrix_feat, coupling_feat, interact_feat, swap_can], dim=-1)
+        combined = torch.cat([coupling_feat, interact_feat, can_feat], dim=-1)
         return self.fusion(combined)

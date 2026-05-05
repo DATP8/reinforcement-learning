@@ -24,11 +24,9 @@ import numpy as np
 from gymnasium import spaces
 
 # ---- constants (set these from your topology) ----
-NUM_QUBITS = 6  # or 133 for ibm_torino
-NUM_COUPLING_EDGES = 5  # undirected; we store both dirs → *2 in the space
 NODE_F = 5
-COUP_EDGE_F = 3
-INT_EDGE_F = 3
+BASE_COUP_EDGE_F = 2
+BASE_INT_EDGE_F = 2
 MAX_INTERACT_EDGES = 200
 
 
@@ -40,50 +38,42 @@ def make_observation_space(
     num_coupling_edges,  # undirected count
     max_interact_edges=MAX_INTERACT_EDGES,
 ):
-    return spaces.Dict(
-        {
-            # --- existing ---
-            "matrix": spaces.Box(
-                low=-2,
-                high=2,
-                shape=(num_active_swaps, horizon),
-                dtype=np.int8,
-            ),
-            "swap_cancellation": spaces.MultiBinary(num_active_swaps),
-            # --- new graph observations ---
-            "node_features": spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(num_qubits, NODE_F),
-                dtype=np.float32,
-            ),
-            "coupling_edge_index": spaces.Box(
-                low=0,
-                high=num_qubits - 1,
-                shape=(2, num_coupling_edges * 2),  # both directions
-                dtype=np.int64,
-            ),
-            "coupling_edge_attr": spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(num_coupling_edges * 2, COUP_EDGE_F),
-                # shape=(num_active_swaps * 2, COUP_EDGE_F),
-                dtype=np.float32,
-            ),
-            "interact_edge_index": spaces.Box(
-                low=0,
-                high=num_qubits - 1,
-                shape=(2, max_interact_edges),
-                dtype=np.int64,
-            ),
-            "interact_edge_attr": spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(max_interact_edges, INT_EDGE_F),
-                dtype=np.float32,
-            ),
-        }
-    )
+    return spaces.Dict({
+        # --- existing ---
+        "matrix": spaces.Box(
+            low=-2, high=2,
+            shape=(num_active_swaps, horizon),
+            dtype=np.int8,
+        ),
+        "swap_cancellation": spaces.MultiBinary(num_active_swaps),
+        # --- new graph observations ---
+        "node_features": spaces.Box(
+            low=-np.inf, high=np.inf,
+            shape=(num_qubits, NODE_F),
+            dtype=np.float32,
+        ),
+        "coupling_edge_index": spaces.Box(
+            low=0, high=num_qubits - 1,
+            shape=(2, num_coupling_edges * 2),   # both directions
+            dtype=np.int64,
+        ),
+        "coupling_edge_attr": spaces.Box(
+            low=-np.inf, high=np.inf,
+            shape=(num_coupling_edges * 2, BASE_COUP_EDGE_F + horizon),
+            # shape=(num_active_swaps * 2, COUP_EDGE_F),
+            dtype=np.float32,
+        ),
+        "interact_edge_index": spaces.Box(
+            low=0, high=num_qubits - 1,
+            shape=(2, max_interact_edges),
+            dtype=np.int64,
+        ),
+        "interact_edge_attr": spaces.Box(
+            low=-np.inf, high=np.inf,
+            shape=(max_interact_edges, BASE_INT_EDGE_F + num_active_swaps),
+            dtype=np.float32,
+        ),
+    })
 
 
 # ===========================================================================

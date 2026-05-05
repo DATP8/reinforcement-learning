@@ -26,9 +26,9 @@ N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
-NUM_ACTIVE_SWAPS = 5
+NUM_ACTIVE_SWAPS = 3
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
 
 if __name__ == "__main__":
     # backend = FakeTorino()

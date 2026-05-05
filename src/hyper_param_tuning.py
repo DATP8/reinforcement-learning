@@ -182,6 +182,7 @@ if __name__ == "__main__":
     NUM_QUBITS = 6
     TOTAL_TIMESTEPS = 10_000_000
     BASE_EVAL_FREQ = 100_000
+    GPUS = 1.0
 
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
@@ -189,7 +190,7 @@ if __name__ == "__main__":
     # num_samples = repeats_per_config * num_unique_samples # when using Repeater
     num_samples = NUM_UNIQUE_SAMPLES
 
-    gpus_per_trial = 1.0 / num_concurrent_trials if torch.cuda.is_available() else 0.0
+    gpus_per_trial = GPUS / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
     search_space = {
         "learning_rate": tune.loguniform(1e-5, 3e-3),
