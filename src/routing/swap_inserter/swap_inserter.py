@@ -1,3 +1,4 @@
+from numpy import ndarray
 from qiskit import QuantumCircuit
 from qiskit.circuit import CircuitInstruction
 from qiskit.transpiler import CouplingMap as CM
@@ -22,9 +23,8 @@ class SwapInserter:
         Returns (routed_circuit, init_layout, final_layout).
         """
 
-        dists = self.coupling_map.distance_matrix.astype(  # pyrefly: ignore[missing-attribute]
-            int
-        )
+        distance_matrix: ndarray = self.coupling_map.distance_matrix  # pyrefly: ignore
+        dists = distance_matrix.astype(int)
 
         # Build gate list with virtual-qubit indices
         gates: list[tuple[list[int], object]] = []
@@ -66,10 +66,10 @@ class SwapInserter:
 
         def _place(gate_idx: int):
             qs, inst = gates[gate_idx]
-            inst: CircuitInstruction  # type:ignore
+            inst: CircuitInstruction
             phys_qubits = [out.qubits[locations[q]] for q in qs]
-            clbits = [out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits]  # pyrefly: ignore[missing-attribute]
-            out.append(inst.operation, phys_qubits, clbits)  # pyrefly: ignore[missing-attribute]
+            clbits = [out.clbits[input_circuit.find_bit(c).index] for c in inst.clbits]
+            out.append(inst.operation, phys_qubits, clbits)
             placed[gate_idx] = True
             _activate_successors(gate_idx)
 

@@ -1,6 +1,6 @@
 import matplotlib
 import torch
-from torch import nn
+import torch.nn as nn
 
 from src.model import BiCircuitGNNDense, ValueModel
 from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler

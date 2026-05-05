@@ -26,6 +26,7 @@ dependencies = [
     "gymnasium>=1.2.3",
     "qiskit-ibm-transpiler>=0.18.0",
     "networkx>=2.8.5",
+    "types-cachetools>=7.0.0.20260503",
 ]
 
 [tool.pyrefly]

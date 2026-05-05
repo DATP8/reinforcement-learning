@@ -70,7 +70,7 @@ class TestTensorStateHandler(unittest.TestCase):
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
-                # pyrefly: ignore[unbound-name]
+
             print(self.game.state_from(pruned_circuit), "\n", pruned_state)
 
             self.assertTrue(
@@ -80,7 +80,7 @@ class TestTensorStateHandler(unittest.TestCase):
                 pruned_circuit_2 = QuantumCircuit(n_qubits)
                 for q1, q2 in output_circuits_pruned[i + 1]:
                     pruned_circuit_2.cx(q1, q2)
-                    # pyrefly: ignore[unbound-name]
+
                 self.assertTrue(
                     not torch.equal(
                         self.game.state_from(pruned_circuit_2), pruned_state

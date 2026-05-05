@@ -36,7 +36,8 @@ INTERACTION edge features = 3
 from __future__ import annotations
 
 import numpy as np
-from numpy import NDArray, ndarray
+from numpy import ndarray
+from numpy.typing import NDArray
 
 # ---------------------------------------------------------------------------
 # Constants – tune these to your largest topology (ibm_torino has 133 qubits)

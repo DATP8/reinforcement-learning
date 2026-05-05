@@ -19,7 +19,7 @@ class BWASNode:
         self.parent_node = None
         self.action = None
 
-    def get_child(self, next_state: torch.Tensor, action: int, action_cost: float):
+    def get_child(self, next_state, action: int, action_cost: float):
         child_node = BWASNode(next_state, self.g + action_cost)
         child_node.parent_node = self
         child_node.action = action
@@ -39,9 +39,7 @@ class BWASRouter[S, To](Router):
         device = next(self.model.parameters()).device
         with torch.no_grad():
             h = self.model(
-                self.state_handler.batch_states([root_state]).to(  # pyrefly: ignore
-                    device
-                )
+                self.state_handler.batch_states([root_state]).to(device)
             ).item()
 
         counter = 0
@@ -78,7 +76,7 @@ class BWASRouter[S, To](Router):
 
             states = self.state_handler.batch_states([node.state for node in new_nodes])
             with torch.no_grad():
-                h_values = self.model(states.to(device))  # pyrefly: ignore
+                h_values = self.model(states.to(device))
 
             for node, h in zip(new_nodes, h_values):
                 f = self.weight * node.g + h.item()

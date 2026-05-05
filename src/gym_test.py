@@ -102,7 +102,7 @@ if __name__ == "__main__":
         obs, _ = eval_env.reset()
         flag = True
         while flag:
-            action_masks = mask_fn(eval_env)  # pyrefly: ignore
+            action_masks = mask_fn(eval_env)
             action, _ = model.predict(
                 obs, deterministic=True, action_masks=action_masks
             )

@@ -23,7 +23,7 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("2Q Depth", 10),
+    ("Decomposed Depth", 10),
 ]
 
 EVAL_SEED = np.random.randint(0, 2**31 - 1)
@@ -86,6 +86,7 @@ class Benchmarker:
 
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
+        decomposed_depth = swaps * 3 + cx
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
@@ -93,9 +94,7 @@ class Benchmarker:
             METRIC_KEYS[2][0]: cx,
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: routed_circuit.depth(
-                filter_function=lambda inst: inst.operation.name in ["cx", "swap"]
-            ),
+            METRIC_KEYS[5][0]: decomposed_depth,
         }
         return metrics
 
@@ -145,7 +144,7 @@ class Benchmarker:
     def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
         has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
         if has_classical_ops:
-            qc = qc.remove_final_measurements(inplace=False)  # pyrefly: ignore
+            qc: QuantumCircuit = qc.remove_final_measurements(inplace=False)  # pyrefly: ignore
 
         start = time.perf_counter()
         routed: QuantumCircuit = pm.run(qc)
@@ -246,7 +245,7 @@ if __name__ == "__main__":
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 
-    num_qubits = 3
+    num_qubits = 6
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(num_qubits, topology)
 
@@ -264,12 +263,12 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 54
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
+    horizon = 64
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
     ppo_env = make_env(
         coupling_map,
-        num_active_swaps=2,
+        num_active_swaps=6,
         horizon=horizon,
         initial_difficulty=1,
         max_difficulty=100,
@@ -277,7 +276,7 @@ if __name__ == "__main__":
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load("model.zip", ppo_env, seed=EVAL_SEED)
+    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env, seed=EVAL_SEED)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -426,7 +425,7 @@ if __name__ == "__main__":
     bench_iterations = 100
     bench_circut_gate_count = 100
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
-    # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+    # bench.run_mqt_benchmarks(configs)
     print("\n")
     bench.run_rand_benchmarks(configs, bench_iterations)
     bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)

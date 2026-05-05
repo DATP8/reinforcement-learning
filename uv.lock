@@ -2923,6 +2923,7 @@ dependencies = [
     { name = "torch-geometric" },
     { name = "tornado" },
     { name = "tqdm" },
+    { name = "types-cachetools" },
     { name = "types-tqdm" },
 ]
 
@@ -2954,6 +2955,7 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.7.0" },
     { name = "tornado", specifier = ">=6.5.4" },
     { name = "tqdm", specifier = ">=4.67.3" },
+    { name = "types-cachetools", specifier = ">=7.0.0.20260503" },
     { name = "types-tqdm", specifier = ">=4.67.3.20260408" },
 ]
 
@@ -3607,6 +3609,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/f1/ca13e971cac1ccafbdbecfab1bd006de4f4ab4fe9c1e9142b73b5b3c9b65/twisterl-0.5.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:1517cf089d7214bf73e3c88f4fac5c52c0e99cbddf78fc5577a0c94f00453a79", size = 412424, upload-time = "2026-01-12T09:31:13.773Z" },
     { url = "https://files.pythonhosted.org/packages/94/e6/9440622e1f6a7a3e0914f80d6b3b0784ffc435b34079d362848841ea197b/twisterl-0.5.1-cp314-cp314-manylinux_2_34_x86_64.whl", hash = "sha256:c8b93afd0ec343f41d30e0a19981e18221e0a82c718254530d72cf600ad685bf", size = 455544, upload-time = "2026-01-12T09:31:53.213Z" },
     { url = "https://files.pythonhosted.org/packages/c6/06/e264c04acb0590f289903207624b71e66002173881c62d896069fdd50b35/twisterl-0.5.1-cp314-cp314-win_amd64.whl", hash = "sha256:e6d6014b1f4865ced40d6b3c02b61b26c84bfd31e3b0a5c08686c3b08cd40f9d", size = 317898, upload-time = "2026-01-12T09:32:29.259Z" },
+]
+
+[[package]]
+name = "types-cachetools"
+version = "7.0.0.20260503"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/57/5d3b8b3e66b002911ec1274e87f904eeee1d843c8713d95476c25c29cf31/types_cachetools-7.0.0.20260503.tar.gz", hash = "sha256:dfa4dcdf453f397dfc6d69fc0a57423ac1f248393f70aa56b5d05fac2df7a96c", size = 10033, upload-time = "2026-05-03T05:19:54.128Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/a8/84562723d9a3572e0851d82bdea6bed5a7dc033c6bd648f492c76b8c4ac8/types_cachetools-7.0.0.20260503-py3-none-any.whl", hash = "sha256:011b4fe0e85ef05c4a2471a4fda40254a78746b501cc1727359233872bb3a4e9", size = 9493, upload-time = "2026-05-03T05:19:53.124Z" },
 ]
 
 [[package]]
