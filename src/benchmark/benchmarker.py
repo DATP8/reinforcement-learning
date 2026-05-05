@@ -1,5 +1,6 @@
+from src.routing.heurisitc import TotalQubitDistanceHeuristic
 from src.routing.cnot_swap_cancel import CNOTSwapCancelation
-from src.routing.DAGCircuit_router import WeightedAStarSearch
+from src.routing.weighted_a_star_search import WeightedAStarSearch
 from src.routing.heurisitc import DepthHeuristic, RelaxedDijkstraHeuristic, CountHeuristic, SabreBasicHeuristic
 from src.states.DAGCircuit_state_handler import DAGCircuitStateHandler
 from concurrent.futures import as_completed
@@ -301,6 +302,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(path, map_location="cpu"))
 
     path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
+    #path_dense = "models/dense_graph/difficulty32_iteration98040.pt"
     # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
@@ -371,6 +373,7 @@ if __name__ == "__main__":
     depth_heuristic = DepthHeuristic(state_handler)
     relaxed_dijkstra_heuristic = RelaxedDijkstraHeuristic(state_handler)
     sabre_basic_heuristic = SabreBasicHeuristic(state_handler)
+    total_distance_heuristic = TotalQubitDistanceHeuristic(state_handler)
  
     swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)
 
@@ -378,6 +381,96 @@ if __name__ == "__main__":
     
     ### Standard qiskit pass manager inserted router
     configs = [
+        (
+            "TrivialLayout_a_star_dense_heuristic_1.0",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    RlRoutingPass(
+                        WeightedAStarSearch(
+                            state_handler_dense,
+                            model_dense,
+                            weight=1.0,
+                        ),
+                        swap_inserter,
+                    ),
+                    CNOTSwapCancelation(),
+                ]
+            ),
+        ),
+        (
+            "TrivialLayout_total_distance_heurisitc_1.0",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    RlRoutingPass(
+                        WeightedAStarSearch(
+                            state_handler,
+                            total_distance_heuristic,
+                            weight=1.0,
+                        ),
+                        swap_inserter,
+                    ),
+                    CNOTSwapCancelation(),
+                ]
+            ), 
+        ),
+        (
+            "TrivialLayout_depth_heurisitc_1.0",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    RlRoutingPass(
+                        WeightedAStarSearch(
+                            state_handler,
+                            depth_heuristic,
+                            weight=1.0,
+                        ),
+                        swap_inserter,
+                    ),
+                    CNOTSwapCancelation(),
+                ]
+            ),
+        ),
+        (
+            "TrivialLayout_count_heurisitc_1.0",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    RlRoutingPass(
+                        WeightedAStarSearch(
+                            state_handler,
+                            count_heuristic,
+                            weight=1.0,
+                        ),
+                        swap_inserter,
+                    ),
+                    CNOTSwapCancelation(),
+                ]
+            ),
+        ),
+              (
+            "TrivialLayout_sabre_basic_heurisitc_1.0",
+            PassManager(
+                [
+                    trivial_layout,
+                    ApplyLayout(),
+                    RlRoutingPass(
+                        WeightedAStarSearch(
+                            state_handler,
+                            sabre_basic_heuristic,
+                            weight=1.0,
+                        ),
+                        swap_inserter,
+                    ),
+                    CNOTSwapCancelation(),
+                ]
+            ),
+        ),
         (
             "TrivialLayout_relaxed_dijkstra_heurisitc",
             PassManager(
@@ -396,24 +489,8 @@ if __name__ == "__main__":
                 ]
             ),
         ),
-        # (
-        #     "TrivialLayout_sabre_basic_heurisitc_1.0",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 WeightedAStarSearch(
-        #                     state_handler,
-        #                     sabre_basic_heuristic,
-        #                     weight=1.0,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
+  
+   
         # (
         #     "TrivialLayout_depth_heurisitc_1.5",
         #     PassManager(
@@ -425,24 +502,6 @@ if __name__ == "__main__":
         #                     state_handler,
         #                     depth_heuristic,
         #                     weight=1.5,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "TrivialLayout_count_heurisitc_1.0",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 WeightedAStarSearch(
-        #                     state_handler,
-        #                     count_heuristic,
-        #                     weight=1.0,
         #                 ),
         #                 swap_inserter,
         #             ),
@@ -623,7 +682,7 @@ if __name__ == "__main__":
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 10
-    bench_circut_gate_count = 8
+    bench_circut_gate_count = 18
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map, csv_mode=False)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
