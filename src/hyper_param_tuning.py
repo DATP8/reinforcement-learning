@@ -2,7 +2,9 @@ import multiprocessing as mp
 import os
 import sys
 import tempfile
+from typing import Any
 
+import optuna
 import torch
 from numpy import random
 from qiskit.transpiler import CouplingMap
@@ -20,6 +22,15 @@ from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
 from src.routing_env import RoutingEnv
+
+CPUS_PER_TRIAL = 4
+NUM_UNIQUE_SAMPLES = 128
+REPEATS_PER_CONFIG = 1
+GRACE_PERIOD = 3
+NUM_QUBITS = 6
+TOTAL_TIMESTEPS = 10_000_000
+BASE_EVAL_FREQ = 100_000
+GPUS = 1.0
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -104,6 +115,7 @@ class RayTuneCurriculumCallback(BaseCallback):
 
 def maskable_ppo_obj(config):
     seed = random.randint(0, 2**31 - 1)
+    policy_type = ActorCriticPolicyType[config["policy_type"]]
     coupling_map = CouplingMap.from_line(config["num_qubits"])
 
     train_env = make_vec_env(
@@ -115,7 +127,7 @@ def maskable_ppo_obj(config):
             layout_exponent=config["layout_exponent"],
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
-            policy_type=config["policy_type"],
+            policy_type=policy_type,
         ),
         n_envs=config["num_envs"],
         seed=seed,
@@ -129,19 +141,25 @@ def maskable_ppo_obj(config):
         layout_exponent=config["layout_exponent"],
         initial_difficulty=config["max_difficulty"],
         max_difficulty=config["max_difficulty"],
-        policy_type=config["policy_type"],
+        policy_type=policy_type,
     )
     eval_env = Monitor(eval_env)
 
-    model = MaskablePPO(
-        policy=config["policy_type"].get_sb3_policy(),
-        policy_kwargs=config["policy_type"].get_policy_kwargs(
+    vibe_kwargs = (
+        dict(
             features_dim=config["vibe_features_dim"],
             gnn_hidden=config["vibe_gnn_hidden"],
-            gnn_heads=config["vibe_gnn_heads"],  # 2 for 6-qubit topology, 4 to torino
+            gnn_heads=config["vibe_gnn_heads"],
             gnn_out=config["vibe_gnn_out"],
             matrix_out=config["vibe_matrix_out"],
-        ),
+        )
+        if policy_type == ActorCriticPolicyType.VIBE_GRAPH
+        else {}
+    )
+
+    model = MaskablePPO(
+        policy=policy_type.get_sb3_policy(),
+        policy_kwargs=policy_type.get_policy_kwargs(**vibe_kwargs),
         env=train_env,
         learning_rate=config["learning_rate"],
         gamma=config["gamma"],
@@ -171,64 +189,78 @@ def maskable_ppo_obj(config):
     )
 
 
+def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
+    if trial is None:
+        return None
+
+    policy_type = trial.suggest_categorical(
+        "policy_type",
+        [p.name for p in ActorCriticPolicyType],
+    )
+
+    n_steps = trial.suggest_categorical("n_steps", [256, 512, 1024, 2048, 4096])
+
+    # batch_size must divide n_steps * num_envs
+    num_envs = CPUS_PER_TRIAL
+    buffer_size = n_steps * num_envs
+    batch_divisor = trial.suggest_categorical("batch_divisor", [1, 2, 4, 8, 16])
+    batch_size = max(1, buffer_size // batch_divisor)
+
+    config = {
+        "policy_type": policy_type,
+        "learning_rate": trial.suggest_float("learning_rate", 1e-5, 3e-3, log=True),
+        "gamma": trial.suggest_float("gamma", 0.8, 1.0),
+        "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
+        "batch_size": batch_size,
+        "horizon": trial.suggest_int("horizon", 4, 64),
+        "n_steps": n_steps,
+        "num_active_swaps": trial.suggest_int("num_active_swaps", 2, NUM_QUBITS - 1),
+        "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
+        "n_epochs": trial.suggest_categorical("n_epochs", [4, 8, 10, 16, 20]),
+        "num_qubits": NUM_QUBITS,
+        "initial_difficulty": 1,
+        "max_difficulty": 256,
+        "diff_slope": 1.0,
+        "layout_exponent": 1.0,
+        "threshold": 0.85,
+        "base_eval_freq": BASE_EVAL_FREQ,
+        "n_eval_episodes": 100,
+        "total_timesteps": TOTAL_TIMESTEPS,
+        "num_envs": num_envs,
+    }
+
+    if policy_type == ActorCriticPolicyType.VIBE_GRAPH.name:
+        config["vibe_features_dim"] = trial.suggest_categorical(
+            "vibe_features_dim", [128, 256, 512]
+        )
+        config["vibe_gnn_hidden"] = trial.suggest_categorical(
+            "vibe_gnn_hidden", [32, 64, 128]
+        )
+        config["vibe_gnn_heads"] = trial.suggest_categorical(
+            "vibe_gnn_heads", [2, 4, 8]
+        )
+        config["vibe_gnn_out"] = trial.suggest_categorical(
+            "vibe_gnn_out", [32, 64, 128]
+        )
+        config["vibe_matrix_out"] = trial.suggest_categorical(
+            "vibe_matrix_out", [64, 128, 256]
+        )
+
+    return config
+
+
 if __name__ == "__main__":
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
 
-    CPUS_PER_TRIAL = 4
-    NUM_UNIQUE_SAMPLES = 128
-    REPEATS_PER_CONFIG = 1
-    GRACE_PERIOD = 3
-    NUM_QUBITS = 6
-    TOTAL_TIMESTEPS = 10_000_000
-    BASE_EVAL_FREQ = 100_000
-    GPUS = 1.0
-
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
 
-    # num_samples = repeats_per_config * num_unique_samples # when using Repeater
     num_samples = NUM_UNIQUE_SAMPLES
 
     gpus_per_trial = GPUS / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
-    search_space = {
-        "learning_rate": tune.loguniform(1e-5, 3e-3),
-        "gamma": tune.uniform(0.8, 1.0),
-        # "gae_lambda": tune.uniform(0.9, 1.0),
-        "gae_lambda": 0.95,
-        "batch_size": tune.choice([512, 1024, 2048, 4096]),
-        "horizon": tune.randint(4, 64),
-        # "policy_type": tune.choice([
-        #     ActorCriticPolicyType.BASIC,
-        #     ActorCriticPolicyType.SIMPLE_MLP,
-        #     ActorCriticPolicyType.BASIC_CANCEL,
-        #     ActorCriticPolicyType.VIBE_GRAPH
-        # ]),
-        "policy_type": ActorCriticPolicyType.VIBE_GRAPH,
-        "vibe_features_dim": tune.choice([128, 256, 512]),
-        "vibe_gnn_hidden": tune.choice([32, 64, 128]),
-        "vibe_gnn_heads": tune.choice([2, 4, 8]),  # hidden % heads == 0
-        "vibe_gnn_out": tune.choice([32, 64, 128]),
-        "vibe_matrix_out": tune.choice([64, 128, 256]),
-        "n_steps": tune.choice([256, 512, 1024, 2048]),
-        "num_active_swaps": tune.randint(2, NUM_QUBITS),
-        "ent_coef": tune.loguniform(1e-5, 0.05),
-        "num_qubits": NUM_QUBITS,
-        "initial_difficulty": 1,
-        "max_difficulty": 256,
-        "diff_slope": 1,
-        "layout_exponent": 1.0,
-        "threshold": 0.85,
-        "base_eval_freq": 100_000,
-        "n_eval_episodes": 100,
-        "total_timesteps": 10_000_000,
-        "num_envs": CPUS_PER_TRIAL,
-        "n_epochs": 10,
-    }
-
-    algo = OptunaSearch(metric="best_avg_d_cx", mode="min")
-    # repeated_algo = Repeater(algo, repeat=repeats_per_config) #! Can cause problems when using scheduler
+    algo = OptunaSearch(space=optuna_space, metric="best_avg_d_cx", mode="min")
 
     max_evals = TOTAL_TIMESTEPS // BASE_EVAL_FREQ
 
@@ -252,7 +284,6 @@ if __name__ == "__main__":
         tune.with_resources(
             maskable_ppo_obj, resources={"cpu": CPUS_PER_TRIAL, "gpu": gpus_per_trial}
         ),
-        param_space=search_space,
         tune_config=tune.TuneConfig(
             num_samples=num_samples, search_alg=algo, scheduler=scheduler
         ),
