@@ -130,7 +130,7 @@ class TensorStateHandler(StateHandler[torch.Tensor]):
         # check if swap is successor of removed cnot gates, if so return lower cost
         q1, q2 = self.topology[action]
         if (q1, q2) in backlayer_gates or (q2, q1) in backlayer_gates:
-            return 0.5
+            return 0.33333
 
         return 1.0
 
