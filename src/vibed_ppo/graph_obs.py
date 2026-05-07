@@ -119,7 +119,7 @@ def build_node_features(
 #  1  current gate "traffic": gates needing   [0, 1]  this edge in horizon
 #
 def build_coupling_graph(
-    cmap_edges: list[tuple[int, int]],
+    cmap_edges: ndarray,
     active_swaps: list[int],  # indices into cmap_edges
     horizon_traffic: np.ndarray,  # shape (len(cmap_edges),) gate counts
     horizon: int,
@@ -141,10 +141,14 @@ def build_coupling_graph(
         traffic = horizon_traffic[idx] / max_traffic
 
         try:
-            cmap_edge_index = min(cmap_edges.index((p0, p1)), cmap_edges.index((p1, p0)))
+            mask = ((cmap_edges[:, 0] == p0) & (cmap_edges[:, 1] == p1)) | (
+                (cmap_edges[:, 0] == p1) & (cmap_edges[:, 1] == p0)
+            )
+
+            cmap_edge_index = np.where(mask)[0].min()
             action_index = active_swaps.index(cmap_edge_index)
             action_dists = action_layer_matrix[action_index, :]
-        except:
+        except Exception:
             action_dists = np.zeros(horizon)
 
         feat = [is_action, traffic] + list(action_dists)
@@ -215,7 +219,9 @@ def build_interaction_graph(
     # Pad to fixed size
     n = len(rows)
     edge_index = np.zeros((2, max_edges), dtype=np.int64)
-    edge_attr = np.zeros((max_edges, BASE_INT_EDGE_F + num_active_swaps), dtype=np.float32)
+    edge_attr = np.zeros(
+        (max_edges, BASE_INT_EDGE_F + num_active_swaps), dtype=np.float32
+    )
 
     if n > 0:
         edge_index[0, :n] = rows[:max_edges]
@@ -258,7 +264,7 @@ def compute_horizon_traffic(
     layers: list,
     l2p: NDArray[np.int64],
     qubit_indices: dict,
-    cmap_edges: list[tuple[int, int]],
+    cmap_edges: ndarray,
     horizon: int,
 ) -> ndarray:
     """
@@ -302,18 +308,19 @@ def get_front_layer_pairs(
             pairs.append((l2p[log0], l2p[log1]))
     return pairs
 
+
 # ---------------------------------------------------------------------------
-# Action Gate Distance Matrix 
+# Action Gate Distance Matrix
 # ---------------------------------------------------------------------------
 def build_action_gate_matrix(
-    layers: list, 
-    active_swaps: list[int], 
-    num_active_swaps: int, 
-    cmap_edges: list[tuple[int, int]],
+    layers: list,
+    active_swaps: list[int],
+    num_active_swaps: int,
+    cmap_edges: ndarray,
     horizon: int,
     qubit_indices: dict,
-    l2p: list[int],
-    distance_matrix: np.ndarray
+    l2p: ndarray,
+    distance_matrix: np.ndarray,
 ) -> np.ndarray:
     gate_nodes = []
     num_layers = min(len(layers), horizon)
@@ -333,42 +340,31 @@ def build_action_gate_matrix(
             p1_b = l2p[indices[1]]
 
             if p0_b == p0_a and p1_b != p1_a:
-                improvement += (
-                    distance_matrix[p0_a, p1_b]
-                    - distance_matrix[p1_a, p1_b]
-                )
+                improvement += distance_matrix[p0_a, p1_b] - distance_matrix[p1_a, p1_b]
             elif p0_b == p1_a and p1_b != p0_a:
-                improvement += (
-                    distance_matrix[p1_a, p1_b]
-                    - distance_matrix[p0_a, p1_b]
-                )
+                improvement += distance_matrix[p1_a, p1_b] - distance_matrix[p0_a, p1_b]
             elif p1_b == p0_a and p0_b != p1_a:
-                improvement += (
-                    distance_matrix[p0_a, p0_b]
-                    - distance_matrix[p1_a, p0_b]
-                )
+                improvement += distance_matrix[p0_a, p0_b] - distance_matrix[p1_a, p0_b]
             elif p1_b == p1_a and p0_b != p0_a:
-                improvement += (
-                    distance_matrix[p1_a, p0_b]
-                    - distance_matrix[p0_a, p0_b]
-                )
+                improvement += distance_matrix[p1_a, p0_b] - distance_matrix[p0_a, p0_b]
             assert -1 <= improvement <= 1, "Improvement our of range"
             matrix[action, slot] = improvement
 
     return matrix
 
+
 # ---------------------------------------------------------------------------
-# Action Layer Distance Matrix 
+# Action Layer Distance Matrix
 # ---------------------------------------------------------------------------
 def build_action_layer_matrix(
-    layers: list, 
+    layers: list,
     active_swaps: list[int],
     num_active_swaps: int,
-    cmap_edges: list[tuple[int, int]],
+    cmap_edges: ndarray,
     horizon: int,
     qubit_indices: dict,
-    l2p: list[int],
-    distance_matrix: np.ndarray
+    l2p: ndarray,
+    distance_matrix: np.ndarray,
 ) -> np.ndarray:
     matrix = np.zeros((num_active_swaps, horizon), dtype=np.int8)
     num_layers = min(len(layers), horizon)
@@ -390,23 +386,19 @@ def build_action_layer_matrix(
 
                 if p0_b == p0_a and p1_b != p1_a:
                     improvement += (
-                        distance_matrix[p0_a, p1_b]
-                        - distance_matrix[p1_a, p1_b]
+                        distance_matrix[p0_a, p1_b] - distance_matrix[p1_a, p1_b]
                     )
                 elif p0_b == p1_a and p1_b != p0_a:
                     improvement += (
-                        distance_matrix[p1_a, p1_b]
-                        - distance_matrix[p0_a, p1_b]
+                        distance_matrix[p1_a, p1_b] - distance_matrix[p0_a, p1_b]
                     )
                 elif p1_b == p0_a and p0_b != p1_a:
                     improvement += (
-                        distance_matrix[p0_a, p0_b]
-                        - distance_matrix[p1_a, p0_b]
+                        distance_matrix[p0_a, p0_b] - distance_matrix[p1_a, p0_b]
                     )
                 elif p1_b == p1_a and p0_b != p0_a:
                     improvement += (
-                        distance_matrix[p1_a, p0_b]
-                        - distance_matrix[p0_a, p0_b]
+                        distance_matrix[p1_a, p0_b] - distance_matrix[p0_a, p0_b]
                     )
 
             assert -2 <= improvement <= 2, "Improvement out of range"
@@ -444,18 +436,16 @@ def build_graph_obs(
     gate_counts = compute_horizon_gate_count(
         layers, l2p, qubit_indices, num_qubits, horizon
     )
-    traffic = compute_horizon_traffic(
-        layers, l2p, qubit_indices, cmap_edges, horizon
-    )
+    traffic = compute_horizon_traffic(layers, l2p, qubit_indices, cmap_edges, horizon)
     action_gate_matrix = build_action_gate_matrix(
-        layers, 
-        active_swaps, 
+        layers,
+        active_swaps,
         num_active_swaps,
-        cmap_edges, 
-        horizon, 
-        qubit_indices, 
-        l2p, 
-        distance_matrix
+        cmap_edges,
+        horizon,
+        qubit_indices,
+        l2p,
+        distance_matrix,
     )
     action_layer_matrix = build_action_layer_matrix(
         layers,
@@ -465,7 +455,7 @@ def build_graph_obs(
         horizon,
         qubit_indices,
         l2p,
-        distance_matrix
+        distance_matrix,
     )
     node_features = build_node_features(
         num_qubits,
@@ -476,11 +466,7 @@ def build_graph_obs(
         distance_matrix,
     )
     coup_ei, coup_ea = build_coupling_graph(
-        cmap_edges,
-        active_swaps,
-        traffic,
-        horizon,
-        action_layer_matrix
+        cmap_edges, active_swaps, traffic, horizon, action_layer_matrix
     )
     int_ei, int_ea = build_interaction_graph(
         layers,
@@ -489,7 +475,7 @@ def build_graph_obs(
         distance_matrix,
         horizon,
         action_gate_matrix,
-        num_active_swaps
+        num_active_swaps,
     )
 
     return {

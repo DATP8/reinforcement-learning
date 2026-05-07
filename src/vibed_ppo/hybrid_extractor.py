@@ -244,7 +244,6 @@ class HybridExtractor(BaseFeaturesExtractor):
             nn.ELU(),
         )
 
-
         self.cancel_mlp = nn.Sequential(
             nn.Linear(swap_cancellation_in, swap_cancellation_in),
             nn.ELU(),
@@ -312,7 +311,7 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 5. Interaction graph branch
         # ----------------------------------------------------------------
-        swap_can = obs["swap_cancellation"].float()      # (B, S)
+        swap_can = obs["swap_cancellation"].float()  # (B, S)
         can_feat = self.cancel_mlp(swap_can)
 
         # ----------------------------------------------------------------
