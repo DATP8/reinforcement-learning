@@ -148,9 +148,7 @@ class Benchmarker:
     def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
         has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
         if has_classical_ops:
-            qc: QuantumCircuit = qc.remove_final_measurements(
-                inplace=False
-            )  # pyrefly: ignore
+            qc: QuantumCircuit = qc.remove_final_measurements(inplace=False)  # pyrefly: ignore
 
         start = time.perf_counter()
         routed: QuantumCircuit = pm.run(qc)
