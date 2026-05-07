@@ -38,7 +38,9 @@ class RoutingEnv(gymnasium.Env):
         self._layout_exponent = layout_exponent
         self._policy_type = policy_type
         self._render_mode = render_mode
-        self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
+        self._distance_matrix: np.ndarray = (
+            coupling_map.distance_matrix
+        )  # pyrefly: ignore
         self._build_dist_pairs()
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
