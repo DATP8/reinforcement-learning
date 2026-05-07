@@ -1,6 +1,5 @@
 import gymnasium
 import numpy as np
-import torch
 from gymnasium import spaces
 from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
@@ -47,7 +46,6 @@ class RoutingEnv(gymnasium.Env):
         self._edge_set = frozenset(unique_edges)
         self._num_edges = len(self._cmap_edges)
 
-        self._physical_to_edges = [[] for _ in range(self._num_qubits)]
         self._physical_to_edges = [[] for _ in range(self._num_qubits)]
         for i, (q1, q2) in enumerate(self._cmap_edges):
             self._physical_to_edges[q1].append(i)
@@ -183,7 +181,7 @@ class RoutingEnv(gymnasium.Env):
         super().reset(seed=seed)
         options = options or {}
 
-        # Sample a random difficuleval_envty when curriculum learning done
+        # Sample a random difficuly for eval_env when curriculum learning done
         if self._current_difficulty >= self._max_difficulty:
             sampled_diff = int(self.np_random.integers(1, self._max_difficulty + 1))
         else:
@@ -295,6 +293,12 @@ class RoutingEnv(gymnasium.Env):
         reward = achieved - penalty
 
         self._update_obs()
+
+        if not terminated and not truncated:
+            mask = self.valid_action_mask()
+            if not mask.any():
+                truncated = True
+
         return self._get_obs(), reward, terminated, truncated, {}
 
     def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
@@ -411,14 +415,6 @@ class RoutingEnv(gymnasium.Env):
         }
 
     def _get_obs(self):
-        def pad_to(tensor, target_shape, pad_value=0):
-            result = torch.full(target_shape, pad_value, dtype=tensor.dtype)
-            slices = tuple(
-                slice(0, min(s, t)) for s, t in zip(tensor.shape, target_shape)
-            )
-            result[slices] = tensor[slices]
-            return result
-
         match self._policy_type:
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
                 return self._matrix
@@ -582,13 +578,6 @@ class RoutingEnv(gymnasium.Env):
 
             if not already_seen:
                 mask[slot] = True
-
-        if not mask.any():
-            self._visited_layouts.clear()
-            self._visited_layouts.add(tuple(self._p2l))
-            mask = np.ones(self._num_active_swaps, dtype=bool)
-
-        assert mask.any(), "No valid action"
 
         return mask
 
