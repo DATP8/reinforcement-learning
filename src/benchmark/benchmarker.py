@@ -1,10 +1,7 @@
-from src.routing.heurisitc import TotalQubitDistanceHeuristic
-from src.routing.cnot_swap_cancel import CNOTSwapCancelation
-from src.routing.weighted_a_star_search import WeightedAStarSearch
-from src.routing.heurisitc import DepthHeuristic, RelaxedDijkstraHeuristic, CountHeuristic, SabreBasicHeuristic
-from src.states.DAGCircuit_state_handler import DAGCircuitStateHandler
 from concurrent.futures import as_completed
 from concurrent.futures import ProcessPoolExecutor
+from src.routing.weighted_a_star_search import WeightedAStarSearch
+from src.circuit_generator import CircuitGenerator
 from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
@@ -178,15 +175,11 @@ class Benchmarker:
         configs: list[tuple[str, PassManager]],
         iterations: int,
         confidence: float = 0.95,
+        seed=None,
     ):
-        qc_list = []
-
-        for _ in tqdm(
-            range(iterations), desc="List of random circuits", position=0, leave=False
-        ):
-            qc_list.append(
-                self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
-            )
+        qc_list = CircuitGenerator.generate_n_random_circuits(
+            iterations, self.qubits, self.max_gates, gateset={"cx"}, seed=seed
+        )
 
         self._print_header(
             title=f"{len(qc_list)} random circuits", confidence=confidence
@@ -288,110 +281,35 @@ if __name__ == "__main__":
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
-    trivial_layout = TrivialLayout(coupling_map)
-    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
-
-    state_handler = CircuitGraphStateHandler(n_qubits, topology)
     state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
 
-    path = "models/graph/difficulty62_updates7_iteration25150.pt"
-    model = BiCircuitGNN(n_qubits)
-    model.load_state_dict(torch.load(path, map_location="cpu"))
-
-    path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
-    #path_dense = "models/dense_graph/difficulty32_iteration98040.pt"
-    # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
+    # path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
+    path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
 
+    coupling_map = CouplingMap(topology)
+    coupling_map.make_symmetric()
+
     swap_inserter = SwapInserter(coupling_map, n_qubits)
 
-    chuck_size = 18
-    step_size = chuck_size // 2  # could be changed
-    chunk_router = ChunkRouter(
-        chunk_size=chuck_size, model=model, state_handler=state_handler
-    )
-    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
+    trivial_layout = TrivialLayout(coupling_map)
+    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
 
-    configs = []
-
-    # batch_size = 1
-    # weights = [1.0 * (1.5**i) for i in range(-10, 10)]
-    # # weights = np.linspace(0.5, 1.0, num=10)
-    # for i, weight in enumerate(weights):
-    #     router_dense = BWASRouter(
-    #         model=model_dense,
-    #         state_handler=state_handler_dense,
-    #         batch_size=batch_size,
-    #         weight=weight,
-    #     )
-    #     bwas_swap_pass_dense = RlRoutingPass(router_dense, swap_inserter)
-    #     configs.append(
-    #         (
-    #             f"TrivialLayout_BWAS_b{batch_size}_w{weight:.3f}",
-    #             PassManager(
-    #                 [
-    #                     trivial_layout,
-    #                     ApplyLayout(),
-    #                     bwas_swap_pass_dense,
-    #                     CNOTSwapCancelation(),
-    #                 ]
-    #             ),
-    #         )
-    #     )
-
-    # weight = 0.2
-    # batch_sizes = [int(1.5**i) for i in range(1, 20)]
-    # for i, batch_size in enumerate(batch_sizes):
-    #     router_dense = BWASRouter(
-    #         model=model_dense,
-    #         state_handler=state_handler_dense,
-    #         batch_size=batch_size,
-    #         weight=weight,
-    #     )
-    #     bwas_swap_pass_dense = RlRoutingPass(router_dense, swap_inserter)
-    #     configs.append(
-    #         (
-    #             f"TrivialLayout_BWAS_b{batch_size}_w{weight:.3f}",
-    #             PassManager(
-    #                 [
-    #                     trivial_layout,
-    #                     ApplyLayout(),
-    #                     bwas_swap_pass_dense,
-    #                     CNOTSwapCancelation(),
-    #                 ]
-    #             ),
-    #         )
-    #     )
-    
-    
-    state_handler = DAGCircuitStateHandler(n_qubits, coupling_map)
-    count_heuristic = CountHeuristic(state_handler)
-    depth_heuristic = DepthHeuristic(state_handler)
-    relaxed_dijkstra_heuristic = RelaxedDijkstraHeuristic(state_handler)
-    sabre_basic_heuristic = SabreBasicHeuristic(state_handler)
-    total_distance_heuristic = TotalQubitDistanceHeuristic(state_handler)
- 
-    swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)
-
-
-    
-    ### Standard qiskit pass manager inserted router
+    #### Standard qiskit pass manager inserted router
     configs = [
         (
-            "TrivialLayout_a_star_dense_heuristic_1.0",
+            "TrivialLayout_bwas_b10_w0.444",
             PassManager(
                 [
                     trivial_layout,
                     ApplyLayout(),
                     RlRoutingPass(
-                        WeightedAStarSearch(
-                            state_handler_dense,
+                        BWASRouter(
                             model_dense,
-                            weight=1.0,
+                            state_handler_dense,
+                            batch_size=10,
+                            weight=0.444,
                         ),
                         swap_inserter,
                     ),
@@ -399,35 +317,17 @@ if __name__ == "__main__":
                 ]
             ),
         ),
-        (
-            "TrivialLayout_total_distance_heurisitc_1.0",
+         (
+            "TrivialLayout_WA_w2.2522522523",
             PassManager(
                 [
                     trivial_layout,
                     ApplyLayout(),
                     RlRoutingPass(
                         WeightedAStarSearch(
-                            state_handler,
-                            total_distance_heuristic,
-                            weight=1.0,
-                        ),
-                        swap_inserter,
-                    ),
-                    CNOTSwapCancelation(),
-                ]
-            ), 
-        ),
-        (
-            "TrivialLayout_depth_heurisitc_1.0",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    RlRoutingPass(
-                        WeightedAStarSearch(
-                            state_handler,
-                            depth_heuristic,
-                            weight=1.0,
+                            model_dense,
+                            state_handler_dense,
+                            weight=2.2522522523,
                         ),
                         swap_inserter,
                     ),
@@ -435,255 +335,14 @@ if __name__ == "__main__":
                 ]
             ),
         ),
-        (
-            "TrivialLayout_count_heurisitc_1.0",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    RlRoutingPass(
-                        WeightedAStarSearch(
-                            state_handler,
-                            count_heuristic,
-                            weight=1.0,
-                        ),
-                        swap_inserter,
-                    ),
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-              (
-            "TrivialLayout_sabre_basic_heurisitc_1.0",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    RlRoutingPass(
-                        WeightedAStarSearch(
-                            state_handler,
-                            sabre_basic_heuristic,
-                            weight=1.0,
-                        ),
-                        swap_inserter,
-                    ),
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            "TrivialLayout_relaxed_dijkstra_heurisitc",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    RlRoutingPass(
-                        WeightedAStarSearch(
-                            state_handler,
-                            relaxed_dijkstra_heuristic,
-                            weight=1.0,
-                        ),
-                        swap_inserter,
-                    ),
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-  
-   
-        # (
-        #     "TrivialLayout_depth_heurisitc_1.5",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 WeightedAStarSearch(
-        #                     state_handler,
-        #                     depth_heuristic,
-        #                     weight=1.5,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "TrivialLayout_count_heurisitc_1.5",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 WeightedAStarSearch(
-        #                     state_handler,
-        #                     count_heuristic,
-        #                     weight=1.5,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "TrivialLayout_count_heurisitc_3.0",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 WeightedAStarSearch(
-        #                     state_handler,
-        #                     count_heuristic,
-        #                     weight=3.0,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "TrivialLayout_SabreSwap",
-        #     PassManager(
-        #         [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
-        #     ),
-        # ),
-        # (
-        #     "TrivialLayout_SabreSwap_cancel",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             SabreSwap(coupling_map=coupling_map),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"TrivialLayout_RecedingHorizon_Dense_cancel_c{chuck_size}_s{step_size}",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             receding_horizon_pass,
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"TrivialLayout_BWAS_b1_w001_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             bwas_swap_pass_dense_w001,
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        #   (
-        #     f"TrivialLayout_BWAS_b1_w01_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             bwas_swap_pass_dense_w01,
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"TrivialLayout_BWAS_b1_w03_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             bwas_swap_pass_dense_w03,
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"TrivialLayout_BWAS_b1_w1_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             bwas_swap_pass_dense_b64,
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"TrivialLayout_BWAS_b1_w100_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             bwas_swap_pass_dense_b1000,
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "SabreLayout_SabreSwap",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             SabreSwap(coupling_map=coupling_map),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"SabreLayout_Chunking_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             chunck_swap_pass,
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     f"SabreLayout_Dense_Chunking_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             chunck_swap_pass_dense,
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "Op1 qiskit",
-        #     generate_preset_pass_manager(
-        #         optimization_level=1, coupling_map=coupling_map
-        #     ),
-        # ),
-        # (
-        #     "Op2 qiskit",
-        #     generate_preset_pass_manager(
-        #         optimization_level=2, coupling_map=coupling_map
-        #     ),
-        # ),
-        # (
-        #     "Op3 qiskit",
-        #     generate_preset_pass_manager(
-        #         optimization_level=3, coupling_map=coupling_map
-        #     ),
-        # ),
     ]
 
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 10
-    bench_circut_gate_count = 18
-    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map, csv_mode=False)
+    bench_iterations = 100
+    bench_circut_gate_count = 10
+    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+    bench.run_rand_benchmarks(configs, bench_iterations, seed=42)  # pyrefly: ignore

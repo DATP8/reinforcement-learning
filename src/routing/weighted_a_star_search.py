@@ -7,9 +7,9 @@ import heapq
 
 
 class WeightedAStarSearch[S](Router):
-    def __init__(self, state_handler: StateHandler[S], heuristic: Callable[[S], float], weight=1.0):
-        self.state_handler = state_handler
+    def __init__(self, heuristic: Callable[[S], float], state_handler: StateHandler[S], weight=1.0):
         self.heuristic = heuristic
+        self.state_handler = state_handler
         self.weight = weight
 
     def solve(self, circuit: QuantumCircuit) -> list[int]:
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     #heuristic = DepthHeuristic(state_handler)
     #heuristic = RelaxedDijkstraHeuristic(state_handler)
 
-    router = WeightedAStarSearch(state_handler, heuristic, weight=1.0)
+    router = WeightedAStarSearch(heuristic, state_handler, weight=1.0)
     swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)
 
     rl_pass = RlRoutingPass(router, swap_inserter)

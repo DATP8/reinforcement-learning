@@ -1,7 +1,7 @@
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit.library import standard_gates
-
+import random
 
 class CircuitGenerator:
     _GATE_MAP = {
@@ -126,13 +126,21 @@ class CircuitGenerator:
         Generates n random quantum circuits based on number of qubits, number of gates, and gateset.
         """
         circuits = []
+        
+        rng = random.Random(seed) if seed is not None else None
+        
         for _ in range(n):
+            # use seed to generate sub_seed for reproducibility of generated circuits
+            sub_seed = None
+            
             if seed is not None:
-                np.random.randint(0, np.iinfo(int).max)
+                sub_seed = rng.randint(0, np.iinfo(int).max) # pyrefly: ignore[missing-attribute]
+                
             circuits.append(
                 CircuitGenerator.generate_random_circuit(
-                    num_qubits, num_gates, gateset, seed
+                    num_qubits, num_gates, gateset, sub_seed
                 )
             )
+
 
         return circuits
