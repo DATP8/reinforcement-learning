@@ -28,6 +28,13 @@ class RecedingHorizon(Router):
         while not self._is_terminal(circuit_dag, layout):
             window_circuit = self._get_window(circuit_dag, self.horizon_length)
             actions = self.router.solve(pm.run(window_circuit.to_circuit()))
+
+            # If no actions, remove first gate to make progress and avoid infinite loop
+            if len(actions) == 0:
+                first_node = next(circuit_dag.topological_op_nodes())
+                circuit_dag.remove_op_node(first_node)
+                continue
+
             resolved_gates = 0
             for action in actions:
                 all_actions.append(action)
