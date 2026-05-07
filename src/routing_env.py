@@ -255,8 +255,9 @@ class RoutingEnv(gymnasium.Env):
             terminated = self.is_terminal()
             truncated = self._remaining_swaps == 0 and not terminated
             achieved = self._completion_reward if terminated else 0.0
+            reward = achieved - self._swap_penalty # penalize to avoid model becoming lazy (lazy agent problem)
             self._update_obs()
-            return self._get_obs(), achieved, terminated, truncated, {}
+            return self._get_obs(), reward, terminated, truncated, {}
 
         edge_idx = self._active_swaps[action]
         p0, p1 = self._cmap_edges[edge_idx]
