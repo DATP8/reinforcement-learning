@@ -7,7 +7,12 @@ import heapq
 
 
 class WeightedAStarSearch[S](Router):
-    def __init__(self, heuristic: Callable[[S], float], state_handler: StateHandler[S], weight=1.0):
+    def __init__(
+        self,
+        heuristic: Callable[[S], float],
+        state_handler: StateHandler[S],
+        weight=1.0,
+    ):
         self.heuristic = heuristic
         self.state_handler = state_handler
         self.weight = weight
@@ -19,9 +24,8 @@ class WeightedAStarSearch[S](Router):
         )
         if path is None:
             raise ValueError("No solution found")
-        
+
         return path
-        
 
     def weighted_astar(
         self,
@@ -63,7 +67,7 @@ class WeightedAStarSearch[S](Router):
             # Skip stale entries
             if g > g_cost.get(state, float("inf")):
                 continue
-            
+
             if state_handler.is_terminal(state):
                 return self.reconstruct_actions(parent, start, state), g_cost
 
@@ -103,7 +107,13 @@ class WeightedAStarSearch[S](Router):
 
 
 if __name__ == "__main__":
-    from src.routing.heurisitc import CountHeuristic, RelaxedDijkstraHeuristic, DepthHeuristic, TotalQubitDistanceHeuristic, SabreBasicHeuristic
+    from src.routing.heurisitc import (
+        CountHeuristic,
+        RelaxedDijkstraHeuristic,
+        DepthHeuristic,
+        TotalQubitDistanceHeuristic,
+        SabreBasicHeuristic,
+    )
     from src.circuit_generator import CircuitGenerator
     from qiskit.qpy import load, dump
     import torch
@@ -131,11 +141,11 @@ if __name__ == "__main__":
     print(circuit)
 
     state_handler = DAGCircuitStateHandler(n_qubits, coupling_map)
-    #heuristic = SabreBasicHeuristic(state_handler)
+    # heuristic = SabreBasicHeuristic(state_handler)
     heuristic = TotalQubitDistanceHeuristic(state_handler)
-    #heuristic = CountHeuristic(state_handler)
-    #heuristic = DepthHeuristic(state_handler)
-    #heuristic = RelaxedDijkstraHeuristic(state_handler)
+    # heuristic = CountHeuristic(state_handler)
+    # heuristic = DepthHeuristic(state_handler)
+    # heuristic = RelaxedDijkstraHeuristic(state_handler)
 
     router = WeightedAStarSearch(heuristic, state_handler, weight=1.0)
     swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)

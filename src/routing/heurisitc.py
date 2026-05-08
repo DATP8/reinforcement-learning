@@ -24,10 +24,13 @@ class DepthHeuristic(DAGCircuitHeurisitc):
     def __call__(self, state: DAGCircuitState) -> float:
         return state.dag.depth()
 
-class SabreBasicHeuristic(DAGCircuitHeurisitc):        
+
+class SabreBasicHeuristic(DAGCircuitHeurisitc):
     def __call__(self, state: DAGCircuitState) -> float:
         total_distance = 0
-        for node in state.dag.front_layer(): # Calculate distance for gates in front layer only.
+        for node in (
+            state.dag.front_layer()
+        ):  # Calculate distance for gates in front layer only.
             qubits = node.qargs
             physical_qubits = [state.layout[q] for q in qubits]
 
@@ -37,10 +40,11 @@ class SabreBasicHeuristic(DAGCircuitHeurisitc):
 
         return total_distance
 
-class TotalQubitDistanceHeuristic(DAGCircuitHeurisitc):        
+
+class TotalQubitDistanceHeuristic(DAGCircuitHeurisitc):
     def __call__(self, state: DAGCircuitState) -> float:
         total_distance = 0
-        for node in state.dag.op_nodes(): # Calculate distance for all gates.
+        for node in state.dag.op_nodes():  # Calculate distance for all gates.
             qubits = node.qargs
             physical_qubits = [state.layout[q] for q in qubits]
 
@@ -49,6 +53,7 @@ class TotalQubitDistanceHeuristic(DAGCircuitHeurisitc):
                 total_distance += distance
 
         return total_distance
+
 
 class RelaxedDijkstraHeuristic(DAGCircuitHeurisitc):
     def __call__(self, state: DAGCircuitState) -> float:
@@ -106,7 +111,7 @@ class RelaxedDijkstraHeuristic(DAGCircuitHeurisitc):
         pq = [(0, counter, start)]  # (distance, counter, state)
         dist = {start: 0}
         prev = {}
-        
+
         while pq:
             current_dist, _, state = heapq.heappop(pq)
 
@@ -128,6 +133,7 @@ class RelaxedDijkstraHeuristic(DAGCircuitHeurisitc):
                     heapq.heappush(pq, (new_dist, counter, next_state))
 
         raise ValueError("Goal state not reachable from start state")
+
 
 if __name__ == "__main__":
     from src.circuit_generator import CircuitGenerator
@@ -156,17 +162,10 @@ if __name__ == "__main__":
     print(circuit)
 
     state_handler = DAGCircuitStateHandler(n_qubits, coupling_map)
-    #heuristic = RelaxedCountHeuristic(state_handler)
+    # heuristic = RelaxedCountHeuristic(state_handler)
     heuristic = RelaxedDijkstraHeuristic(state_handler)
 
     root_state = state_handler.state_from(circuit)
     h_value = heuristic(root_state)
-    
-    print(h_value)
-    
 
-    
-    
-    
-    
-    
+    print(h_value)

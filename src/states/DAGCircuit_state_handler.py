@@ -76,7 +76,7 @@ class DAGCircuitStateHandler(StateHandler[DAGCircuitState]):
                 return 1.0
 
             qubits = [state.layout[q] for q in node.qargs]
-            
+
             if any(locked_qubits[q] for q in qubits):
                 locked_qubits.update({q: True for q in qubits})
                 continue
