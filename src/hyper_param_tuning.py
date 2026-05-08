@@ -32,6 +32,9 @@ TOTAL_TIMESTEPS = 10_000_000
 BASE_EVAL_FREQ = 100_000
 GPUS = 1.0
 
+EXPERIMENT_NAME = "maskable_ppo_search"
+LOCAL_DIR = "/home/vind/code/P8/project/reinforcement-learning/models/graph/checkpoints"
+
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
@@ -157,19 +160,29 @@ def maskable_ppo_obj(config):
         else {}
     )
 
-    model = MaskablePPO(
-        policy=policy_type.get_sb3_policy(),
-        policy_kwargs=policy_type.get_policy_kwargs(**vibe_kwargs),
-        env=train_env,
-        learning_rate=config["learning_rate"],
-        gamma=config["gamma"],
-        gae_lambda=config["gae_lambda"],
-        batch_size=config["batch_size"],
-        n_steps=config["n_steps"],
-        n_epochs=config["n_epochs"],
-        seed=seed,
-        ent_coef=config["ent_coef"],
-    )
+    # Restore model from checkpoint if one exists for this trial
+    checkpoint = tune.get_checkpoint()
+    if checkpoint:
+        with checkpoint.as_directory() as ckpt_dir:
+            model = MaskablePPO.load(
+                os.path.join(ckpt_dir, "model"),
+                env=train_env,
+            )
+        print(f"Resumed model from checkpoint (seed={seed})")
+    else:
+        model = MaskablePPO(
+            policy=policy_type.get_sb3_policy(),
+            policy_kwargs=policy_type.get_policy_kwargs(**vibe_kwargs),
+            env=train_env,
+            learning_rate=config["learning_rate"],
+            gamma=config["gamma"],
+            gae_lambda=config["gae_lambda"],
+            batch_size=config["batch_size"],
+            n_steps=config["n_steps"],
+            n_epochs=config["n_epochs"],
+            seed=seed,
+            ent_coef=config["ent_coef"],
+        )
 
     curriculum_callback = CurriculumCallback(config["threshold"])
 
@@ -253,6 +266,8 @@ if __name__ == "__main__":
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
 
+    experiment_path = os.path.join(LOCAL_DIR, EXPERIMENT_NAME)
+
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
 
@@ -280,15 +295,38 @@ if __name__ == "__main__":
         sort_by_metric=True,
     )
 
-    tuner = tune.Tuner(
-        tune.with_resources(
-            maskable_ppo_obj, resources={"cpu": CPUS_PER_TRIAL, "gpu": gpus_per_trial}
-        ),
-        tune_config=tune.TuneConfig(
-            num_samples=num_samples, search_alg=algo, scheduler=scheduler
-        ),
-        run_config=tune.RunConfig(progress_reporter=reporter),
+    trainable = tune.with_resources(
+        maskable_ppo_obj, resources={"cpu": CPUS_PER_TRIAL, "gpu": gpus_per_trial}
     )
+
+    if tune.Tuner.can_restore(experiment_path):
+        print(f"Restoring existing experiment from {experiment_path}")
+        tuner = tune.Tuner.restore(
+            experiment_path,
+            trainable=trainable,
+            resume_unfinished=True,
+            resume_errored=False,
+            restart_errored=False,
+        )
+    else:
+        print("Starting new experiment")
+        tuner = tune.Tuner(
+            trainable,
+            tune_config=tune.TuneConfig(
+                num_samples=num_samples, search_alg=algo, scheduler=scheduler
+            ),
+            run_config=tune.RunConfig(
+                name=EXPERIMENT_NAME,
+                storage_path=LOCAL_DIR,
+                progress_reporter=reporter,
+                log_to_file=True,
+                checkpoint_config=tune.CheckpointConfig(
+                    checkpoint_score_attribute="best_avg_d_cx",
+                    checkpoint_score_order="min",
+                    num_to_keep=2,
+                ),
+            ),
+        )
 
     results = tuner.fit()
 
