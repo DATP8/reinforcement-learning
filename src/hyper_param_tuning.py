@@ -34,6 +34,7 @@ GPUS = 1.0
 
 EXPERIMENT_NAME = "maskable_ppo_search"
 
+
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
         self,
