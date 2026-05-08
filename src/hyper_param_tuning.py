@@ -33,8 +33,6 @@ BASE_EVAL_FREQ = 100_000
 GPUS = 1.0
 
 EXPERIMENT_NAME = "maskable_ppo_search"
-LOCAL_DIR = "/home/vind/code/P8/project/reinforcement-learning/models/graph/checkpoints"
-
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
@@ -266,10 +264,10 @@ if __name__ == "__main__":
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
 
-    experiment_path = os.path.join(LOCAL_DIR, EXPERIMENT_NAME)
-
     total_cpus = mp.cpu_count()
     num_concurrent_trials = max(1, total_cpus // CPUS_PER_TRIAL)
+
+    experiment_path = os.path.join(os.path.expanduser("~/ray_results"), EXPERIMENT_NAME)
 
     num_samples = NUM_UNIQUE_SAMPLES
 
@@ -317,7 +315,6 @@ if __name__ == "__main__":
             ),
             run_config=tune.RunConfig(
                 name=EXPERIMENT_NAME,
-                storage_path=LOCAL_DIR,
                 progress_reporter=reporter,
                 log_to_file=True,
                 checkpoint_config=tune.CheckpointConfig(
