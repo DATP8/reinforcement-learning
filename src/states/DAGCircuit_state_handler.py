@@ -83,7 +83,7 @@ class DAGCircuitStateHandler(StateHandler[DAGCircuitState]):
 
             if len(qubits) == 2:
                 if set(qubits) == set(self.swaps[action]):
-                    return 0.5
+                    return 0.33333
 
             locked_qubits.update({q: True for q in qubits})
 

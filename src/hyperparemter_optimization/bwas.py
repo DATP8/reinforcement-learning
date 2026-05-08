@@ -38,15 +38,9 @@ model.load_state_dict(torch.load(path, map_location=device))
 topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
 state_handler = DenseCircuitGraphStateHandler(NUM_QUBITS, topology)
 
-coupling_map = CouplingMap(topology)
-coupling_map.make_symmetric()
-
-swap_inserter = SwapInserter(coupling_map, num_qubits=NUM_QUBITS)
-
-trivial_layout = TrivialLayout(coupling_map)
-apply_layout = ApplyLayout()
-cnot_cancel = CNOTSwapCancelation()
-commutative_cancellation = CommutativeCancellation()
+states = [
+    state_handler.state_from(circuit) for circuit in circuits
+]
 
 
 def objective(trial: Trial):
@@ -55,35 +49,23 @@ def objective(trial: Trial):
     weight = trial.suggest_float("weight", 0.01, 1.0)
 
     bwas_router = BWASRouter(model, state_handler, batch_size=batch_size, weight=weight)
-    routing_pass = RlRoutingPass(
-        bwas_router, swap_inserter
-    )  # Assuming no swap inserter for simplicity
-    pm = PassManager([trivial_layout, apply_layout, routing_pass, cnot_cancel])
-
+ 
     times = []
     costs = []
-    for circuit in circuits:
+    for state in states:
         if time.time() - start_trial > TRIAL_TIMEOUT:
             raise optuna.TrialPruned()
         
         time_start = time.time()
-        out_circuit = pm.run(circuit)
+        _, goal_cost = bwas_router.search(state)
         time_end = time.time()
         times.append(time_end - time_start)
-        costs.append(get_cost(out_circuit))
+        costs.append(goal_cost)
 
     routing_time = sum(times) / len(times)
     cost = sum(costs) / len(costs)
 
     return cost, routing_time
-
-
-def get_cost(circuit) -> float:
-    decomposed_circuit = commutative_cancellation.run(
-        circuit.decompose(gates_to_decompose="swap").to_dag()
-    ).to_circuit()
-
-    return decomposed_circuit.depth()
 
 
 def print_callback(study, trial):
