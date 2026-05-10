@@ -249,17 +249,13 @@ class RoutingEnv(gymnasium.Env):
         return qc
 
     def step(self, action: int | np.ndarray):
+        if self.is_terminal():  # terminal directly after reset
+            return self._get_obs(), 0.0, True, False, {}
+
         action = int(action)
-        if action >= len(self._active_swaps):
-            self._remaining_swaps = max(0, self._remaining_swaps - 1)
-            terminated = self.is_terminal()
-            truncated = self._remaining_swaps == 0 and not terminated
-            achieved = self._completion_reward if terminated else 0.0
-            reward = (
-                achieved - self._swap_penalty
-            )  # penalize to avoid model becoming lazy (lazy agent problem)
-            self._update_obs()
-            return self._get_obs(), reward, terminated, truncated, {}
+        assert action < len(self._active_swaps), (
+            f"Invalid action {action}, only {len(self._active_swaps)} active swaps"
+        )
 
         edge_idx = self._active_swaps[action]
         p0, p1 = self._cmap_edges[edge_idx]
