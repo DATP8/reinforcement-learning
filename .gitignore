@@ -12,4 +12,4 @@ __pycache__
 test.py
 logs
 *.zip
-!.python-version
+!.python-version    

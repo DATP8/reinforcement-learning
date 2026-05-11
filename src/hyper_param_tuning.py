@@ -30,9 +30,11 @@ GRACE_PERIOD = 3
 NUM_QUBITS = 6
 TOTAL_TIMESTEPS = 10_000_000
 BASE_EVAL_FREQ = 100_000
-GPUS = 1.0
+GPUS = 4.0
 
-EXPERIMENT_NAME = "maskable_ppo_search"
+EXPERIMENT_NAME = "maskable_ppo_search_v1"
+total_timesteps = TOTAL_TIMESTEPS
+n_eval_episodes = 100
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -236,8 +238,8 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": BASE_EVAL_FREQ,
-        "n_eval_episodes": 100,
-        "total_timesteps": TOTAL_TIMESTEPS,
+        "n_eval_episodes": n_eval_episodes,
+        "total_timesteps": total_timesteps,
         "num_envs": num_envs,
     }
 
@@ -262,6 +264,20 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test", action="store_true", help="Run a short test with minimal samples and timesteps")
+    args = parser.parse_args()
+
+    if args.test:
+        num_samples = 2
+        grace_period = 1
+        total_timesteps = 10_000
+        n_eval_episodes = 2
+    else:
+        num_samples = NUM_UNIQUE_SAMPLES
+        grace_period = GRACE_PERIOD
+
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
 
@@ -270,20 +286,18 @@ if __name__ == "__main__":
 
     experiment_path = os.path.join(os.path.expanduser("~/ray_results"), EXPERIMENT_NAME)
 
-    num_samples = NUM_UNIQUE_SAMPLES
-
     gpus_per_trial = GPUS / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
     algo = OptunaSearch(space=optuna_space, metric="best_avg_d_cx", mode="min")
 
-    max_evals = TOTAL_TIMESTEPS // BASE_EVAL_FREQ
+    max_evals = max(1, total_timesteps // BASE_EVAL_FREQ)
 
     scheduler = ASHAScheduler(
         time_attr="pc_evals",
         metric="avg_d_cx",
         mode="min",
         max_t=max_evals,
-        grace_period=GRACE_PERIOD,
+        grace_period=grace_period,
     )
 
     reporter = CLIReporter(
