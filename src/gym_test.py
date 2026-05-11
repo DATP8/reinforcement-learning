@@ -15,27 +15,30 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 
 HORIZON = 64
 MAX_DIFF = 256
-SLOPE = 1
+SLOPE = 0.9
 TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
 N_EVAL_EPISODES = 10
 THRESHOLD = 0.85
-BATCH_SIZE = 2048
+BATCH_DIVISOR = 14
 N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
 if __name__ == "__main__":
     # backend = FakeTorino()
     # coupling_map = backend.coupling_map
     coupling_map = CouplingMap.from_line(NUM_QUBITS)
-    n_envs = mp.cpu_count() - 1
+    n_envs = mp.cpu_count()
+    buffer_size = N_STEPS * n_envs
+    batch_size = max(1, buffer_size // BATCH_DIVISOR)
     print(f"Using {n_envs} envs")
+    print(f"Batch size: {batch_size}")
 
     train_env = make_vec_env(
         lambda: make_env(
@@ -55,7 +58,7 @@ if __name__ == "__main__":
         POLICY_TYPE.get_sb3_policy(),
         train_env,
         verbose=1,
-        batch_size=BATCH_SIZE,
+        batch_size=batch_size,
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
         policy_kwargs=POLICY_TYPE.get_policy_kwargs(),
@@ -79,7 +82,9 @@ if __name__ == "__main__":
     )
     eval_env = Monitor(eval_env)
 
-    curriculum_callback = CurriculumCallback(threshold=THRESHOLD, verbose=1)
+    curriculum_callback = CurriculumCallback(
+        threshold=THRESHOLD, use_fast_curriculum=True, verbose=1
+    )
 
     eval_freq = max(EVAL_FREQ // n_envs, 1)
     conditional_eval = PostCurriculumEvalCallback(

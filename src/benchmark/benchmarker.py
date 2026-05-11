@@ -268,7 +268,7 @@ if __name__ == "__main__":
     # )
 
     horizon = 64
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
     ppo_env = make_env(
         coupling_map,
@@ -276,13 +276,11 @@ if __name__ == "__main__":
         horizon=horizon,
         initial_difficulty=1,
         max_difficulty=100,
-        diff_slope=2,
+        diff_slope=0.5,
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load(
-        "checkpoints/best_model_basic_cancel.zip", ppo_env, seed=EVAL_SEED
-    )
+    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env, seed=EVAL_SEED)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 

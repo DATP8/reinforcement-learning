@@ -183,7 +183,9 @@ def maskable_ppo_obj(config):
             ent_coef=config["ent_coef"],
         )
 
-    curriculum_callback = CurriculumCallback(config["threshold"])
+    curriculum_callback = CurriculumCallback(
+        config["threshold"], use_fast_curriculum=True
+    )
 
     eval_freq = max(config["base_eval_freq"] // config["num_envs"], 1)
     ray_tune_eval = RayTuneCurriculumCallback(
@@ -232,7 +234,7 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "num_active_swaps": NUM_QUBITS - 1,
         "initial_difficulty": 1,
         "max_difficulty": 256,
-        "diff_slope": 1.0,
+        "diff_slope": 0.9,
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": BASE_EVAL_FREQ,

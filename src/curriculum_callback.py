@@ -3,11 +3,14 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 
 class CurriculumCallback(BaseCallback):
-    def __init__(self, threshold: float, verbose: int = 0):
+    def __init__(
+        self, threshold: float, use_fast_curriculum: bool = True, verbose: int = 0
+    ):
         super().__init__(verbose)
         self.threshold = threshold
         self.rollout_successes = []
-        self.max_difficulty = None
+        self.use_fast_curriculum = use_fast_curriculum
+        self.exponent = 0
 
     def _on_training_start(self) -> None:
         self.max_difficulty = self.training_env.get_attr("_max_difficulty")[0]
@@ -28,10 +31,15 @@ class CurriculumCallback(BaseCallback):
 
         if current_diff < self.max_difficulty and self.verbose > 0:
             print(
-                f"\n[Curriculum] Rollout success rate: {success_rate:.2f} (Difficulty {current_diff})"
+                f"\n[Curriculum] Rollout success rate: {success_rate} (Difficulty {current_diff})"
             )
         if success_rate >= self.threshold and current_diff < self.max_difficulty:
-            current_diff += 1
+            if success_rate >= 1.0 and self.use_fast_curriculum:
+                self.exponent += 1
+            else:
+                self.exponent = 0
+
+            current_diff = min(current_diff + 2**self.exponent, self.max_difficulty)
             self.training_env.env_method("set_difficulty", current_diff)
             if self.verbose > 0:
                 print(f"[Curriculum] Difficulty increased to {current_diff}!")
