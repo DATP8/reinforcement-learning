@@ -89,16 +89,14 @@ class RecedingHorizon(Router):
 
 
 if __name__ == "__main__":
-    from qiskit.qpy import load, dump
+    from qiskit.qpy import dump
     import torch
-    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-    from src.model import BiCircuitGNN
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.dense_circuit_graph_state_handler import (
         DenseCircuitGraphStateHandler,
     )
     from src.routing.rl_routing_pass import RlRoutingPass
-    from qiskit.transpiler import CouplingMap, PassManager
+    from qiskit.transpiler import PassManager
     from qiskit.quantum_info import Operator
 
     n_qubits = 6

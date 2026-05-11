@@ -1,0 +1,9 @@
+[project]
+name = "mqt-bridge"
+version = "0.1.0"
+dependencies = [
+    "mqt.bench",
+    "mqt.qcec",
+    "qiskit==2.4.0"
+]
+requires-python = ">=3.10"

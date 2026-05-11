@@ -108,6 +108,7 @@ class BWASRouter[S, To](Router):
 
 if __name__ == "__main__":
     random.seed(42)
+    from src.model import BiCircuitGNN
     from qiskit.transpiler.coupling import CouplingMap as CM
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
     from qiskit.qpy import load
