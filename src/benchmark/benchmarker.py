@@ -176,7 +176,7 @@ class Benchmarker:
         title: str,
         confidence: float = 0.95,
         is_printing: bool = True,
-        seed=1
+        seed=1,
     ):
         name_lengths = [len(elem[0]) for elem in configs]
         name_size = max(name_lengths)
