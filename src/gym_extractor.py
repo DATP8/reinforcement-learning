@@ -46,7 +46,10 @@ class SimpleExtractor2(BaseFeaturesExtractor):
         )
 
     def forward(self, obs):
-        return self.net(obs)
+        matrix = obs["matrix"].flatten(start_dim=1)
+        cancel = obs["swap_cancellation"]
+        x = torch.cat([matrix, cancel], dim=-1)
+        return self.net(x)
 
 
 class SimpleGNN(nn.Module):

@@ -32,7 +32,8 @@ TOTAL_TIMESTEPS = 10_000_000
 BASE_EVAL_FREQ = 100_000
 GPUS = 4.0
 
-EXPERIMENT_NAME = "maskable_ppo_search_v1"
+#EXPERIMENT_NAME= "test_v1"
+EXPERIMENT_NAME = "experiment_v1"
 total_timesteps = TOTAL_TIMESTEPS
 n_eval_episodes = 100
 
@@ -209,9 +210,10 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
     if trial is None:
         return None
 
+    excluded = {"BASIC", "BASIC_CANCEL", "DENSE_GRAPH_GNN"}
     policy_type = trial.suggest_categorical(
         "policy_type",
-        [p.name for p in ActorCriticPolicyType],
+        [p.name for p in ActorCriticPolicyType if p.name not in excluded],
     )
 
     n_steps = trial.suggest_categorical("n_steps", [256, 512, 1024, 2048, 4096])
