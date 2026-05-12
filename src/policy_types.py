@@ -11,7 +11,7 @@ from src.gym_extractor import (
 
 class ActorCriticPolicyType(Enum):
     BASIC = auto()
-    BASIC_CANCEL = auto()
+    #BASIC_CANCEL = auto()
     SIMPLE_MLP = auto()
     HYBRID_GNN = auto()
    # DENSE_GRAPH_GNN = auto()
