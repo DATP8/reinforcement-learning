@@ -26,7 +26,7 @@ class ActorCriticPolicyType(Enum):
 
     def get_feature_extractor(self):
         match self.name:
-            case self.BASIC | self.BASIC_CANCEL.name:
+            case self.BASIC_CANCEL.name:
                 return SimpleExtractor2
             case self.SIMPLE_MLP.name:
                 return SimpleExtractor
@@ -35,14 +35,14 @@ class ActorCriticPolicyType(Enum):
             case self.DENSE_GRAPH_GNN.name:
                 print("Using dense dag extractor")
                 return DenseDagExtractor
+            case _:
+                raise ValueError("No feature extractor for policy type")
 
     def get_policy_kwargs(
         self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128
     ):
         match self.name:
             case self.BASIC.name:
-                return None
-            case self.BASIC_CANCEL.name:
                 return None
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")

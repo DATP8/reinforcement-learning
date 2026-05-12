@@ -565,9 +565,6 @@ class RoutingEnv(gymnasium.Env):
 
     def valid_action_mask(self) -> np.ndarray:
         mask = np.zeros(self._num_active_swaps, dtype=bool)
-        if self.is_terminal() or not self._active_swaps:
-            return mask
-
         for slot, edge_idx in enumerate(self._active_swaps):
             p0, p1 = self._cmap_edges[edge_idx]
             l0, l1 = self._p2l[p0], self._p2l[p1]

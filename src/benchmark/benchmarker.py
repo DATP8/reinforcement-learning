@@ -275,8 +275,8 @@ if __name__ == "__main__":
         num_active_swaps=5,
         horizon=horizon,
         initial_difficulty=1,
-        max_difficulty=100,
-        diff_slope=0.5,
+        max_difficulty=256,
+        diff_slope=0.85,
         layout_exponent=1.0,
         policy_type=policy_type,
     )
