@@ -32,7 +32,7 @@ TOTAL_TIMESTEPS = 10_000_000
 BASE_EVAL_FREQ = 100_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "maskable_ppo_search"
+EXPERIMENT_NAME = "optuna"
 
 
 class RayTuneCurriculumCallback(BaseCallback):
