@@ -14,7 +14,7 @@ class ActorCriticPolicyType(Enum):
     BASIC_CANCEL = auto()
     SIMPLE_MLP = auto()
     HYBRID_GNN = auto()
-    DENSE_GRAPH_GNN = auto()
+   # DENSE_GRAPH_GNN = auto()
     VIBE_GRAPH = auto()
 
     def get_sb3_policy(self) -> str:
