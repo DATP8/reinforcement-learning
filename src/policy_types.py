@@ -11,10 +11,10 @@ from src.gym_extractor import (
 
 class ActorCriticPolicyType(Enum):
     BASIC = auto()
-    #BASIC_CANCEL = auto()
+    BASIC_CANCEL = auto()
     SIMPLE_MLP = auto()
     HYBRID_GNN = auto()
-   # DENSE_GRAPH_GNN = auto()
+    DENSE_GRAPH_GNN = auto()
     VIBE_GRAPH = auto()
 
     def get_sb3_policy(self) -> str:
@@ -42,7 +42,7 @@ class ActorCriticPolicyType(Enum):
         self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128
     ):
         match self.name:
-            case self.BASIC.name:
+            case self.BASIC.name | self.BASIC_CANCEL:
                 return None
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")
