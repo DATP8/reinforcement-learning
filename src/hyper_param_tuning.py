@@ -163,9 +163,7 @@ def maskable_ppo_obj(config):
     checkpoint = tune.get_checkpoint()
     if checkpoint:
         with checkpoint.as_directory() as ckpt_dir:
-            model = MaskablePPO.load(
-                os.path.join(ckpt_dir, "model"), env=train_env
-            )
+            model = MaskablePPO.load(os.path.join(ckpt_dir, "model"), env=train_env)
         print(f"Resumed model from checkpoint (seed={seed}, device={model.device})")
     else:
         model = MaskablePPO(
