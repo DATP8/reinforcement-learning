@@ -268,7 +268,7 @@ class RoutingEnv(gymnasium.Env):
         options = options or {}
 
         # Sample a random difficuly for eval_env when curriculum learning done
-        if self._current_difficulty >= self._max_difficulty:
+        if False and self._current_difficulty >= self._max_difficulty:
             sampled_diff = int(self.np_random.integers(1, self._max_difficulty + 1))
         else:
             sampled_diff = self._current_difficulty

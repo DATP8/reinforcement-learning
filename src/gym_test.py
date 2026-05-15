@@ -15,7 +15,7 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 
 HORIZON = 64
 MAX_DIFF = 256
-SLOPE = 0.9
+SLOPE = 0.8
 TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
 EVAL_FREQ = 100_000
@@ -28,7 +28,7 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
 
 if __name__ == "__main__":
     # backend = FakeTorino()

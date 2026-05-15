@@ -268,7 +268,7 @@ if __name__ == "__main__":
     # )
 
     horizon = 64
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
 
     ppo_env = make_env(
         coupling_map,
