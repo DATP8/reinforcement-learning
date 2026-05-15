@@ -29,7 +29,7 @@ REPEATS_PER_CONFIG = 1
 GRACE_PERIOD = 3
 NUM_QUBITS = 6
 TOTAL_TIMESTEPS = 10_000_000
-BASE_EVAL_FREQ = 100_000
+BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
 EXPERIMENT_NAME = "optuna"
@@ -235,7 +235,7 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": BASE_EVAL_FREQ,
-        "n_eval_episodes": 100,
+        "n_eval_episodes": 256,
         "total_timesteps": TOTAL_TIMESTEPS,
         "num_envs": num_envs,
     }

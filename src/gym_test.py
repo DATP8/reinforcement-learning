@@ -18,8 +18,8 @@ MAX_DIFF = 256
 SLOPE = 0.8
 TEST_SAMPLES = 3
 TOTAL_STEPS = 10_000_000
-EVAL_FREQ = 100_000
-N_EVAL_EPISODES = 100
+EVAL_FREQ = 256_000
+N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
 BATCH_DIVISOR = 7
 N_STEPS = 2048
@@ -28,7 +28,10 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
+SAMPLE_DIFF = True
+FAST_CURRICULUM = True
 
 if __name__ == "__main__":
     # backend = FakeTorino()
@@ -50,6 +53,7 @@ if __name__ == "__main__":
             diff_slope=SLOPE,
             layout_exponent=LAYOUT_EXPONENT,
             policy_type=POLICY_TYPE,
+            sample_diff=SAMPLE_DIFF,
         ),
         n_envs=n_envs,
     )
@@ -58,6 +62,7 @@ if __name__ == "__main__":
         POLICY_TYPE.get_sb3_policy(),
         train_env,
         verbose=1,
+        tensorboard_log=TENSORBOARD_LOG_DIR,
         batch_size=batch_size,
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
@@ -79,11 +84,12 @@ if __name__ == "__main__":
         diff_slope=SLOPE,
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
+        sample_diff=SAMPLE_DIFF,
     )
     eval_env = Monitor(eval_env)
 
     curriculum_callback = CurriculumCallback(
-        threshold=THRESHOLD, use_fast_curriculum=True, verbose=1
+        threshold=THRESHOLD, use_fast_curriculum=FAST_CURRICULUM, verbose=1
     )
 
     eval_freq = max(EVAL_FREQ // n_envs, 1)

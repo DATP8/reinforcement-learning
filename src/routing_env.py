@@ -3,7 +3,7 @@ import numpy as np
 from gymnasium import spaces
 from numba import njit
 from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag, dag_to_circuit
+from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
 from torch import Tensor
 
@@ -22,10 +22,6 @@ def _numba_compute_improvements(
     l2p: np.ndarray,
     dist_matrix: np.ndarray,
 ) -> None:
-    """
-    Highly optimized machine-code kernel computing swap improvements
-    across all active candidate slots and pre-extracted topological layers.
-    """
     num_swaps = active_edges.shape[0]
     num_pairs = layer_pairs.shape[0]
 
@@ -61,11 +57,7 @@ def _numba_build_graph_features(
     dist_matrix: np.ndarray,
     num_q: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Compiles node feature calculations and edge extraction down to raw pointer arithmetic.
-    """
     x = np.zeros((num_q, 3), dtype=np.float32)
-
     temp_edges = np.zeros((2, num_q * num_q), dtype=np.int64)
     edge_count = 0
 
@@ -114,6 +106,7 @@ class RoutingEnv(gymnasium.Env):
         diff_slope: float,
         layout_exponent: float,
         policy_type: ActorCriticPolicyType,
+        sample_diff: bool = True,
         render_mode: str | None = None,
     ) -> None:
         super().__init__()
@@ -128,6 +121,7 @@ class RoutingEnv(gymnasium.Env):
         self._diff_slope = diff_slope
         self._layout_exponent = layout_exponent
         self._policy_type = policy_type
+        self._sample_diff = sample_diff
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
         self._build_dist_pairs()
@@ -143,9 +137,9 @@ class RoutingEnv(gymnasium.Env):
             self._physical_to_edges[q2].append(i)
 
         self._active_swaps = []
+        self._action_history = []
         self.l2p: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
-        self._routed_q2idx: dict = {}
         self.action_space = spaces.Discrete(self._num_active_swaps)
 
         match policy_type:
@@ -253,6 +247,30 @@ class RoutingEnv(gymnasium.Env):
         self.l2p = np.arange(self._num_qubits, dtype=np.int64)
         self._p2l = np.arange(self._num_qubits, dtype=np.int64)
         self._active_swaps = []
+        self._action_history = []
+
+        gate_list = []
+        for inst in self._circuit.data:
+            if len(inst.qubits) == 2:
+                q0 = self._qubit_indices[inst.qubits[0]]
+                q1 = self._qubit_indices[inst.qubits[1]]
+                gate_list.append((q0, q1))
+
+        self._num_gates = len(gate_list)
+        self._gates = np.array(gate_list, dtype=np.int32)
+        self._gate_executed = np.zeros(self._num_gates, dtype=bool)
+
+        schedule_list: list[list[int]] = [[] for _ in range(self._num_qubits)]
+        for gate_idx, (q0, q1) in enumerate(self._gates):
+            schedule_list[q0].append(gate_idx)
+            schedule_list[q1].append(gate_idx)
+
+        max_ops = max((len(s) for s in schedule_list), default=0)
+        self._qubit_schedules = np.full((self._num_qubits, max_ops), -1, dtype=np.int32)
+        for q, sched in enumerate(schedule_list):
+            self._qubit_schedules[q, : len(sched)] = sched
+
+        self._q_pointers = np.zeros(self._num_qubits, dtype=np.int32)
 
     def set_difficulty(self, difficulty: int) -> None:
         self._current_difficulty = difficulty
@@ -267,17 +285,13 @@ class RoutingEnv(gymnasium.Env):
         super().reset(seed=seed)
         options = options or {}
 
-        # Sample a random difficuly for eval_env when curriculum learning done
-        if False and self._current_difficulty >= self._max_difficulty:
+        if self._sample_diff and self._current_difficulty >= self._max_difficulty:
             sampled_diff = int(self.np_random.integers(1, self._max_difficulty + 1))
         else:
             sampled_diff = self._current_difficulty
 
         self._depth = self._compute_depth(sampled_diff)
         self._remaining_swaps = self._depth
-
-        self.routed_circuit = QuantumCircuit(self._num_qubits)
-        self._routed_q2idx = {q: i for i, q in enumerate(self.routed_circuit.qubits)}
 
         provided_circuit: QuantumCircuit = options.get("circuit")  # pyrefly: ignore
         if provided_circuit is not None:
@@ -286,7 +300,6 @@ class RoutingEnv(gymnasium.Env):
             self._circuit = self._generate_random_circuit_from_diff(sampled_diff)
 
         self._qubit_indices = {q: i for i, q in enumerate(self._circuit.qubits)}
-        self._dag = circuit_to_dag(self._circuit)
         self._reset_internals()
 
         if provided_circuit is None:
@@ -338,10 +351,6 @@ class RoutingEnv(gymnasium.Env):
             return self._get_obs(), 0.0, True, False, {}
 
         action = int(action)
-        assert action < len(self._active_swaps), (
-            f"Invalid action {action}, only {len(self._active_swaps)} active swaps"
-        )
-
         edge_idx = self._active_swaps[action]
         p0, p1 = self._cmap_edges[edge_idx]
 
@@ -354,11 +363,11 @@ class RoutingEnv(gymnasium.Env):
         cancellation = False
         if cancelled_nodes:
             phys_ctrl, phys_trgt = cancelled_nodes
-            self.routed_circuit.cx(phys_trgt, phys_ctrl)
-            self.routed_circuit.cx(phys_ctrl, phys_trgt)
+            self._action_history.append(("cx", phys_trgt, phys_ctrl))
+            self._action_history.append(("cx", phys_ctrl, phys_trgt))
             cancellation = True
         else:
-            self.routed_circuit.swap(p0, p1)
+            self._action_history.append(("swap", p0, p1))
 
         gates_executed = self._execute_front_layer()
         if gates_executed > 0:
@@ -386,43 +395,46 @@ class RoutingEnv(gymnasium.Env):
         return self._get_obs(), reward, terminated, truncated, {}
 
     def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
-        for i in range(len(self.routed_circuit.data) - 1, -1, -1):
-            instruction = self.routed_circuit.data[i]
-            qargs = instruction.qubits
-
-            if len(qargs) == 2:
-                q0 = self._routed_q2idx[qargs[0]]
-                q1 = self._routed_q2idx[qargs[1]]
-
+        for i in range(len(self._action_history) - 1, -1, -1):
+            op, q0, q1 = self._action_history[i]
+            if op == "cx":
                 if (q0 == p0 and q1 == p1) or (q0 == p1 and q1 == p0):
-                    if instruction.operation.name == "cx":
-                        if not dry_run:
-                            del self.routed_circuit.data[i]
-                        return q0, q1
-                    return None
-
+                    if not dry_run:
+                        self._action_history.pop(i)
+                    return q0, q1
                 if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
                     return None
-
-            elif len(qargs) == 1:
-                q0 = self._routed_q2idx[qargs[0]]
-                if q0 == p0 or q0 == p1:
+            elif op == "swap":
+                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
                     return None
-            else:
-                for q in qargs:
-                    if self._routed_q2idx[q] in (p0, p1):
-                        return None
         return None
+
+    def _get_remaining_circuit(self) -> QuantumCircuit:
+        qc = QuantumCircuit(self._num_qubits)
+        for gate_idx in range(self._num_gates):
+            if not self._gate_executed[gate_idx]:
+                qc.cx(self._gates[gate_idx, 0], self._gates[gate_idx, 1])
+        return qc
 
     def _update_obs(self):
         self._matrix = self._build_matrix()
         self._cancellation = self._build_cancellation()
-        if (
-            self._policy_type is not ActorCriticPolicyType.BASIC
-            and self._policy_type is not ActorCriticPolicyType.SIMPLE_MLP
+
+        if self._policy_type not in (
+            ActorCriticPolicyType.BASIC,
+            ActorCriticPolicyType.SIMPLE_MLP,
         ):
-            self._gnn = self._build_graph()
+            if self._policy_type is not ActorCriticPolicyType.VIBE_GRAPH:
+                self._gnn = self._build_graph()
+
+        if self._policy_type in (
+            ActorCriticPolicyType.VIBE_GRAPH,
+            ActorCriticPolicyType.DENSE_GRAPH_GNN,
+        ):
+            self._temp_remaining_circuit = self._get_remaining_circuit()
+
         if self._policy_type is ActorCriticPolicyType.VIBE_GRAPH:
+            temp_dag = circuit_to_dag(self._temp_remaining_circuit)
             graph = build_graph_obs(
                 num_qubits=self._num_qubits,
                 l2p=self.l2p,
@@ -430,8 +442,10 @@ class RoutingEnv(gymnasium.Env):
                 cmap_edges=self._cmap_edges,
                 active_swaps=self._active_swaps,
                 num_active_swaps=self._num_active_swaps,
-                dag=self._dag,
-                qubit_indices=self._qubit_indices,
+                dag=temp_dag,
+                qubit_indices={
+                    q: i for i, q in enumerate(self._temp_remaining_circuit.qubits)
+                },
                 distance_matrix=self._distance_matrix,
                 horizon=self._horizon,
             )
@@ -451,21 +465,33 @@ class RoutingEnv(gymnasium.Env):
         gates_executed = 0
         while progress:
             progress = False
-            for node in list(self._dag.front_layer()):
-                indices = [self._qubit_indices[q] for q in node.qargs]
-                if len(indices) == 1:
-                    p0 = self.l2p[indices[0]]
-                    self.routed_circuit.append(node.op, [p0])
-                    self._dag.remove_op_node(node)
+            for q in range(self._num_qubits):
+                ptr = self._q_pointers[q]
+                if ptr >= self._qubit_schedules.shape[1]:
+                    continue
+
+                gate_idx = self._qubit_schedules[q, ptr]
+                if gate_idx == -1 or self._gate_executed[gate_idx]:
+                    continue
+
+                q0, q1 = self._gates[gate_idx]
+                other_q = q1 if q == q0 else q0
+                ptr_other = self._q_pointers[other_q]
+
+                if (
+                    ptr_other >= self._qubit_schedules.shape[1]
+                    or self._qubit_schedules[other_q, ptr_other] != gate_idx
+                ):
+                    continue
+
+                p0, p1 = self.l2p[q0], self.l2p[q1]
+                if (p0, p1) in self._edge_set or (p1, p0) in self._edge_set:
+                    self._q_pointers[q0] += 1
+                    self._q_pointers[q1] += 1
+                    self._gate_executed[gate_idx] = True
+                    self._action_history.append(("cx", p0, p1))
                     gates_executed += 1
                     progress = True
-                else:
-                    p0, p1 = self.l2p[indices[0]], self.l2p[indices[1]]
-                    if (p0, p1) in self._edge_set or (p1, p0) in self._edge_set:
-                        self.routed_circuit.append(node.op, [p0, p1])
-                        self._dag.remove_op_node(node)
-                        gates_executed += 1
-                        progress = True
 
         return gates_executed
 
@@ -514,8 +540,7 @@ class RoutingEnv(gymnasium.Env):
                     "graph_edge_idx": graph_edge_idx,
                 }
             case ActorCriticPolicyType.DENSE_GRAPH_GNN:
-                circuit = dag_to_circuit(self._dag)
-                graph = DenseCircuitGraph.from_circuit(circuit)
+                graph = DenseCircuitGraph.from_circuit(self._temp_remaining_circuit)
                 return self._dense_graph_to_obs(graph, self._horizon, self._num_qubits)
             case ActorCriticPolicyType.VIBE_GRAPH:
                 return self._graph_obs
@@ -523,27 +548,25 @@ class RoutingEnv(gymnasium.Env):
     def _build_matrix(self) -> np.ndarray:
         qubit_depth = np.zeros(self._num_qubits, dtype=int)
         custom_layers = []
-
         temp_pairs = []
         temp_layer_indices = []
 
-        for node in self._dag.op_nodes():
-            indices = [self._qubit_indices[q] for q in node.qargs]
-            layer = 0
-            for idx in indices:
-                if qubit_depth[idx] > layer:
-                    layer = qubit_depth[idx]
-            for idx in indices:
-                qubit_depth[idx] = layer + 1
+        for gate_idx in range(self._num_gates):
+            if self._gate_executed[gate_idx]:
+                continue
 
-            if len(indices) == 2:
-                while len(custom_layers) <= layer:
-                    custom_layers.append([])
-                custom_layers[layer].append(indices)
+            q0, q1 = self._gates[gate_idx]
+            layer = max(qubit_depth[q0], qubit_depth[q1])
+            qubit_depth[q0] = layer + 1
+            qubit_depth[q1] = layer + 1
 
-                if layer < self._horizon:
-                    temp_pairs.append(indices)
-                    temp_layer_indices.append(layer)
+            while len(custom_layers) <= layer:
+                custom_layers.append([])
+            custom_layers[layer].append((q0, q1))
+
+            if layer < self._horizon:
+                temp_pairs.append((q0, q1))
+                temp_layer_indices.append(layer)
 
         self._active_swaps = self._select_active_swaps(custom_layers)
 
@@ -596,11 +619,9 @@ class RoutingEnv(gymnasium.Env):
         num_q = self._num_logic_qubits
         interaction_counts = np.zeros((num_q, num_q), dtype=np.float32)
 
-        for node in self._dag.op_nodes():
-            qargs = node.qargs
-            if len(qargs) == 2:
-                q1 = self._qubit_indices[qargs[0]]
-                q2 = self._qubit_indices[qargs[1]]
+        for gate_idx in range(self._num_gates):
+            if not self._gate_executed[gate_idx]:
+                q1, q2 = self._gates[gate_idx]
                 interaction_counts[q1, q2] += 1
                 interaction_counts[q2, q1] += 1
 
@@ -634,12 +655,18 @@ class RoutingEnv(gymnasium.Env):
         return mask
 
     def is_terminal(self) -> bool:
-        return not bool(self._dag.op_nodes())
+        return bool(np.all(self._gate_executed)) if self._num_gates > 0 else True
 
     def render(self) -> None:
         if self._render_mode == "ansi":
             print("--- Original ---")
             print(self._circuit)
             print("\n--- Routed ---")
-            print(self.routed_circuit)
+            routed_qc = QuantumCircuit(self._num_qubits)
+            for op, p0, p1 in self._action_history:
+                if op == "cx":
+                    routed_qc.cx(p0, p1)
+                elif op == "swap":
+                    routed_qc.swap(p0, p1)
+            print(routed_qc)
             print()

@@ -28,6 +28,7 @@ def make_env(
     diff_slope: float,
     layout_exponent: float,
     policy_type: ActorCriticPolicyType,
+    sample_diff: bool = True,
     render_mode: str | None = None,
 ):
     env = RoutingEnv(
@@ -39,6 +40,7 @@ def make_env(
         diff_slope=diff_slope,
         layout_exponent=layout_exponent,
         policy_type=policy_type,
+        sample_diff=sample_diff,
         render_mode=render_mode,
     )
     env = ActionMasker(env, mask_fn)
@@ -55,9 +57,7 @@ def route_circuit(
     obs, _ = env.reset(seed=model.seed, options={"circuit": circuit})
 
     if env.is_terminal():
-        return circuit_to_dag(env.routed_circuit), Layout.generate_trivial_layout(
-            *circuit.qregs
-        )
+        return circuit_to_dag(circuit), Layout.generate_trivial_layout(*circuit.qregs)
 
     terminated = False
     while not terminated:
@@ -65,9 +65,17 @@ def route_circuit(
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
         obs, _, terminated, truncated, _ = env.step(action)
 
+    routed_qc = QuantumCircuit(env._num_qubits)
+    for op, p0, p1 in env._action_history:
+        if op == "cx":
+            routed_qc.cx(p0, p1)
+        elif op == "swap":
+            routed_qc.swap(p0, p1)
+
     layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.l2p)}
     layout = Layout(layout_dict)
-    return circuit_to_dag(env.routed_circuit), layout
+
+    return circuit_to_dag(routed_qc), layout
 
 
 class PostCurriculumEvalCallback(MaskableEvalCallback):
