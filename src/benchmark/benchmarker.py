@@ -269,8 +269,8 @@ if __name__ == "__main__":
         QiskitTranspiler,
     )
 
-    start_qubits = 3
-    end_qubits = 6
+    start_qubits = 6
+    end_qubits = 7
 
     sqrt_qubits = int(sqrt(end_qubits).real)
 
@@ -315,29 +315,38 @@ if __name__ == "__main__":
         bench_circut_gate_count = 100
         n_qubits = coupling_map.size()
         bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-        bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+        temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
 
-        temp_results = bench.run_rand_benchmarks(
-            configs,
-            bench_iterations,
-            title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
-            is_printing=True,
-        )  # pyrefly: ignore
-        if title not in results:
-            results[title] = {}
-
-        for config in temp_results:
-            if config not in results[title]:
-                results[title][config] = {}
-
-            mean, ci = temp_results[config]
-            results[title][config][n_qubits] = {
-                metric: {"mean": mean[metric], "ci": ci[metric]}
-                for metric, _ in METRIC_KEYS
-            }
+        results[title] = temp_results
 
         results_dir = ROOT_DIR / "results"
         results_dir.mkdir(exist_ok=True)
-        results_file = results_dir / "benchmark_results.json"
+        results_file = results_dir / "benchmark_mqt_results.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2)
+
+
+        # temp_results = bench.run_rand_benchmarks(
+        #     configs,
+        #     bench_iterations,
+        #     title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
+        #     is_printing=True,
+        # )  # pyrefly: ignore
+        # if title not in results:
+        #     results[title] = {}
+
+        # for config in temp_results:
+        #     if config not in results[title]:
+        #         results[title][config] = {}
+
+        #     mean, ci = temp_results[config]
+        #     results[title][config][n_qubits] = {
+        #         metric: {"mean": mean[metric], "ci": ci[metric]}
+        #         for metric, _ in METRIC_KEYS
+        #     }
+
+        # results_dir = ROOT_DIR / "results"
+        # results_dir.mkdir(exist_ok=True)
+        # results_file = results_dir / "benchmark_results.json"
+        # with open(results_file, "w") as f:
+        #     json.dump(results, f, indent=2)
