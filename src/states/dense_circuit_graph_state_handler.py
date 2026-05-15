@@ -124,7 +124,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
             if (
                 gate_q1 == q1 and gate_q2 == q2 or gate_q1 == q2 and gate_q2 == q1
             ):  # exact match
-                action_cost = 0.5
+                action_cost = 0.33333
                 break
             if (
                 gate_q1 == q2 or gate_q2 == q1 or gate_q1 == q1 or gate_q2 == q2
