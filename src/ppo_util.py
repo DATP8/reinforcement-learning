@@ -54,7 +54,7 @@ def route_circuit(
         circuit = dag_to_circuit(circuit)
 
     env: RoutingEnv = model.env.envs[0].unwrapped  # pyrefly: ignore
-    obs, _ = env.reset(seed=model.seed, options={"circuit": circuit})
+    obs, _ = env.set_circuit(circuit, seed=model.seed)
 
     if env.is_terminal():
         return circuit_to_dag(circuit), Layout.generate_trivial_layout(*circuit.qregs)
@@ -65,15 +65,8 @@ def route_circuit(
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
         obs, _, terminated, truncated, _ = env.step(action)
 
-    routed_qc = QuantumCircuit(env._num_qubits)
-    for op, p0, p1 in env._action_history:
-        if op == "cx":
-            routed_qc.cx(p0, p1)
-        elif op == "swap":
-            routed_qc.swap(p0, p1)
-
-    layout_dict = {circuit.qubits[i]: int(p) for i, p in enumerate(env.l2p)}
-    layout = Layout(layout_dict)
+    routed_qc = env.get_routed_circuit()
+    layout = Layout(env.get_final_mapping())
 
     return circuit_to_dag(routed_qc), layout
 

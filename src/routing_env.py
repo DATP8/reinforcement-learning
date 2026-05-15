@@ -123,7 +123,9 @@ class RoutingEnv(gymnasium.Env):
         self._policy_type = policy_type
         self._sample_diff = sample_diff
         self._render_mode = render_mode
-        self._distance_matrix: np.ndarray = coupling_map.distance_matrix  # pyrefly: ignore
+        self._distance_matrix: np.ndarray = (
+            coupling_map.distance_matrix
+        )  # pyrefly: ignore
         self._build_dist_pairs()
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
@@ -250,11 +252,13 @@ class RoutingEnv(gymnasium.Env):
         self._action_history = []
 
         gate_list = []
+        self._gate_ops = []
         for inst in self._circuit.data:
             if len(inst.qubits) == 2:
                 q0 = self._qubit_indices[inst.qubits[0]]
                 q1 = self._qubit_indices[inst.qubits[1]]
                 gate_list.append((q0, q1))
+                self._gate_ops.append(inst.operation)
 
         self._num_gates = len(gate_list)
         self._gates = np.array(gate_list, dtype=np.int32)
@@ -311,6 +315,9 @@ class RoutingEnv(gymnasium.Env):
 
         self._update_obs()
         return self._get_obs(), {}
+
+    def set_circuit(self, circuit: QuantumCircuit, *, seed: int | None = None):
+        return self.reset(seed=seed, options={"circuit": circuit})
 
     def _apply_layout(self, sampled_diff: int) -> None:
         if self._current_difficulty >= self._max_difficulty:
@@ -397,7 +404,7 @@ class RoutingEnv(gymnasium.Env):
     def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
         for i in range(len(self._action_history) - 1, -1, -1):
             op, q0, q1 = self._action_history[i]
-            if op == "cx":
+            if getattr(op, "name", op) == "cx":
                 if (q0 == p0 and q1 == p1) or (q0 == p1 and q1 == p0):
                     if not dry_run:
                         self._action_history.pop(i)
@@ -407,13 +414,19 @@ class RoutingEnv(gymnasium.Env):
             elif op == "swap":
                 if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
                     return None
+            else:
+                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
+                    return None
         return None
 
     def _get_remaining_circuit(self) -> QuantumCircuit:
         qc = QuantumCircuit(self._num_qubits)
         for gate_idx in range(self._num_gates):
             if not self._gate_executed[gate_idx]:
-                qc.cx(self._gates[gate_idx, 0], self._gates[gate_idx, 1])
+                op = self._gate_ops[gate_idx]
+                qc.append(
+                    op, [int(self._gates[gate_idx, 0]), int(self._gates[gate_idx, 1])]
+                )
         return qc
 
     def _update_obs(self):
@@ -489,7 +502,8 @@ class RoutingEnv(gymnasium.Env):
                     self._q_pointers[q0] += 1
                     self._q_pointers[q1] += 1
                     self._gate_executed[gate_idx] = True
-                    self._action_history.append(("cx", p0, p1))
+                    op = self._gate_ops[gate_idx]
+                    self._action_history.append((op, p0, p1))
                     gates_executed += 1
                     progress = True
 
@@ -662,11 +676,19 @@ class RoutingEnv(gymnasium.Env):
             print("--- Original ---")
             print(self._circuit)
             print("\n--- Routed ---")
-            routed_qc = QuantumCircuit(self._num_qubits)
-            for op, p0, p1 in self._action_history:
-                if op == "cx":
-                    routed_qc.cx(p0, p1)
-                elif op == "swap":
-                    routed_qc.swap(p0, p1)
-            print(routed_qc)
+            print(self.get_routed_circuit())
             print()
+
+    def get_routed_circuit(self) -> QuantumCircuit:
+        routed_qc = QuantumCircuit(self._num_qubits, self._circuit.num_clbits)
+        for op, p0, p1 in self._action_history:
+            if getattr(op, "name", op) == "cx":
+                routed_qc.cx(p0, p1)
+            elif op == "swap":
+                routed_qc.swap(p0, p1)
+            else:
+                routed_qc.append(op, [int(p0), int(p1)])
+        return routed_qc
+
+    def get_final_mapping(self) -> dict:
+        return {self._circuit.qubits[i]: int(p) for i, p in enumerate(self.l2p)}

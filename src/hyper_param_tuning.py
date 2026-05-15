@@ -108,7 +108,7 @@ class RayTuneCurriculumCallback(BaseCallback):
                 obs, reward, terminated, truncated, info = self._eval_env.step(action)
                 done = terminated
 
-            routed_circuit = self._eval_env.routed_circuit
+            routed_circuit = self._eval_env.get_routed_circuit()
             ops = routed_circuit.count_ops()
             num_decomposed_cx += ops.get("swap", 0) * 3
             num_decomposed_cx += ops.get("cx", 0)
