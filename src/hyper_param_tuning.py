@@ -16,7 +16,6 @@ from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
-from src.gpu_utils import enable_cuda_optimizations, get_device
 
 from eval_circuits import EvalCircuits
 from src.curriculum_callback import CurriculumCallback
@@ -160,17 +159,14 @@ def maskable_ppo_obj(config):
         else {}
     )
 
-    device = get_device()
-    enable_cuda_optimizations()
-
     # Restore model from checkpoint if one exists for this trial
     checkpoint = tune.get_checkpoint()
     if checkpoint:
         with checkpoint.as_directory() as ckpt_dir:
             model = MaskablePPO.load(
-                os.path.join(ckpt_dir, "model"), env=train_env, device=device
+                os.path.join(ckpt_dir, "model"), env=train_env
             )
-        print(f"Resumed model from checkpoint (seed={seed}, device={device})")
+        print(f"Resumed model from checkpoint (seed={seed}, device={model.device})")
     else:
         model = MaskablePPO(
             policy=policy_type.get_sb3_policy(),
@@ -184,7 +180,6 @@ def maskable_ppo_obj(config):
             n_epochs=config["n_epochs"],
             seed=seed,
             ent_coef=config["ent_coef"],
-            device=device,
         )
 
     curriculum_callback = CurriculumCallback(
