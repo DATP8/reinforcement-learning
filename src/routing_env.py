@@ -108,6 +108,7 @@ class RoutingEnv(gymnasium.Env):
         policy_type: ActorCriticPolicyType,
         sample_diff: bool = True,
         render_mode: str | None = None,
+        clear_visited_on_stuck: bool = False,
     ) -> None:
         super().__init__()
         self._num_qubits = len(coupling_map.physical_qubits)
@@ -123,9 +124,10 @@ class RoutingEnv(gymnasium.Env):
         self._policy_type = policy_type
         self._sample_diff = sample_diff
         self._render_mode = render_mode
+        self._clear_visited_on_stuck = clear_visited_on_stuck
         self._distance_matrix: np.ndarray = (
-            coupling_map.distance_matrix
-        )  # pyrefly: ignore
+            coupling_map.distance_matrix  # pyrefly: ignore
+        )
         self._build_dist_pairs()
 
         unique_edges = list({tuple(sorted(edge)) for edge in coupling_map.get_edges()})
@@ -397,7 +399,11 @@ class RoutingEnv(gymnasium.Env):
         if not terminated and not truncated:
             mask = self.valid_action_mask()
             if not mask.any():
-                truncated = True
+                if self._clear_visited_on_stuck:
+                    self._visited_layouts.clear()
+                    self._visited_layouts.add(self._p2l.tobytes())
+                else:
+                    truncated = True
 
         return self._get_obs(), reward, terminated, truncated, {}
 

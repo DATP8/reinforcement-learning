@@ -13,11 +13,11 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 64
+HORIZON = 8
 MAX_DIFF = 256
-SLOPE = 0.8
+SLOPE = 0.9
 TEST_SAMPLES = 3
-TOTAL_STEPS = 10_000_000
+TOTAL_STEPS = 25_000_000
 EVAL_FREQ = 256_000
 N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
@@ -28,10 +28,11 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True
+LOG_AVG_D_CX = False
 
 if __name__ == "__main__":
     # backend = FakeTorino()
@@ -85,6 +86,7 @@ if __name__ == "__main__":
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
         sample_diff=SAMPLE_DIFF,
+        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 
@@ -100,6 +102,8 @@ if __name__ == "__main__":
         n_eval_episodes=N_EVAL_EPISODES,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
+        num_qubits=NUM_QUBITS,
+        log_avg_d_cx=LOG_AVG_D_CX,
     )
 
     model.learn(
