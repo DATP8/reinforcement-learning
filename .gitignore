@@ -13,3 +13,5 @@ test.py
 logs
 *.zip
 !.python-version
+results
+checkpoints
