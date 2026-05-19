@@ -1,13 +1,14 @@
+from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGCircuit
+from qiskit.transpiler import PassManager
+from qiskit.transpiler.layout import Layout
+from qiskit.transpiler.passes import ApplyLayout, SetLayout
+
 from src.circuit_generator import CircuitGenerator
 from src.model import BiCircuitGNNDense
 from src.routing.bwas_router import BWASRouter
-from qiskit.transpiler import PassManager
-from qiskit.transpiler.passes import ApplyLayout, SetLayout
-from qiskit.transpiler.layout import Layout
-from qiskit import QuantumCircuit
 from src.routing.router import Router
-from qiskit.dagcircuit import DAGCircuit
 
 
 class RecedingHorizon(Router):
@@ -89,17 +90,16 @@ class RecedingHorizon(Router):
 
 
 if __name__ == "__main__":
-    from qiskit.qpy import load, dump
     import torch
-    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-    from src.model import BiCircuitGNN
+    from qiskit.qpy import dump
+    from qiskit.quantum_info import Operator
+    from qiskit.transpiler import PassManager
+
+    from src.routing.rl_routing_pass import RlRoutingPass
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.dense_circuit_graph_state_handler import (
         DenseCircuitGraphStateHandler,
     )
-    from src.routing.rl_routing_pass import RlRoutingPass
-    from qiskit.transpiler import CouplingMap, PassManager
-    from qiskit.quantum_info import Operator
 
     n_qubits = 6
     horizon = 100

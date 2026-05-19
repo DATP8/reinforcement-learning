@@ -1,8 +1,9 @@
 import unittest
 
 from qiskit import QuantumCircuit
+
 from routing.swap_inserter.swap_inserter import SwapInserter
-from states.qtensor_state_handler import QtensorStateHandler, Qtensor
+from states.qtensor_state_handler import Qtensor, QtensorStateHandler
 
 input_circuits = [
     [(1, 2), (0, 1), (3, 5), (0, 1), (1, 2)],
