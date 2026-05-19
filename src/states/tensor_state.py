@@ -1,8 +1,8 @@
-from qiskit.converters import circuit_to_dag
-from qiskit import QuantumCircuit
 from collections import defaultdict
 
 import torch
+from qiskit import QuantumCircuit
+from qiskit.converters import circuit_to_dag
 
 
 class TensorState(torch.Tensor):

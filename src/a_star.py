@@ -1,6 +1,7 @@
+import torch
+
 from src.model import PVModel
 from src.states.state_handler import StateHandler
-import torch
 
 
 class AStarPolicySearch:

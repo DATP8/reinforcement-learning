@@ -1,16 +1,18 @@
-from qiskit.transpiler import Layout
-from qiskit.converters import circuit_to_dag
 import unittest
-import torch
 
+import torch
+from qiskit.converters import circuit_to_dag
 from qiskit.quantum_info import Operator
+from qiskit.transpiler import Layout
+
+from src.circuit_generator import CircuitGenerator
 from src.model import BiCircuitGNN  # , ValueModel, ValueModelFlat
 from src.routing.bwas_chunck_router import ChunkRouter
 from src.routing.bwas_router import BWASRouter
-from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 from src.routing.swap_inserter.swap_inserter import SwapInserter
 from src.states.circuit_graph import CircuitGraph
-from src.circuit_generator import CircuitGenerator
+from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+
 # from src.states.qtensor_state_handler import QtensorStateHandler
 # from src.states.qtensor import Qtensor
 # from src.states.tensor_state import TensorState

@@ -1,8 +1,15 @@
 from cmath import sqrt
+# from mqt.bench import BenchmarkLevel, get_benchmark
+# from mqt.bench.benchmarks import get_available_benchmark_names
+import random
+import time
+
+import numpy as np
+from qiskit import QuantumCircuit, generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
-from qiskit.transpiler.passes import CommutativeCancellation
-from qiskit import QuantumCircuit
+from qiskit_ibm_transpiler.ai.routing import AIRouting
+from sb3_contrib import MaskablePPO
 from scipy import stats
 from tqdm import tqdm
 import numpy as np
@@ -29,25 +36,30 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Depth", 10),
+    ("Decomposed Gates", 10),
 ]
+
+EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
+random.seed(EVAL_SEED)
+np.random.seed(EVAL_SEED)
+
+EVAL_TRIALS = 12
 
 
 class Benchmarker:
     def __init__(
         self,
         qubits,
-        max_gates,
+        num_gates,
         coupling_map,
         decompose_before_routing=True,
         decompose_reps=2,
     ):
         self.qubits = qubits
-        self.max_gates = max_gates
+        self.max_gates = num_gates
         self.coupling_map = coupling_map
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
-        self.commutative_cancellation = CommutativeCancellation()
 
     def _print_header(
         self, title: str, confidence: float | None = None, title_size: int = 30
@@ -97,15 +109,12 @@ class Benchmarker:
 
         return qc_clean
 
-    def _collect_metrics(self, routed_circuit, transpile_time):
+    def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
         ops = routed_circuit.count_ops()
-
-        decomposed_circuit = self.commutative_cancellation.run(
-            routed_circuit.decompose(gates_to_decompose="swap").to_dag()
-        ).to_circuit()
 
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
+        decomposed_depth = swaps * 3 + cx
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
@@ -113,7 +122,7 @@ class Benchmarker:
             METRIC_KEYS[2][0]: cx,
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: decomposed_circuit.depth(),
+            METRIC_KEYS[5][0]: decomposed_depth,
         }
         return metrics
 
@@ -315,38 +324,38 @@ if __name__ == "__main__":
         bench_circut_gate_count = 100
         n_qubits = coupling_map.size()
         bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-        temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+        # temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
 
-        results[title] = temp_results
-
-        results_dir = ROOT_DIR / "results"
-        results_dir.mkdir(exist_ok=True)
-        results_file = results_dir / "benchmark_mqt_results.json"
-        with open(results_file, "w") as f:
-            json.dump(results, f, indent=2)
-
-
-        # temp_results = bench.run_rand_benchmarks(
-        #     configs,
-        #     bench_iterations,
-        #     title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
-        #     is_printing=True,
-        # )  # pyrefly: ignore
-        # if title not in results:
-        #     results[title] = {}
-
-        # for config in temp_results:
-        #     if config not in results[title]:
-        #         results[title][config] = {}
-
-        #     mean, ci = temp_results[config]
-        #     results[title][config][n_qubits] = {
-        #         metric: {"mean": mean[metric], "ci": ci[metric]}
-        #         for metric, _ in METRIC_KEYS
-        #     }
+        # results[title] = temp_results
 
         # results_dir = ROOT_DIR / "results"
         # results_dir.mkdir(exist_ok=True)
-        # results_file = results_dir / "benchmark_results.json"
+        # results_file = results_dir / "benchmark_mqt_results.json"
         # with open(results_file, "w") as f:
         #     json.dump(results, f, indent=2)
+
+
+        temp_results = bench.run_rand_benchmarks(
+            configs,
+            bench_iterations,
+            title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
+            is_printing=True,
+        )  # pyrefly: ignore
+        if title not in results:
+            results[title] = {}
+
+        for config in temp_results:
+            if config not in results[title]:
+                results[title][config] = {}
+
+            mean, ci = temp_results[config]
+            results[title][config][n_qubits] = {
+                metric: {"mean": mean[metric], "ci": ci[metric]}
+                for metric, _ in METRIC_KEYS
+            }
+
+        results_dir = ROOT_DIR / "results"
+        results_dir.mkdir(exist_ok=True)
+        results_file = results_dir / "benchmark_results.json"
+        with open(results_file, "w") as f:
+            json.dump(results, f, indent=2)

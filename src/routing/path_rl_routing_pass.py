@@ -3,10 +3,10 @@ from qiskit.transpiler import Layout
 from qiskit.transpiler.basepasses import TransformationPass
 
 from src.routing.router import Router
-from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
+from src.routing.swap_inserter.swap_inserter import SwapInserter
 
 
-class RlRoutingPass(TransformationPass):
+class PathRlRoutingPass(TransformationPass):
     def __init__(
         self,
         router: Router,

@@ -1,13 +1,14 @@
+from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGCircuit
+from qiskit.transpiler import PassManager
+from qiskit.transpiler.layout import Layout
+from qiskit.transpiler.passes import ApplyLayout, SetLayout
+
 from src.circuit_generator import CircuitGenerator
 from src.model import BiCircuitGNNDense
 from src.routing.bwas_router import BWASRouter
-from qiskit.transpiler import PassManager
-from qiskit.transpiler.passes import ApplyLayout, SetLayout
-from qiskit.transpiler.layout import Layout
-from qiskit import QuantumCircuit
 from src.routing.router import Router
-from qiskit.dagcircuit import DAGCircuit
 
 
 class RecedingHorizon(Router):
@@ -28,6 +29,13 @@ class RecedingHorizon(Router):
         while not self._is_terminal(circuit_dag, layout):
             window_circuit = self._get_window(circuit_dag, self.horizon_length)
             actions = self.router.solve(pm.run(window_circuit.to_circuit()))
+
+            # If no actions, remove first gate to make progress and avoid infinite loop
+            if len(actions) == 0:
+                first_node = next(circuit_dag.topological_op_nodes())
+                circuit_dag.remove_op_node(first_node)
+                continue
+
             resolved_gates = 0
             for action in actions:
                 all_actions.append(action)

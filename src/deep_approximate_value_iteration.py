@@ -1,15 +1,12 @@
-from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
-from src.model import BiCircuitGNNDense
-from src.states.state_handler import StateHandler
-from src.states.qtensor_state_handler import QtensorStateHandler
-from src.model import ValueModel
-from src.utils.to import To
-
-from torch import nn
-
-import torch
 import matplotlib
+import torch
+import torch.nn as nn
 
+from src.model import BiCircuitGNNDense, ValueModel
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.states.state_handler import StateHandler
+from src.utils.to import To
 
 matplotlib.use("TkAgg")
 

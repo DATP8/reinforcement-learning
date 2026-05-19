@@ -1,13 +1,13 @@
+import random
+
+import torch
+from cachetools import LFUCache
+from qiskit import QuantumCircuit
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
-from src.states.state_handler import StateHandler, Batchable
 from src.states.dense_circuit_graph import DenseCircuitGraph
-
-import torch
-import random
-from cachetools import LFUCache
-from qiskit import QuantumCircuit
+from src.states.state_handler import Batchable, StateHandler
 
 
 class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
@@ -124,7 +124,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
             if (
                 gate_q1 == q1 and gate_q2 == q2 or gate_q1 == q2 and gate_q2 == q1
             ):  # exact match
-                action_cost = 0.5
+                action_cost = 0.33333
                 break
             if (
                 gate_q1 == q2 or gate_q2 == q1 or gate_q1 == q1 or gate_q2 == q2
