@@ -1,3 +1,4 @@
+from typing import List
 from src.states.state_handler import Batchable, StateHandler  # pyrefly: ignore
 from src.states.qtensor import Qtensor  # pyrefly: ignore
 
@@ -92,11 +93,34 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         return is_terminal
 
     def get_action_cost(self, state: Qtensor, action: int) -> float:
-        # todo: this is incomplete. Should have cost 0.5 if cnot reduction is possible.
         state_hash = hash(state)
         if (state_hash, action) in self.action_cost_cache:
             return self.action_cost_cache[(state_hash, action)]
+        new_state = state.clone()
+        front_layer = set()
+        removed_gates = list()
+        for i in range(state.gates):
+            q1, q2 = self.gate_to_tuple(new_state[:, i])
+            if (
+                ((q1, q2) in self.topology or (q2, q1) in self.topology)
+                and q1 not in front_layer
+                and q2 not in front_layer
+            ):
+                removed_gates.append(new_state[:,i])
+            else:
+                front_layer.add(q1)
+                front_layer.add(q2)
+            if len(front_layer) >= self.n_qubits - 1:
+                break
         cost = 1.0
+        aq1, aq2 = self.topology[action]
+        for i in range(len(removed_gates)):
+            q1, q2 = self.gate_to_tuple(removed_gates[0-(i+1)])
+            if (q1 == aq1 and q2 == aq2) or (q1 == aq2 and q2 == aq1):
+                cost = 0.33
+                break
+            elif q1 == aq1 or q2 == aq2 or q1 == aq2 or q2 == aq1:
+                break
         self.action_cost_cache[(state_hash, action)] = cost
 
         return cost
@@ -128,8 +152,10 @@ class QtensorStateHandler(StateHandler[Qtensor]):
         return state
 
     def batch_states(self, states: Batchable[Qtensor]) -> Qtensor:
-        # pyrefly: ignore[bad-argument-type]
-        return Qtensor(torch.stack(states))
+        list = []
+        for state in states:
+            list.append(state._t)
+        return Qtensor(torch.stack(list))
 
     def state_from(self, circuit: QuantumCircuit) -> Qtensor:
         return Qtensor.from_circuit(circuit, self.horizon)
@@ -147,7 +173,7 @@ if __name__ == "__main__":
     circuit = QuantumCircuit(n_qubits)
     circuit.cx(1, 2)
     circuit.cx(0, 1)
-    circuit.cx(0, 3)
+    circuit.cx(0, 2)
     circuit.cx(0, 1)
     circuit.cx(3, 5)
     circuit.cx(0, 4)
@@ -159,14 +185,16 @@ if __name__ == "__main__":
 
     root_state = Qtensor.from_circuit(circuit, horizon)
     # print(root_state)
-    next_state, gates_removed = game.prune(root_state)
-    print(next_state)
+    print(game.get_action_cost(root_state, 0))
+    print(game.get_action_cost(game.get_next_state(root_state, 0), 0))
+    #next_state, gates_removed = game.prune(root_state)
+    #print(next_state)
     # print(CNOTCircuitSmall.from_tensor(next_state))
     # print(gates_removed)
-    next_state = game.get_next_state(root_state, 0)
-    print(next_state)
+    #next_state = game.get_next_state(root_state, 0)
+    #print(next_state)
     # print(next_state.shape)
-    print(game.get_action_cost(next_state, 0))
-    print(game.get_action_cost(next_state, 1))
-    print(game.get_possible_actions(next_state))
-    print(game.is_terminal(next_state))
+    #print(game.get_action_cost(next_state, 0))
+    #print(game.get_action_cost(next_state, 1))
+    #print(game.get_possible_actions(next_state))
+    #print(game.is_terminal(next_state))

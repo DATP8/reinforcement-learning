@@ -3,7 +3,7 @@ from src.model import BiCircuitGNNDense
 from src.states.state_handler import StateHandler
 from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 from src.states.qtensor_state_handler import QtensorStateHandler
-from src.model import ValueModel, BiCircuitGNN
+from src.model import ValueModel, BiCircuitGNN, ValueModelFlat
 from torch import nn
 
 import torch
@@ -98,17 +98,17 @@ def qtensor():
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     game = QtensorStateHandler(n_qubits, horizon, topology)
-    training_model = ValueModel(n_qubits, horizon, len(topology))
-    evaluation_model = ValueModel(n_qubits, horizon, len(topology))
+    training_model = ValueModelFlat(n_qubits, horizon, len(topology))
+    evaluation_model = ValueModelFlat(n_qubits, horizon, len(topology))
 
     trainer = DAVI(training_model, evaluation_model, game)
 
     trainer.train(
         batchsize=1000,
-        initial_difficulty=1,
+        initial_difficulty=32,
         num_iterations=100000,
         update_frequency=10,
-        max_difficulty=1000,
+        max_difficulty=32,
         loss_threshold=0.08,
     )
 
@@ -133,5 +133,5 @@ def graph():
 
 
 if __name__ == "__main__":
-    graph()
-    # qtensor()
+    #graph()
+    qtensor()

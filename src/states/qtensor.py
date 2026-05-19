@@ -59,6 +59,9 @@ class Qtensor:
 
     def __hash__(self):
         return self.tensor_hash(self._t)
+    
+    def __len__(self):
+        return len(self._t)
 
     @staticmethod
     def tensor_hash(t: torch.Tensor) -> int:
@@ -95,6 +98,9 @@ class Qtensor:
 
     def unwrap(self):
         return self._t
+    
+    def len(self):
+        return len(self._t)
 
     # !THIS IS NOT IMPLEMENTED
     def to_circuit(self):
