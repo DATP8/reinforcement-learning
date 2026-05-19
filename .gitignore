@@ -16,3 +16,4 @@ logs
 **/tools/**/.venv_*
 **/tools/**/.venv/
 results
+checkpoints
