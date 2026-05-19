@@ -328,6 +328,8 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 6. Fuse all branches
         # ----------------------------------------------------------------
-        combined = torch.cat([matrix_feat, coupling_feat, interact_feat, can_feat], dim=-1)
+        combined = torch.cat(
+            [matrix_feat, coupling_feat, interact_feat, can_feat], dim=-1
+        )
         # combined = torch.cat([coupling_feat, interact_feat, can_feat], dim=-1)
         return self.fusion(combined)

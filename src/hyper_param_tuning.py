@@ -34,7 +34,7 @@ TOTAL_TIMESTEPS = 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 4.0
 
-#EXPERIMENT_NAME= "test_v1"
+#EXPERIMENT_NAME= "test_v2"
 EXPERIMENT_NAME = "experiment_v1"
 n_eval_episodes = 100
 

@@ -1,12 +1,13 @@
 from enum import Enum, auto
 
-import src.vibed_ppo.hybrid_extractor as vibed
-from src.gym_extractor import (
+import ppo_models.vibed.hybrid_extractor as vibed
+from gym_extractor import (
     DenseDagExtractor,
     HybridExtractor,
     SimpleExtractor,
     SimpleExtractor2,
 )
+from ppo_models.bipartite.extractor import BipartiteExtractor
 
 
 class ActorCriticPolicyType(Enum):
@@ -16,6 +17,7 @@ class ActorCriticPolicyType(Enum):
     HYBRID_GNN = auto()
     DENSE_GRAPH_GNN = auto()
     VIBE_GRAPH = auto()
+    BIPARTITE = auto()
 
     def get_sb3_policy(self) -> str:
         match self.name:
@@ -56,6 +58,22 @@ class ActorCriticPolicyType(Enum):
                         matrix_out=matrix_out,
                     ),
                     net_arch=[256, 256],  # policy/value MLP after extractor
+                )
+            case self.BIPARTITE.name:
+                return dict(
+                    features_extractor_class=BipartiteExtractor,
+                    features_extractor_kwargs=dict(
+                        features_dim=128,
+                        gnn_hidden=64,
+                        gnn_heads=4,
+                        gnn_out=64,
+                        gnn_layers=2,
+                        action_mlp_hidden=64,
+                        action_out=16,
+                        use_bipartite=True,
+                        use_matrix=False,  # ← toggle this
+                    ),
+                    net_arch=[256, 256],
                 )
             case _:
                 return dict(
