@@ -137,7 +137,7 @@ class Benchmarker:
         confidence: float = 0.95,
     ):
         qc_list = CircuitGenerator.generate_n_random_cx_circuits(
-            iterations, num_qubits=self.qubits, num_gates=num_gates
+            iterations, num_qubits=self.qubits, num_gates=num_gates, seed=EVAL_SEED
         )
         self._run_benchmark(configs, confidence, qc_list, "random")
 
