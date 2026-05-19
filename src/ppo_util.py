@@ -66,9 +66,9 @@ def route_circuit(
     while not terminated:
         mask = env.valid_action_mask()
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
-        obs, _, terminated, truncated, _ = env.step(action)
-        if truncated:
-            raise ValueError("Model is stuck in a loop")
+        obs, _, terminated, truncated, opts = env.step(action)
+        if opts["loop"]:
+            raise ValueError("Model is looping")
 
     routed_qc = env.get_routed_circuit()
     layout = Layout(env.get_final_mapping())
