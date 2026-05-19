@@ -176,6 +176,8 @@ class Benchmarker:
                 f"\n\nFor the following configuration {title}\n"
                 f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
             )
+        else:
+            print("Topology too big to check equivalence. Skipping...")
 
         return self._collect_metrics(routed, transpile_time)
 

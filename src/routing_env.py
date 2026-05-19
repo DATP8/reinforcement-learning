@@ -356,6 +356,10 @@ class RoutingEnv(gymnasium.Env):
                 q1 = self._qubit_indices[inst.qubits[1]]
                 gate_list.append((q0, q1))
                 self._gate_ops.append(inst.operation)
+            elif len(inst.qubits) == 1:
+                q0 = self._qubit_indices[inst.qubits[0]]
+                gate_list.append((q0, -1))
+                self._gate_ops.append(inst.operation)
 
         self._num_gates = len(gate_list)
         self._gates = np.array(gate_list, dtype=np.int32)
@@ -364,7 +368,8 @@ class RoutingEnv(gymnasium.Env):
         schedule_list: list[list[int]] = [[] for _ in range(self._num_qubits)]
         for gate_idx, (q0, q1) in enumerate(self._gates):
             schedule_list[q0].append(gate_idx)
-            schedule_list[q1].append(gate_idx)
+            if q1 != -1:
+                schedule_list[q1].append(gate_idx)
 
         max_ops = max((len(s) for s in schedule_list), default=0)
         self._qubit_schedules = np.full((self._num_qubits, max_ops), -1, dtype=np.int32)
@@ -528,9 +533,13 @@ class RoutingEnv(gymnasium.Env):
         for gate_idx in range(self._num_gates):
             if not self._gate_executed[gate_idx]:
                 op = self._gate_ops[gate_idx]
-                qc.append(
-                    op, [int(self._gates[gate_idx, 0]), int(self._gates[gate_idx, 1])]
-                )
+                if self._gates[gate_idx, 1] == -1:
+                    qc.append(op, [int(self._gates[gate_idx, 0])])
+                else:
+                    qc.append(
+                        op,
+                        [int(self._gates[gate_idx, 0]), int(self._gates[gate_idx, 1])],
+                    )
         return qc
 
     def _update_obs(self):
@@ -609,6 +618,17 @@ class RoutingEnv(gymnasium.Env):
                     continue
 
                 q0, q1 = self._gates[gate_idx]
+                if q1 == -1:
+                    if q == q0:
+                        self._q_pointers[q0] += 1
+                        self._gate_executed[gate_idx] = True
+                        op = self._gate_ops[gate_idx]
+                        p0 = self.l2p[q0]
+                        self._action_history.append((op, p0, -1))
+                        gates_executed += 1
+                        progress = True
+                    continue
+
                 other_q = q1 if q == q0 else q0
                 ptr_other = self._q_pointers[other_q]
 
@@ -693,6 +713,10 @@ class RoutingEnv(gymnasium.Env):
                 continue
 
             q0, q1 = self._gates[gate_idx]
+            if q1 == -1:
+                qubit_depth[q0] += 1
+                continue
+
             layer = max(qubit_depth[q0], qubit_depth[q1])
             qubit_depth[q0] = layer + 1
             qubit_depth[q1] = layer + 1
@@ -762,6 +786,8 @@ class RoutingEnv(gymnasium.Env):
         for gate_idx in range(self._num_gates):
             if not self._gate_executed[gate_idx]:
                 q1, q2 = self._gates[gate_idx]
+                if q2 == -1:
+                    continue
                 interaction_counts[q1, q2] += 1
                 interaction_counts[q2, q1] += 1
 
@@ -812,6 +838,8 @@ class RoutingEnv(gymnasium.Env):
                 routed_qc.cx(p0, p1)
             elif op == "swap":
                 routed_qc.swap(p0, p1)
+            elif p1 == -1:
+                routed_qc.append(op, [int(p0)])
             else:
                 routed_qc.append(op, [int(p0), int(p1)])
         return routed_qc
