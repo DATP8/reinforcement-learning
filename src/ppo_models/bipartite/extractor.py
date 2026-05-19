@@ -45,7 +45,7 @@ import torch.nn as nn
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch_geometric.nn import GATConv
 
-from ppo_models.bipartite.graph_obs import EDGE_F, NODE_F
+from src.ppo_models.bipartite.graph_obs import EDGE_F, NODE_F
 
 # ---------------------------------------------------------------------------
 # Bipartite GNN

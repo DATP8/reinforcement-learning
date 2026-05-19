@@ -47,19 +47,21 @@ np.random.seed(EVAL_SEED)
 
 EVAL_TRIALS = 12
 
+MAX_EQUIV_CHECK_QUBITS = 12
+
 
 class Benchmarker:
     def __init__(
         self,
         qubits,
-        num_gates,
         coupling_map,
+        num_gates,
         decompose_before_routing=True,
         decompose_reps=2,
     ):
         self.qubits = qubits
-        self.max_gates = num_gates
         self.coupling_map = coupling_map
+        self.num_gates = num_gates
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
 
@@ -194,7 +196,7 @@ class Benchmarker:
         qc_list = CircuitGenerator.generate_n_random_cx_circuits(
             n=iterations,
             num_qubits=self.qubits,
-            num_gates=self.max_gates,
+            num_gates=self.num_gates,
             seed=seed,
         )
 
@@ -290,9 +292,9 @@ if __name__ == "__main__":
     # coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, y)) for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
     # coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(start_qubits, end_qubits) if x % 2 == 1])
     # coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(start_qubits, end_qubits) if x % 2 == 1])
-    # coupling_map_list.extend(
-    #     [("ring", CouplingMap().from_ring(x)) for x in range(start_qubits, end_qubits)]
-    # )
+    coupling_map_list.extend(
+        [("ring", CouplingMap().from_ring(x)) for x in range(start_qubits, end_qubits)]
+    )
     coupling_map_list.extend(
         [("line", CouplingMap().from_line(x)) for x in range(start_qubits, end_qubits)]
     )
@@ -326,7 +328,6 @@ if __name__ == "__main__":
             seed=42,
             model_path="models/best_model_basic.zip",
             use_sabre_layout=False,
-            clear_visited_on_stuck=True
         ).build(coupling_map)
 
         configs = [
@@ -341,7 +342,7 @@ if __name__ == "__main__":
         bench_iterations = 10
         bench_circut_gate_count = 100
         n_qubits = coupling_map.size()
-        bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
+        bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=bench_circut_gate_count)
         temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
 
         results[title] = temp_results

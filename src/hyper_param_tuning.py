@@ -129,7 +129,6 @@ def maskable_ppo_obj(config):
         initial_difficulty=config["max_difficulty"],
         max_difficulty=config["max_difficulty"],
         policy_type=policy_type,
-        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 

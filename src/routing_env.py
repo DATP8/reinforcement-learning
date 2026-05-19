@@ -7,10 +7,12 @@ from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
 from torch import Tensor
 
-from ppo_models.bipartite.graph_obs import build_bipartite_obs
-from ppo_models.bipartite.integration import make_bipartite_observation_space
 from src.policy_types import ActorCriticPolicyType
-from src.ppo_models.bipartite.graph_obs import compute_coupling_degrees
+from src.ppo_models.bipartite.graph_obs import (
+    build_bipartite_obs,
+    compute_coupling_degrees,
+)
+from src.ppo_models.bipartite.integration import make_bipartite_observation_space
 from src.ppo_models.vibed.graph_obs import build_graph_obs
 from src.ppo_models.vibed.integration import (
     make_observation_space as make_vibed_obs_space,
@@ -195,7 +197,6 @@ class RoutingEnv(gymnasium.Env):
         policy_type: ActorCriticPolicyType,
         sample_diff: bool = True,
         render_mode: str | None = None,
-        clear_visited_on_stuck: bool = False,
     ) -> None:
         super().__init__()
         self._num_qubits = len(coupling_map.physical_qubits)
@@ -211,7 +212,6 @@ class RoutingEnv(gymnasium.Env):
         self._policy_type = policy_type
         self._sample_diff = sample_diff
         self._render_mode = render_mode
-        self._clear_visited_on_stuck = clear_visited_on_stuck
         self._distance_matrix: np.ndarray = (
             coupling_map.distance_matrix  # pyrefly: ignore
         )
@@ -491,16 +491,19 @@ class RoutingEnv(gymnasium.Env):
 
         self._update_obs()
 
+        is_looping = False
         if not terminated and not truncated:
             mask = self.valid_action_mask()
-            if not mask.any():
-                if self._clear_visited_on_stuck:
-                    self._visited_layouts.clear()
-                    self._visited_layouts.add(self._p2l.tobytes())
-                else:
-                    truncated = True
+            truncated = not mask.any()
+            is_looping = truncated
 
-        return self._get_obs(), reward, terminated, truncated, {}
+        return (
+            self._get_obs(),
+            reward,
+            terminated,
+            truncated,
+            {"is_looping": is_looping},
+        )
 
     def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
         for i in range(len(self._action_history) - 1, -1, -1):
@@ -742,6 +745,8 @@ class RoutingEnv(gymnasium.Env):
                             seen_edges.add(edge_idx)
                             if len(active_swaps) >= self._num_active_swaps:
                                 break
+                    if len(active_swaps) >= self._num_active_swaps:
+                        break
                 if len(active_swaps) >= self._num_active_swaps:
                     break
             if len(active_swaps) >= self._num_active_swaps:

@@ -85,7 +85,6 @@ class PPOBuilder(BuilderWithLayout):
                  max_difficulty,
                  diff_slope,
                  layout_exponent,
-                 clear_visited_on_stuck,
                  policy_type,
                  seed,
                  model_path,
@@ -97,7 +96,6 @@ class PPOBuilder(BuilderWithLayout):
         self.max_difficulty = max_difficulty
         self.diff_slope = diff_slope
         self.layout_exponent = layout_exponent
-        self.clear_visited_on_stuck = clear_visited_on_stuck
         self.policy_type = policy_type
         self.seed = seed
         self.model_path = model_path
@@ -112,8 +110,7 @@ class PPOBuilder(BuilderWithLayout):
             max_difficulty=self.max_difficulty,
             diff_slope=self.diff_slope,
             layout_exponent=self.layout_exponent,
-            policy_type=self.policy_type,
-            clear_visited_on_stuck=self.clear_visited_on_stuck
+            policy_type=self.policy_type
         )
         ppo_model = MaskablePPO.load(self.model_path, env=ppo_env, seed=self.seed, device="cpu")
 

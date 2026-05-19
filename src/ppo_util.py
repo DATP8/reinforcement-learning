@@ -33,7 +33,6 @@ def make_env(
     policy_type: ActorCriticPolicyType,
     sample_diff: bool = True,
     render_mode: str | None = None,
-    clear_visited_on_stuck: bool = False,
 ):
     env = RoutingEnv(
         coupling_map=coupling_map,
@@ -46,7 +45,6 @@ def make_env(
         policy_type=policy_type,
         sample_diff=sample_diff,
         render_mode=render_mode,
-        clear_visited_on_stuck=clear_visited_on_stuck,
     )
     env = ActionMasker(env, mask_fn)
     return env
@@ -68,7 +66,9 @@ def route_circuit(
     while not terminated:
         mask = env.valid_action_mask()
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
-        obs, _, terminated, truncated, _ = env.step(action)
+        obs, _, terminated, _, opts = env.step(action)
+        if opts["is_looping"]:
+            raise ValueError("Model is looping")
 
     routed_qc = env.get_routed_circuit()
     layout = Layout(env.get_final_mapping())

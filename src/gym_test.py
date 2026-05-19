@@ -21,7 +21,7 @@ TOTAL_STEPS = 25_000_000
 EVAL_FREQ = 256_000
 N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
-BATCH_DIVISOR = 7
+BATCH_DIVISOR = 8 * 2
 N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
@@ -86,7 +86,6 @@ if __name__ == "__main__":
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
         sample_diff=SAMPLE_DIFF,
-        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 
