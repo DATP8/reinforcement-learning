@@ -33,6 +33,8 @@ np.random.seed(EVAL_SEED)
 
 EVAL_TRIALS = 12
 
+MAX_EQUIV_CHECK_QUBITS = 12
+
 
 class Benchmarker:
     def __init__(
@@ -157,18 +159,23 @@ class Benchmarker:
         # from AIRouting: self.property_set["layout"] = initial_layout_qiskit
         # print(pm.property_set["layout"])
 
-        org_op = Operator.from_circuit(qc)
-        routed_op = Operator.from_circuit(routed)
+        if (
+            qc.num_qubits <= MAX_EQUIV_CHECK_QUBITS
+        ):  # Matrix takes too much memory on big circuits so skip equiv check
+            org_op = Operator.from_circuit(qc)
+            routed_op = Operator.from_circuit(routed)
 
-        is_equiv = routed_op.equiv(org_op)
+            is_equiv = routed_op.equiv(org_op)
 
-        if not is_equiv:
-            routed_op = Operator.from_circuit(routed, layout=pm.property_set["layout"])
+            if not is_equiv:
+                routed_op = Operator.from_circuit(
+                    routed, layout=pm.property_set["layout"]
+                )
 
-        assert routed_op.equiv(org_op), (
-            f"\n\nFor the following configuration {title}\n"
-            f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
-        )
+            assert routed_op.equiv(org_op), (
+                f"\n\nFor the following configuration {title}\n"
+                f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+            )
 
         return self._collect_metrics(routed, transpile_time)
 
@@ -255,7 +262,7 @@ if __name__ == "__main__":
     # model = BiCircuitGNN(n_qubits)
     # model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    coupling_map = CouplingMap.from_line(num_qubits)
+    coupling_map = CouplingMap.from_ring(num_qubits)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, num_qubits)
