@@ -1,3 +1,5 @@
+from src.policy_types import ActorCriticPolicyType
+from src.benchmark.passmanager_creaters import PPOBuilder
 from cmath import sqrt
 # from mqt.bench import BenchmarkLevel, get_benchmark
 # from mqt.bench.benchmarks import get_available_benchmark_names
@@ -288,9 +290,9 @@ if __name__ == "__main__":
     # coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, y)) for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
     # coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(start_qubits, end_qubits) if x % 2 == 1])
     # coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(start_qubits, end_qubits) if x % 2 == 1])
-    coupling_map_list.extend(
-        [("ring", CouplingMap().from_ring(x)) for x in range(start_qubits, end_qubits)]
-    )
+    # coupling_map_list.extend(
+    #     [("ring", CouplingMap().from_ring(x)) for x in range(start_qubits, end_qubits)]
+    # )
     coupling_map_list.extend(
         [("line", CouplingMap().from_line(x)) for x in range(start_qubits, end_qubits)]
     )
@@ -312,9 +314,25 @@ if __name__ == "__main__":
 
         qiskit_transpiler = QiskitTranspiler(op_level=0).build(coupling_map)
 
+
+        our_ppo = PPOBuilder(
+            num_active_swaps=5,
+            horizon=8,
+            initial_difficulty=256,
+            max_difficulty=256,
+            diff_slope=0.9,
+            layout_exponent=1.0,
+            policy_type=ActorCriticPolicyType.BASIC,
+            seed=42,
+            model_path="models/best_model_basic.zip",
+            use_sabre_layout=False,
+            clear_visited_on_stuck=True
+        ).build(coupling_map)
+
         configs = [
             ("trivial layout ai routing (ibm)", trivial_ai_ibm),
             ("trivial layout sabre", trivial_sabre),
+            ("trivial layout ppo", our_ppo),
             ("sabre layout ai routing (ibm)", sabre_ai_ibm),
             ("sabre layout sabre", sabre_sabre),
             ("optimization level 0 qiskit standard transpiler", qiskit_transpiler),
@@ -324,38 +342,38 @@ if __name__ == "__main__":
         bench_circut_gate_count = 100
         n_qubits = coupling_map.size()
         bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-        # temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+        temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
 
-        # results[title] = temp_results
-
-        # results_dir = ROOT_DIR / "results"
-        # results_dir.mkdir(exist_ok=True)
-        # results_file = results_dir / "benchmark_mqt_results.json"
-        # with open(results_file, "w") as f:
-        #     json.dump(results, f, indent=2)
-
-
-        temp_results = bench.run_rand_benchmarks(
-            configs,
-            bench_iterations,
-            title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
-            is_printing=True,
-        )  # pyrefly: ignore
-        if title not in results:
-            results[title] = {}
-
-        for config in temp_results:
-            if config not in results[title]:
-                results[title][config] = {}
-
-            mean, ci = temp_results[config]
-            results[title][config][n_qubits] = {
-                metric: {"mean": mean[metric], "ci": ci[metric]}
-                for metric, _ in METRIC_KEYS
-            }
+        results[title] = temp_results
 
         results_dir = ROOT_DIR / "results"
         results_dir.mkdir(exist_ok=True)
-        results_file = results_dir / "benchmark_results.json"
+        results_file = results_dir / "benchmark_mqt_results.json"
         with open(results_file, "w") as f:
             json.dump(results, f, indent=2)
+
+
+        # temp_results = bench.run_rand_benchmarks(
+        #     configs,
+        #     bench_iterations,
+        #     title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
+        #     is_printing=True,
+        # )  # pyrefly: ignore
+        # if title not in results:
+        #     results[title] = {}
+
+        # for config in temp_results:
+        #     if config not in results[title]:
+        #         results[title][config] = {}
+
+        #     mean, ci = temp_results[config]
+        #     results[title][config][n_qubits] = {
+        #         metric: {"mean": mean[metric], "ci": ci[metric]}
+        #         for metric, _ in METRIC_KEYS
+        #     }
+
+        # results_dir = ROOT_DIR / "results"
+        # results_dir.mkdir(exist_ok=True)
+        # results_file = results_dir / "benchmark_results.json"
+        # with open(results_file, "w") as f:
+        #     json.dump(results, f, indent=2)

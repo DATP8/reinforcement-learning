@@ -1,3 +1,7 @@
+from src.ppo_util import make_env
+from sb3_contrib import MaskablePPO
+from src.routing.cnot_swap_cancel import CNOTSwapCancelation
+from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from qiskit import generate_preset_pass_manager
 from qiskit.transpiler import PassManager
 from qiskit.transpiler.basepasses import BasePass
@@ -44,20 +48,21 @@ class IbmRlBuilder(BuilderWithLayout):
 
         AIRouting.run = patched_run
 
-        return PassManager(
+        return PassManager([
             AIRouting(
                 coupling_map=coupling_map,
                 optimization_level=self.op_level,
                 layout_mode="KEEP",
-            )
-        )
+            ), 
+            CNOTSwapCancelation()
+        ])
 
 
 class SabreBuilder(BuilderWithLayout):
     def build(self, coupling_map):
         self.set_layout_pass(coupling_map)
         return PassManager(
-            [self.layout_pass, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+            [self.layout_pass, ApplyLayout(), SabreSwap(coupling_map=coupling_map), CNOTSwapCancelation()]
         )
 
 
@@ -69,3 +74,47 @@ class QiskitTranspiler(Builder):
         return generate_preset_pass_manager(
             optimization_level=self.op_level, coupling_map=coupling_map
         )
+
+
+
+class PPOBuilder(BuilderWithLayout):
+    def __init__(self, 
+                 num_active_swaps: int, 
+                 horizon, 
+                 initial_difficulty,
+                 max_difficulty,
+                 diff_slope,
+                 layout_exponent,
+                 clear_visited_on_stuck,
+                 policy_type,
+                 seed,
+                 model_path,
+                 use_sabre_layout):
+        super().__init__(use_sabre_layout)
+        self.num_active_swaps = num_active_swaps
+        self.horizon = horizon
+        self.initial_difficulty = initial_difficulty
+        self.max_difficulty = max_difficulty
+        self.diff_slope = diff_slope
+        self.layout_exponent = layout_exponent
+        self.clear_visited_on_stuck = clear_visited_on_stuck
+        self.policy_type = policy_type
+        self.seed = seed
+        self.model_path = model_path
+
+    def build(self, coupling_map):
+        self.set_layout_pass(coupling_map)
+        ppo_env = make_env(
+            coupling_map,
+            num_active_swaps=self.num_active_swaps,
+            horizon=self.horizon,
+            initial_difficulty=self.initial_difficulty,
+            max_difficulty=self.max_difficulty,
+            diff_slope=self.diff_slope,
+            layout_exponent=self.layout_exponent,
+            policy_type=self.policy_type,
+            clear_visited_on_stuck=self.clear_visited_on_stuck
+        )
+        ppo_model = MaskablePPO.load(self.model_path, env=ppo_env, seed=self.seed, device="cpu")
+
+        return PassManager([self.layout_pass, ApplyLayout(), AgenticRlRoutingPass(ppo_model, coupling_map), CNOTSwapCancelation()])
