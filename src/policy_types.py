@@ -42,7 +42,7 @@ class ActorCriticPolicyType(Enum):
         self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128
     ):
         match self.name:
-            case self.BASIC.name:
+            case self.BASIC.name | self.BASIC_CANCEL:
                 return None
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")

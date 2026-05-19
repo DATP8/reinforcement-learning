@@ -12,7 +12,6 @@ from sb3_contrib import MaskablePPO
 from scipy import stats
 from tqdm import tqdm
 
-from src.circuit_generator import CircuitGenerator
 from src.eval_circuits import EvalCircuits
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
@@ -137,18 +136,18 @@ class Benchmarker:
         iterations: int,
         confidence: float = 0.95,
     ):
-        qc_list = CircuitGenerator.generate_n_random_cx_circuits(
-            n=iterations,
+        qc_list = EvalCircuits.get_eval_circuits(
+            n_eval_episodes=iterations,
             num_qubits=self.qubits,
-            num_gates=self.max_gates,
-            seed=EVAL_SEED,
         )
         self._run_benchmark(configs, confidence, qc_list, "random")
 
     def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
         has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
         if has_classical_ops:
-            qc: QuantumCircuit = qc.remove_final_measurements(inplace=False)  # pyrefly: ignore
+            qc: QuantumCircuit = qc.remove_final_measurements(  # pyrefly: ignore
+                inplace=False
+            )
 
         start = time.perf_counter()
         routed: QuantumCircuit = pm.run(qc)
@@ -274,13 +273,14 @@ if __name__ == "__main__":
         coupling_map,
         num_active_swaps=5,
         horizon=horizon,
-        initial_difficulty=1,
+        initial_difficulty=256,
         max_difficulty=256,
-        diff_slope=0.85,
+        diff_slope=0.9,
         layout_exponent=1.0,
         policy_type=policy_type,
+        clear_visited_on_stuck=True,
     )
-    ppo_model = MaskablePPO.load("models/model.zip", ppo_env, seed=EVAL_SEED)
+    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -426,7 +426,7 @@ if __name__ == "__main__":
     print("EVAL_SEED:", EVAL_SEED)
     print("EVAL_TRIALS:", EVAL_TRIALS)
 
-    bench_iterations = 100
+    bench_iterations = 256
     bench_circut_gate_count = 100
     bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)

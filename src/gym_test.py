@@ -13,13 +13,13 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 64
+HORIZON = 8
 MAX_DIFF = 256
 SLOPE = 0.9
 TEST_SAMPLES = 3
-TOTAL_STEPS = 10_000_000
-EVAL_FREQ = 100_000
-N_EVAL_EPISODES = 100
+TOTAL_STEPS = 25_000_000
+EVAL_FREQ = 256_000
+N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
 BATCH_DIVISOR = 7
 N_STEPS = 2048
@@ -28,7 +28,11 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
+TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
+SAMPLE_DIFF = True
+FAST_CURRICULUM = True
+LOG_AVG_D_CX = False
 
 if __name__ == "__main__":
     # backend = FakeTorino()
@@ -50,6 +54,7 @@ if __name__ == "__main__":
             diff_slope=SLOPE,
             layout_exponent=LAYOUT_EXPONENT,
             policy_type=POLICY_TYPE,
+            sample_diff=SAMPLE_DIFF,
         ),
         n_envs=n_envs,
     )
@@ -58,6 +63,7 @@ if __name__ == "__main__":
         POLICY_TYPE.get_sb3_policy(),
         train_env,
         verbose=1,
+        tensorboard_log=TENSORBOARD_LOG_DIR,
         batch_size=batch_size,
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
@@ -79,11 +85,13 @@ if __name__ == "__main__":
         diff_slope=SLOPE,
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
+        sample_diff=SAMPLE_DIFF,
+        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 
     curriculum_callback = CurriculumCallback(
-        threshold=THRESHOLD, use_fast_curriculum=True, verbose=1
+        threshold=THRESHOLD, use_fast_curriculum=FAST_CURRICULUM, verbose=1
     )
 
     eval_freq = max(EVAL_FREQ // n_envs, 1)
@@ -94,6 +102,8 @@ if __name__ == "__main__":
         n_eval_episodes=N_EVAL_EPISODES,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
+        num_qubits=NUM_QUBITS,
+        log_avg_d_cx=LOG_AVG_D_CX,
     )
 
     model.learn(

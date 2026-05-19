@@ -20,23 +20,23 @@ from stable_baselines3.common.monitor import Monitor
 from eval_circuits import EvalCircuits
 from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
-from src.ppo_util import make_env
+from src.ppo_util import compute_avg_decomposed_cx, make_env
 from src.routing_env import RoutingEnv
 
 CPUS_PER_TRIAL = 4
 NUM_UNIQUE_SAMPLES = 128
 REPEATS_PER_CONFIG = 1
-GRACE_PERIOD = 3
+GRACE_PERIOD = 5
+REDUCTION_FACTOR = 3
+BRACKETS = 1
 NUM_QUBITS = 6
-TOTAL_TIMESTEPS = 10_000_000
-BASE_EVAL_FREQ = 100_000
+TOTAL_TIMESTEPS = 50_000_000
+BASE_EVAL_FREQ = 256_000
 GPUS = 4.0
 
 #EXPERIMENT_NAME= "test_v1"
 EXPERIMENT_NAME = "experiment_v1"
-total_timesteps = TOTAL_TIMESTEPS
 n_eval_episodes = 100
-
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
@@ -96,26 +96,9 @@ class RayTuneCurriculumCallback(BaseCallback):
         if not isinstance(self.model, MaskablePPO):
             raise ValueError("Must be maskable PPO")
 
-        num_decomposed_cx = 0
-        for circuit in self._eval_circuits:
-            obs, info = self._eval_env.reset(
-                seed=self._seed, options={"circuit": circuit}
-            )
-            done = False
-            while not done:
-                mask = self._eval_env.valid_action_mask()
-                action, _ = self.model.predict(
-                    obs, action_masks=mask, deterministic=True
-                )
-
-                obs, reward, terminated, truncated, info = self._eval_env.step(action)
-                done = terminated
-
-            routed_circuit = self._eval_env.routed_circuit
-            ops = routed_circuit.count_ops()
-            num_decomposed_cx += ops.get("swap", 0) * 3
-            num_decomposed_cx += ops.get("cx", 0)
-        return num_decomposed_cx / len(self._eval_circuits)
+        return compute_avg_decomposed_cx(
+            self.model, self._eval_env, self._eval_circuits, seed=self._seed
+        )
 
 
 def maskable_ppo_obj(config):
@@ -147,6 +130,7 @@ def maskable_ppo_obj(config):
         initial_difficulty=config["max_difficulty"],
         max_difficulty=config["max_difficulty"],
         policy_type=policy_type,
+        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 
@@ -166,11 +150,8 @@ def maskable_ppo_obj(config):
     checkpoint = tune.get_checkpoint()
     if checkpoint:
         with checkpoint.as_directory() as ckpt_dir:
-            model = MaskablePPO.load(
-                os.path.join(ckpt_dir, "model"),
-                env=train_env,
-            )
-        print(f"Resumed model from checkpoint (seed={seed})")
+            model = MaskablePPO.load(os.path.join(ckpt_dir, "model"), env=train_env)
+        print(f"Resumed model from checkpoint (seed={seed}, device={model.device})")
     else:
         model = MaskablePPO(
             policy=policy_type.get_sb3_policy(),
@@ -216,12 +197,12 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         [p.name for p in ActorCriticPolicyType if p.name not in excluded],
     )
 
-    n_steps = trial.suggest_categorical("n_steps", [256, 512, 1024, 2048, 4096])
+    n_steps = trial.suggest_int("n_steps", 256, 4096)
 
     # batch_size must divide n_steps * num_envs
     num_envs = CPUS_PER_TRIAL
     buffer_size = n_steps * num_envs
-    batch_divisor = trial.suggest_categorical("batch_divisor", [1, 2, 4, 8, 16])
+    batch_divisor = trial.suggest_int("batch_divisor", 2, 16)
     batch_size = max(1, buffer_size // batch_divisor)
 
     config = {
@@ -230,10 +211,10 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "gamma": trial.suggest_float("gamma", 0.8, 1.0),
         "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
         "batch_size": batch_size,
-        "horizon": trial.suggest_int("horizon", 8, 64),
+        "horizon": trial.suggest_int("horizon", 1, 64),
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
-        "n_epochs": trial.suggest_categorical("na_epochs", [4, 8, 12, 16]),
+        "n_epochs": trial.suggest_int("na_epochs", 1, 12),
         "num_qubits": NUM_QUBITS,
         "num_active_swaps": NUM_QUBITS - 1,
         "initial_difficulty": 1,
@@ -242,8 +223,8 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": BASE_EVAL_FREQ,
-        "n_eval_episodes": n_eval_episodes,
-        "total_timesteps": total_timesteps,
+        "n_eval_episodes": 256,
+        "total_timesteps": TOTAL_TIMESTEPS,
         "num_envs": num_envs,
     }
 
@@ -294,14 +275,16 @@ if __name__ == "__main__":
 
     algo = OptunaSearch(space=optuna_space, metric="best_avg_d_cx", mode="min")
 
-    max_evals = max(1, total_timesteps // BASE_EVAL_FREQ)
+    max_evals = max(1, TOTAL_TIMESTEPS // BASE_EVAL_FREQ)
 
     scheduler = ASHAScheduler(
         time_attr="pc_evals",
         metric="avg_d_cx",
         mode="min",
         max_t=max_evals,
-        grace_period=grace_period,
+        grace_period=GRACE_PERIOD,
+        reduction_factor=REDUCTION_FACTOR,
+        brackets=BRACKETS,
     )
 
     reporter = CLIReporter(
