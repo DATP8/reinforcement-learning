@@ -66,8 +66,8 @@ def route_circuit(
     while not terminated:
         mask = env.valid_action_mask()
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
-        obs, _, terminated, truncated, opts = env.step(action)
-        if opts["loop"]:
+        obs, _, terminated, _, opts = env.step(action)
+        if opts["is_looping"]:
             raise ValueError("Model is looping")
 
     routed_qc = env.get_routed_circuit()

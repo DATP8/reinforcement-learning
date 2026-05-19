@@ -491,13 +491,19 @@ class RoutingEnv(gymnasium.Env):
 
         self._update_obs()
 
-        loop = False
+        is_looping = False
         if not terminated and not truncated:
             mask = self.valid_action_mask()
             truncated = not mask.any()
-            loop = truncated
+            is_looping = truncated
 
-        return self._get_obs(), reward, terminated, truncated, {"loop": loop}
+        return (
+            self._get_obs(),
+            reward,
+            terminated,
+            truncated,
+            {"is_looping": is_looping},
+        )
 
     def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
         for i in range(len(self._action_history) - 1, -1, -1):
