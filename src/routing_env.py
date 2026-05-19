@@ -1,3 +1,6 @@
+from ppo_models.bipartite.integration import make_bipartite_observation_space
+from ppo_models.bipartite.graph_obs import build_bipartite_obs
+from src.ppo_models.bipartite.graph_obs import compute_coupling_degrees
 import gymnasium
 import numpy as np
 from gymnasium import spaces
@@ -8,8 +11,8 @@ from torch import Tensor
 
 from src.policy_types import ActorCriticPolicyType
 from src.states.dense_circuit_graph import DenseCircuitGraph
-from src.vibed_ppo.graph_obs import build_graph_obs
-from src.vibed_ppo.integration import make_observation_space as make_vibed_obs_space
+from src.ppo_models.vibed.graph_obs import build_graph_obs
+from src.ppo_models.vibed.integration import make_observation_space as make_vibed_obs_space
 
 
 class RoutingEnv(gymnasium.Env):
@@ -55,6 +58,10 @@ class RoutingEnv(gymnasium.Env):
         self.l2p: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self.action_space = spaces.Discrete(self._num_active_swaps)
+
+        self._coupling_degrees = compute_coupling_degrees(
+            self._num_qubits, self._cmap_edges
+        )
 
         match policy_type:
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
@@ -119,6 +126,12 @@ class RoutingEnv(gymnasium.Env):
                     self._horizon,
                     self._num_qubits,
                     len(self._cmap_edges),
+                )
+            case ActorCriticPolicyType.BIPARTITE:
+                self.observation_space = make_bipartite_observation_space(
+                    self._num_active_swaps,
+                    self._horizon,
+                    self._num_qubits
                 )
             case _:
                 self.observation_space = spaces.Dict(
@@ -325,7 +338,8 @@ class RoutingEnv(gymnasium.Env):
         return None
 
     def _update_obs(self):
-        self._matrix = self._build_matrix()
+        layers = list(self._dag.layers());
+        self._matrix = self._build_matrix(layers)
         self._cancellation = self._build_cancellation()
         if (
             self._policy_type is not ActorCriticPolicyType.BASIC
@@ -355,6 +369,28 @@ class RoutingEnv(gymnasium.Env):
                 "interact_edge_index": graph["interact_edge_index"],
                 "interact_edge_attr": graph["interact_edge_attr"],
             }
+        if self._policy_type is ActorCriticPolicyType.BIPARTITE:
+            # print("Building pipartite obs")
+            bipartite = build_bipartite_obs(
+                matrix           = self._matrix,
+                active_swaps     = self._active_swaps,
+                max_active_swaps = self._num_active_swaps,
+                cmap_edges       = self._cmap_edges,
+                num_qubits       = self._num_qubits,
+                action_mask      = self.valid_action_mask(),
+                swap_cancellation= self._cancellation,
+                coupling_degrees = self._coupling_degrees,
+                layers           = layers,
+                l2p              = self.l2p,
+                qubit_indices    = self._qubit_indices,
+                distance_matrix  = self._distance_matrix,
+                horizon          = self._horizon,
+            )
+            self._bipartite_obs = {
+                "matrix": self._matrix,
+                **bipartite
+            }
+
 
     def _execute_front_layer(self) -> int:
         progress = True
@@ -432,9 +468,10 @@ class RoutingEnv(gymnasium.Env):
                 return self._dense_graph_to_obs(graph, self._horizon, self._num_qubits)
             case ActorCriticPolicyType.VIBE_GRAPH:
                 return self._graph_obs
+            case ActorCriticPolicyType.BIPARTITE:
+                return self._bipartite_obs
 
-    def _build_matrix(self) -> np.ndarray:
-        layers = list(self._dag.layers())
+    def _build_matrix(self, layers: list) -> np.ndarray:
         self._active_swaps = self._select_active_swaps(layers)
 
         matrix = np.zeros((self._num_active_swaps, self._horizon), dtype=np.int8)
