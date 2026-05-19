@@ -1,13 +1,13 @@
 from enum import Enum, auto
 
-import ppo_models.vibed.hybrid_extractor as vibed
-from gym_extractor import (
+import src.ppo_models.vibed.hybrid_extractor as vibed
+from src.gym_extractor import (
     DenseDagExtractor,
     HybridExtractor,
     SimpleExtractor,
     SimpleExtractor2,
 )
-from ppo_models.bipartite.extractor import BipartiteExtractor
+from src.ppo_models.bipartite.extractor import BipartiteExtractor
 
 
 class ActorCriticPolicyType(Enum):

@@ -7,10 +7,12 @@ from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
 from torch import Tensor
 
-from ppo_models.bipartite.graph_obs import build_bipartite_obs
-from ppo_models.bipartite.integration import make_bipartite_observation_space
 from src.policy_types import ActorCriticPolicyType
-from src.ppo_models.bipartite.graph_obs import compute_coupling_degrees
+from src.ppo_models.bipartite.graph_obs import (
+    build_bipartite_obs,
+    compute_coupling_degrees,
+)
+from src.ppo_models.bipartite.integration import make_bipartite_observation_space
 from src.ppo_models.vibed.graph_obs import build_graph_obs
 from src.ppo_models.vibed.integration import (
     make_observation_space as make_vibed_obs_space,
