@@ -50,7 +50,7 @@ import numpy as np
 
 ACTION_NODE_F = 6
 LAYER_NODE_F = 4
-NODE_F = max(ACTION_NODE_F, LAYER_NODE_F)   # shared feature width, zero-padded
+NODE_F = max(ACTION_NODE_F, LAYER_NODE_F)  # shared feature width, zero-padded
 EDGE_F = 3
 
 
@@ -58,13 +58,14 @@ EDGE_F = 3
 # Action node features
 # ---------------------------------------------------------------------------
 
+
 def _build_action_nodes(
     active_swaps: list[int],
     cmap_edges: list[tuple[int, int]] | np.ndarray,
     num_qubits: int,
-    action_mask: np.ndarray,        # bool, shape (num_active_swaps,)
+    action_mask: np.ndarray,  # bool, shape (num_active_swaps,)
     swap_cancellation: np.ndarray,  # bool, shape (num_active_swaps,) — from your new obs key
-    degrees: np.ndarray,            # precomputed coupling degree per physical qubit
+    degrees: np.ndarray,  # precomputed coupling degree per physical qubit
 ) -> np.ndarray:
     """Return float32 array of shape (num_active_swaps, ACTION_NODE_F)."""
     max_deg = degrees.max() if degrees.max() > 0 else 1.0
@@ -77,7 +78,7 @@ def _build_action_nodes(
         x[slot, 1] = p1 / max(num_qubits - 1, 1)
         x[slot, 2] = degrees[p0] / max_deg
         x[slot, 3] = degrees[p1] / max_deg
-        x[slot, 4] = float(not action_mask[slot])   # is_masked
+        x[slot, 4] = float(not action_mask[slot])  # is_masked
         x[slot, 5] = float(swap_cancellation[slot])  # will_cancel
 
     return x
@@ -87,10 +88,10 @@ def _build_action_nodes(
 # Layer node features
 # ---------------------------------------------------------------------------
 
+
 def _build_layer_nodes(
     layers: list,
     l2p: list[int] | np.ndarray,
-    qubit_indices: dict,
     distance_matrix: np.ndarray,
     horizon: int,
     num_qubits: int,
@@ -101,31 +102,29 @@ def _build_layer_nodes(
     x = np.zeros((horizon, LAYER_NODE_F), dtype=np.float32)
 
     for h in range(horizon):
-        x[h, 0] = h / max(horizon - 1, 1)   # layer_norm
+        x[h, 0] = h / max(horizon - 1, 1)  # layer_norm
 
         if h >= len(layers):
             # No layer at this depth — leave distance/executable/count as 0
             continue
 
-        graph = layers[h]["graph"]
-        gate_nodes = [n for n in graph.op_nodes() if len(n.qargs) == 2]
+        gate_nodes = layers[h]
 
         if not gate_nodes:
             continue
 
         distances = []
         executable = 0
-        for node in gate_nodes:
-            log0, log1 = [qubit_indices[q] for q in node.qargs]
+        for log0, log1 in gate_nodes:
             p0, p1 = l2p[log0], l2p[log1]
             d = distance_matrix[p0, p1]
             distances.append(d)
             if d == 1:
                 executable += 1
 
-        x[h, 1] = np.mean(distances) / diam                    # mean_distance
-        x[h, 2] = executable / len(gate_nodes)                  # fraction_executable
-        x[h, 3] = len(gate_nodes) / max_gates                   # num_gates_norm
+        x[h, 1] = np.mean(distances) / diam  # mean_distance
+        x[h, 2] = executable / len(gate_nodes)  # fraction_executable
+        x[h, 3] = len(gate_nodes) / max_gates  # num_gates_norm
 
     return x
 
@@ -134,10 +133,11 @@ def _build_layer_nodes(
 # Edge construction
 # ---------------------------------------------------------------------------
 
+
 def _build_edges(
-    matrix: np.ndarray,        # (num_active_swaps, horizon) — actual size
-    num_active_swaps: int,      # actual number of active swaps
-    max_active_swaps: int,      # fixed offset for layer nodes
+    matrix: np.ndarray,  # (num_active_swaps, horizon) — actual size
+    num_active_swaps: int,  # actual number of active swaps
+    max_active_swaps: int,  # fixed offset for layer nodes
     horizon: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     total_edges = 2 * num_active_swaps * horizon
@@ -148,7 +148,7 @@ def _build_edges(
     for slot in range(num_active_swaps):
         for h in range(horizon):
             action_node = slot
-            layer_node = max_active_swaps + h    # ← fixed offset
+            layer_node = max_active_swaps + h  # ← fixed offset
 
             delta = float(matrix[slot, h])
             urgency = 1.0 - (h / max(horizon - 1, 1))
@@ -172,6 +172,7 @@ def _build_edges(
 # Precompute coupling degrees  (call once in env __init__)
 # ---------------------------------------------------------------------------
 
+
 def compute_coupling_degrees(
     num_qubits: int,
     cmap_edges: list[tuple[int, int]] | np.ndarray,
@@ -188,18 +189,18 @@ def compute_coupling_degrees(
 # Master builder — call from _update_obs
 # ---------------------------------------------------------------------------
 
+
 def build_bipartite_obs(
-    matrix: np.ndarray,             # (num_active_swaps, horizon)  already built
+    matrix: np.ndarray,  # (num_active_swaps, horizon)  already built
     active_swaps: list[int],
     max_active_swaps: int,
     cmap_edges: list[tuple[int, int]] | np.ndarray,
     num_qubits: int,
-    action_mask: np.ndarray,        # bool (num_active_swaps,)
+    action_mask: np.ndarray,  # bool (num_active_swaps,)
     swap_cancellation: np.ndarray,  # bool (num_active_swaps,)
-    coupling_degrees: np.ndarray,   # precomputed, shape (num_qubits,)
-    layers: list,                   # dag.layers() — call once and pass in
+    coupling_degrees: np.ndarray,  # precomputed, shape (num_qubits,)
+    layers: list,  # dag.layers() — call once and pass in
     l2p: list[int] | np.ndarray,
-    qubit_indices: dict,
     distance_matrix: np.ndarray,
     horizon: int,
 ) -> dict:
@@ -213,46 +214,48 @@ def build_bipartite_obs(
         bipartite_edge_attr  : (2 * num_active_swaps * horizon, 3)   float32
     """
     num_active_swaps = len(active_swaps)
-    N_total_actual = num_active_swaps + horizon
-    N_total_max = max_active_swaps + horizon   # declared shape
+    N_total_max = max_active_swaps + horizon  # declared shape
 
-    print("Build action nodes")
     action_x = _build_action_nodes(
-        active_swaps, cmap_edges, num_qubits,
-        action_mask, swap_cancellation, coupling_degrees,
-    )   # (num_active_swaps, ACTION_NODE_F)
+        active_swaps,
+        cmap_edges,
+        num_qubits,
+        action_mask,
+        swap_cancellation,
+        coupling_degrees,
+    )  # (num_active_swaps, ACTION_NODE_F)
 
-    print("Build layer nodes")
     layer_x = _build_layer_nodes(
-        layers, l2p, qubit_indices, distance_matrix, horizon, num_qubits,
-    )   # (horizon, LAYER_NODE_F)
-
+        layers,
+        l2p,
+        distance_matrix,
+        horizon,
+        num_qubits,
+    )  # (horizon, LAYER_NODE_F)
 
     # Pad to max size
     x = np.zeros((N_total_max, NODE_F), dtype=np.float32)
     x[:num_active_swaps, :ACTION_NODE_F] = action_x
-    x[max_active_swaps:max_active_swaps + horizon, :LAYER_NODE_F] = layer_x
+    x[max_active_swaps : max_active_swaps + horizon, :LAYER_NODE_F] = layer_x
     #  ^^^ layer nodes always start at max_active_swaps, not num_active_swaps
 
     node_type = np.zeros(N_total_max, dtype=np.int64)
-    node_type[max_active_swaps:] = 1   # layer nodes at fixed offset
+    node_type[max_active_swaps:] = 1  # layer nodes at fixed offset
 
     # Edges: build with actual swaps, pad remainder with (0,0) / zeros
     E_max = 2 * max_active_swaps * horizon
     edge_index = np.zeros((2, E_max), dtype=np.int64)
     edge_attr = np.zeros((E_max, EDGE_F), dtype=np.float32)
 
-    print("Build edges")
     if num_active_swaps > 0:
         ei, ea = _build_edges(matrix, num_active_swaps, max_active_swaps, horizon)
         n_edges = ei.shape[1]
         edge_index[:, :n_edges] = ei
         edge_attr[:n_edges] = ea
 
-    print("Obs done")
     return {
-        "bipartite_x":          x,
-        "bipartite_node_type":  node_type,
+        "bipartite_x": x,
+        "bipartite_node_type": node_type,
         "bipartite_edge_index": edge_index,
-        "bipartite_edge_attr":  edge_attr,
+        "bipartite_edge_attr": edge_attr,
     }

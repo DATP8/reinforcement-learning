@@ -1,6 +1,3 @@
-from ppo_models.bipartite.integration import make_bipartite_observation_space
-from ppo_models.bipartite.graph_obs import build_bipartite_obs
-from src.ppo_models.bipartite.graph_obs import compute_coupling_degrees
 import gymnasium
 import numpy as np
 from gymnasium import spaces
@@ -10,10 +7,16 @@ from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
 from torch import Tensor
 
+from ppo_models.bipartite.graph_obs import build_bipartite_obs
+from ppo_models.bipartite.integration import make_bipartite_observation_space
 from src.policy_types import ActorCriticPolicyType
-from src.states.dense_circuit_graph import DenseCircuitGraph
+from src.ppo_models.bipartite.graph_obs import compute_coupling_degrees
 from src.ppo_models.vibed.graph_obs import build_graph_obs
-from src.ppo_models.vibed.integration import make_observation_space as make_vibed_obs_space
+from src.ppo_models.vibed.integration import (
+    make_observation_space as make_vibed_obs_space,
+)
+from src.states.dense_circuit_graph import DenseCircuitGraph
+
 
 @njit(cache=True)
 def _numba_compute_improvements(
@@ -298,9 +301,7 @@ class RoutingEnv(gymnasium.Env):
                 )
             case ActorCriticPolicyType.BIPARTITE:
                 self.observation_space = make_bipartite_observation_space(
-                    self._num_active_swaps,
-                    self._horizon,
-                    self._num_qubits
+                    self._num_active_swaps, self._horizon, self._num_qubits
                 )
             case _:
                 self.observation_space = spaces.Dict(
@@ -530,8 +531,7 @@ class RoutingEnv(gymnasium.Env):
         return qc
 
     def _update_obs(self):
-        layers = list(self._dag.layers());
-        self._matrix = self._build_matrix(layers)
+        self._matrix = self._build_matrix()
         self._cancellation = self._build_cancellation()
 
         if self._policy_type not in (
@@ -576,25 +576,20 @@ class RoutingEnv(gymnasium.Env):
         if self._policy_type is ActorCriticPolicyType.BIPARTITE:
             # print("Building pipartite obs")
             bipartite = build_bipartite_obs(
-                matrix           = self._matrix,
-                active_swaps     = self._active_swaps,
-                max_active_swaps = self._num_active_swaps,
-                cmap_edges       = self._cmap_edges,
-                num_qubits       = self._num_qubits,
-                action_mask      = self.valid_action_mask(),
-                swap_cancellation= self._cancellation,
-                coupling_degrees = self._coupling_degrees,
-                layers           = layers,
-                l2p              = self.l2p,
-                qubit_indices    = self._qubit_indices,
-                distance_matrix  = self._distance_matrix,
-                horizon          = self._horizon,
+                matrix=self._matrix,
+                active_swaps=self._active_swaps,
+                max_active_swaps=self._num_active_swaps,
+                cmap_edges=self._cmap_edges,
+                num_qubits=self._num_qubits,
+                action_mask=self.valid_action_mask(),
+                swap_cancellation=self._cancellation,
+                coupling_degrees=self._coupling_degrees,
+                layers=self._custom_layers,
+                l2p=self.l2p,
+                distance_matrix=self._distance_matrix,
+                horizon=self._horizon,
             )
-            self._bipartite_obs = {
-                "matrix": self._matrix,
-                **bipartite
-            }
-
+            self._bipartite_obs = {"matrix": self._matrix, **bipartite}
 
     def _execute_front_layer(self) -> int:
         progress = True
@@ -710,6 +705,7 @@ class RoutingEnv(gymnasium.Env):
         self._active_swaps = self._select_active_swaps(custom_layers)
 
         matrix = np.zeros((self._num_active_swaps, self._horizon), dtype=np.int8)
+        self._custom_layers = custom_layers
         if not self._active_swaps or not temp_pairs:
             return matrix
 

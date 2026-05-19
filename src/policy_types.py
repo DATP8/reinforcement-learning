@@ -1,4 +1,3 @@
-from ppo_models.bipartite.extractor import BipartiteExtractor
 from enum import Enum, auto
 
 import ppo_models.vibed.hybrid_extractor as vibed
@@ -8,6 +7,7 @@ from gym_extractor import (
     SimpleExtractor,
     SimpleExtractor2,
 )
+from ppo_models.bipartite.extractor import BipartiteExtractor
 
 
 class ActorCriticPolicyType(Enum):
@@ -71,7 +71,7 @@ class ActorCriticPolicyType(Enum):
                         action_mlp_hidden=64,
                         action_out=16,
                         use_bipartite=True,
-                        use_matrix=False,    # ← toggle this
+                        use_matrix=False,  # ← toggle this
                     ),
                     net_arch=[256, 256],
                 )

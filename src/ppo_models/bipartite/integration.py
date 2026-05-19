@@ -12,43 +12,52 @@ and training script.
 # Add these four keys alongside your existing "matrix" key.
 # Sizes are fully determined by num_active_swaps and horizon.
 
-from gymnasium import spaces
 import numpy as np
-from src.ppo_models.bipartite.graph_obs import NODE_F, EDGE_F, compute_coupling_degrees
+from gymnasium import spaces
+
+from src.ppo_models.bipartite.graph_obs import EDGE_F, NODE_F
+
 
 def make_bipartite_observation_space(num_active_swaps, horizon, num_qubits):
     N_total = num_active_swaps + horizon
-    E_total = 2 * num_active_swaps * horizon   # both directions, all pairs
+    E_total = 2 * num_active_swaps * horizon  # both directions, all pairs
 
-    return spaces.Dict({
-        # existing key — keep as-is
-        "matrix": spaces.Box(
-            low=-2, high=2,
-            shape=(num_active_swaps, horizon),
-            dtype=np.int8,
-        ),
-        # new bipartite graph keys
-        "bipartite_x": spaces.Box(
-            low=-np.inf, high=np.inf,
-            shape=(N_total, NODE_F),
-            dtype=np.float32,
-        ),
-        "bipartite_node_type": spaces.Box(
-            low=0, high=1,
-            shape=(N_total,),
-            dtype=np.int64,
-        ),
-        "bipartite_edge_index": spaces.Box(
-            low=0, high=N_total - 1,
-            shape=(2, E_total),
-            dtype=np.int64,
-        ),
-        "bipartite_edge_attr": spaces.Box(
-            low=-np.inf, high=np.inf,
-            shape=(E_total, EDGE_F),
-            dtype=np.float32,
-        ),
-    })
+    return spaces.Dict(
+        {
+            # existing key — keep as-is
+            "matrix": spaces.Box(
+                low=-2,
+                high=2,
+                shape=(num_active_swaps, horizon),
+                dtype=np.int8,
+            ),
+            # new bipartite graph keys
+            "bipartite_x": spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(N_total, NODE_F),
+                dtype=np.float32,
+            ),
+            "bipartite_node_type": spaces.Box(
+                low=0,
+                high=1,
+                shape=(N_total,),
+                dtype=np.int64,
+            ),
+            "bipartite_edge_index": spaces.Box(
+                low=0,
+                high=N_total - 1,
+                shape=(2, E_total),
+                dtype=np.int64,
+            ),
+            "bipartite_edge_attr": spaces.Box(
+                low=-np.inf,
+                high=np.inf,
+                shape=(E_total, EDGE_F),
+                dtype=np.float32,
+            ),
+        }
+    )
 
 
 # ===========================================================================
