@@ -86,7 +86,6 @@ if __name__ == "__main__":
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
         sample_diff=SAMPLE_DIFF,
-        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 

@@ -277,7 +277,6 @@ if __name__ == "__main__":
         diff_slope=0.9,
         layout_exponent=1.0,
         policy_type=policy_type,
-        clear_visited_on_stuck=True,
     )
     ppo_model = MaskablePPO.load("best_model_basic.zip", ppo_env)
 
