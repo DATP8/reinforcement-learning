@@ -1,3 +1,6 @@
+from ppo_models.bipartite.integration import make_bipartite_observation_space
+from ppo_models.bipartite.graph_obs import build_bipartite_obs
+from src.ppo_models.bipartite.graph_obs import compute_coupling_degrees
 import gymnasium
 import numpy as np
 from gymnasium import spaces
@@ -9,8 +12,89 @@ from torch import Tensor
 
 from src.policy_types import ActorCriticPolicyType
 from src.states.dense_circuit_graph import DenseCircuitGraph
-from src.vibed_ppo.graph_obs import build_graph_obs
-from src.vibed_ppo.integration import make_observation_space as make_vibed_obs_space
+from src.ppo_models.vibed.graph_obs import build_graph_obs
+from src.ppo_models.vibed.integration import make_observation_space as make_vibed_obs_space
+
+@njit(cache=True)
+def _numba_compute_improvements(
+    matrix: np.ndarray,
+    active_edges: np.ndarray,
+    layer_pairs: np.ndarray,
+    layer_indices: np.ndarray,
+    l2p: np.ndarray,
+    dist_matrix: np.ndarray,
+) -> None:
+    num_swaps = active_edges.shape[0]
+    num_pairs = layer_pairs.shape[0]
+
+    for p_idx in range(num_pairs):
+        h = layer_indices[p_idx]
+        l0 = layer_pairs[p_idx, 0]
+        l1 = layer_pairs[p_idx, 1]
+
+        p0_b = l2p[l0]
+        p1_b = l2p[l1]
+
+        for s_idx in range(num_swaps):
+            p0_a = active_edges[s_idx, 0]
+            p1_a = active_edges[s_idx, 1]
+
+            imp = 0
+            if p0_b == p0_a and p1_b != p1_a:
+                imp = dist_matrix[p0_a, p1_b] - dist_matrix[p1_a, p1_b]
+            elif p0_b == p1_a and p1_b != p0_a:
+                imp = dist_matrix[p1_a, p1_b] - dist_matrix[p0_a, p1_b]
+            elif p1_b == p0_a and p0_b != p1_a:
+                imp = dist_matrix[p0_a, p0_b] - dist_matrix[p1_a, p0_b]
+            elif p1_b == p1_a and p0_b != p0_a:
+                imp = dist_matrix[p1_a, p0_b] - dist_matrix[p0_a, p0_b]
+
+            matrix[s_idx, h] += imp
+
+
+@njit(cache=True)
+def _numba_build_graph_features(
+    interaction_counts: np.ndarray,
+    l2p: np.ndarray,
+    dist_matrix: np.ndarray,
+    num_q: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    x = np.zeros((num_q, 3), dtype=np.float32)
+    temp_edges = np.zeros((2, num_q * num_q), dtype=np.int64)
+    edge_count = 0
+
+    for q in range(num_q):
+        phys = l2p[q]
+        total_interactions = 0.0
+        sum_dist = 0.0
+        interacting_neighbors = 0
+
+        for other_q in range(num_q):
+            count = interaction_counts[q, other_q]
+            if count > 0:
+                total_interactions += count
+                p2 = l2p[other_q]
+                sum_dist += dist_matrix[phys, p2]
+                interacting_neighbors += 1
+
+                temp_edges[0, edge_count] = q
+                temp_edges[1, edge_count] = other_q
+                edge_count += 1
+
+        avg_dist = (
+            (sum_dist / interacting_neighbors) if interacting_neighbors > 0 else 0.0
+        )
+        x[q, 0] = phys
+        x[q, 1] = total_interactions
+        x[q, 2] = avg_dist
+
+    max_edges = min(edge_count, 100)
+    edge_index = np.zeros((2, 100), dtype=np.int64)
+    for i in range(max_edges):
+        edge_index[0, i] = temp_edges[0, i]
+        edge_index[1, i] = temp_edges[1, i]
+
+    return x, edge_index
 
 
 @njit(cache=True)
@@ -146,6 +230,10 @@ class RoutingEnv(gymnasium.Env):
         self._p2l: np.ndarray = np.arange(self._num_qubits, dtype=np.int64)
         self.action_space = spaces.Discrete(self._num_active_swaps)
 
+        self._coupling_degrees = compute_coupling_degrees(
+            self._num_qubits, self._cmap_edges
+        )
+
         match policy_type:
             case ActorCriticPolicyType.BASIC | ActorCriticPolicyType.SIMPLE_MLP:
                 self.observation_space = spaces.Box(
@@ -207,6 +295,12 @@ class RoutingEnv(gymnasium.Env):
                     self._horizon,
                     self._num_qubits,
                     len(self._cmap_edges),
+                )
+            case ActorCriticPolicyType.BIPARTITE:
+                self.observation_space = make_bipartite_observation_space(
+                    self._num_active_swaps,
+                    self._horizon,
+                    self._num_qubits
                 )
             case _:
                 self.observation_space = spaces.Dict(
@@ -436,7 +530,8 @@ class RoutingEnv(gymnasium.Env):
         return qc
 
     def _update_obs(self):
-        self._matrix = self._build_matrix()
+        layers = list(self._dag.layers());
+        self._matrix = self._build_matrix(layers)
         self._cancellation = self._build_cancellation()
 
         if self._policy_type not in (
@@ -478,6 +573,28 @@ class RoutingEnv(gymnasium.Env):
                 "interact_edge_index": graph["interact_edge_index"],
                 "interact_edge_attr": graph["interact_edge_attr"],
             }
+        if self._policy_type is ActorCriticPolicyType.BIPARTITE:
+            # print("Building pipartite obs")
+            bipartite = build_bipartite_obs(
+                matrix           = self._matrix,
+                active_swaps     = self._active_swaps,
+                max_active_swaps = self._num_active_swaps,
+                cmap_edges       = self._cmap_edges,
+                num_qubits       = self._num_qubits,
+                action_mask      = self.valid_action_mask(),
+                swap_cancellation= self._cancellation,
+                coupling_degrees = self._coupling_degrees,
+                layers           = layers,
+                l2p              = self.l2p,
+                qubit_indices    = self._qubit_indices,
+                distance_matrix  = self._distance_matrix,
+                horizon          = self._horizon,
+            )
+            self._bipartite_obs = {
+                "matrix": self._matrix,
+                **bipartite
+            }
+
 
     def _execute_front_layer(self) -> int:
         progress = True
@@ -564,6 +681,8 @@ class RoutingEnv(gymnasium.Env):
                 return self._dense_graph_to_obs(graph, self._horizon, self._num_qubits)
             case ActorCriticPolicyType.VIBE_GRAPH:
                 return self._graph_obs
+            case ActorCriticPolicyType.BIPARTITE:
+                return self._bipartite_obs
 
     def _build_matrix(self) -> np.ndarray:
         qubit_depth = np.zeros(self._num_qubits, dtype=int)
