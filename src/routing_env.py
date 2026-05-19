@@ -744,6 +744,8 @@ class RoutingEnv(gymnasium.Env):
                             seen_edges.add(edge_idx)
                             if len(active_swaps) >= self._num_active_swaps:
                                 break
+                    if len(active_swaps) >= self._num_active_swaps:
+                        break
                 if len(active_swaps) >= self._num_active_swaps:
                     break
             if len(active_swaps) >= self._num_active_swaps:
