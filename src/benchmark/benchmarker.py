@@ -243,17 +243,17 @@ class Benchmarker:
 
         title, pm = config
 
-        # with ProcessPoolExecutor() as executor:
-        #     futures = [
-        #         executor.submit(self._bench_pass_wrapper, (self, qc, pm, title))
-        #         for qc in qc_list
-        #     ]
+        with ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(self._bench_pass_wrapper, (self, qc, pm, title))
+                for qc in qc_list
+            ]
 
-        #     for f in tqdm(as_completed(futures), total=len(futures), desc=title):
-        #         runs.append(f.result())
+            for f in tqdm(as_completed(futures), total=len(futures), desc=title):
+                runs.append(f.result())
 
-        for qc in tqdm(qc_list, desc=title, position=0, leave=False):
-            runs.append(self.bench_pass(qc, pm, title))
+        # for qc in tqdm(qc_list, desc=title, position=0, leave=False):
+        #     runs.append(self.bench_pass(qc, pm, title))
 
         return runs
 
@@ -286,8 +286,10 @@ if __name__ == "__main__":
 
     # path_dense = "models/dense_graph/difficulty32_iteration98040.pt"
     # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
-    #path_dense = "models/dense_graph/difficulty31_iteration8000_0.3.pt"
-    path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
+    # path_dense = "models/dense_graph/difficulty31_iteration8000_0.3.pt"
+    # path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
+    path_dense = "models/davi_dense_graph/difficulty32_iteration57550.pt"
+    
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
 
@@ -298,12 +300,11 @@ if __name__ == "__main__":
 
     trivial_layout = TrivialLayout(coupling_map)
     sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
-    
-    study = optuna.load_study(
-        study_name="routing_optimization",
-        storage="sqlite:///routing_optimization.db"
-    )
-    
+
+    # study = optuna.load_study(
+    #     study_name="routing_optimization", storage="sqlite:///routing_optimization.db"
+    # )
+
     # configs = [
     #     (
     #         f"TrivialLayout_bwas_b{trail.params['batch_size']}_w{trail.params['weight']}",
@@ -326,70 +327,106 @@ if __name__ == "__main__":
     #     )
     #     for trail in study.best_trials
     # ]
-
-    #### Standard qiskit pass manager inserted router
-    configs = [
-        (
-            "TrivialLayout_receding_horizon_b16_w1.0_h32_s_3",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    RlRoutingPass(
-                        RecedingHorizon(
-                            32,
-                            3,
-                            BWASRouter(
-                            model_dense,
-                            state_handler_dense,
-                            batch_size=16,
-                            weight=1.0,
+    
+    horizons = [4, 8, 12, 16, 20, 24, 28, 32]
+    step_size_factors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    
+    configs = []
+    for horizon in horizons:
+        for step_size_factor in step_size_factors:
+            step_size = int(horizon * step_size_factor)
+            if step_size == 0:
+                continue
+            
+            configs.append(
+                (
+                    f"TrivialLayout_receding_horizon_b256_w0.8_h{horizon}_s{step_size}_sf{step_size_factor}",
+                    PassManager(
+                        [
+                            trivial_layout,
+                            ApplyLayout(),
+                            RlRoutingPass(
+                                RecedingHorizon(
+                                    horizon,
+                                    step_size,
+                                    BWASRouter(
+                                        model_dense,
+                                        state_handler_dense,
+                                        batch_size=256,
+                                        weight=0.8,
+                                    ),
+                                ),
+                                swap_inserter,
                             ),
-                        ),
-                        swap_inserter,
+                            CNOTSwapCancelation(),
+                        ]
                     ),
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        # (
-        #     "TrivialLayout_bwas_b1_w1.0",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 BWASRouter(
-        #                     model_dense,
-        #                     state_handler_dense,
-        #                     batch_size=1,
-        #                     weight=1.0,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-        # (
-        #     "TrivialLayout_WA_w2.2522522523",
-        #     PassManager(
-        #         [
-        #             trivial_layout,
-        #             ApplyLayout(),
-        #             RlRoutingPass(
-        #                 WeightedAStarSearch(
-        #                     model_dense,
-        #                     state_handler_dense,
-        #                     weight=2.2522522523,
-        #                 ),
-        #                 swap_inserter,
-        #             ),
-        #             CNOTSwapCancelation(),
-        #         ]
-        #     ),
-        # ),
-    ]
+                )
+            )
+
+    # #### Standard qiskit pass manager inserted router
+    # configs = [
+    #     (
+    #         "TrivialLayout_receding_horizon_b256_w0.8_h20_s_4",
+    #         PassManager(
+    #             [
+    #                 trivial_layout,
+    #                 ApplyLayout(),
+    #                 RlRoutingPass(
+    #                     RecedingHorizon(
+    #                         20,
+    #                         4,
+    #                         BWASRouter(
+    #                             model_dense,
+    #                             state_handler_dense,
+    #                             batch_size=256,
+    #                             weight=0.8,
+    #                         ),
+    #                     ),
+    #                     swap_inserter,
+    #                 ),
+    #                 CNOTSwapCancelation(),
+    #             ]
+    #         ),
+    #     ),
+    #     # (
+    #     #     "TrivialLayout_bwas_b1_w1.0",
+    #     #     PassManager(
+    #     #         [
+    #     #             trivial_layout,
+    #     #             ApplyLayout(),
+    #     #             RlRoutingPass(
+    #     #                 BWASRouter(
+    #     #                     model_dense,
+    #     #                     state_handler_dense,
+    #     #                     batch_size=1,
+    #     #                     weight=1.0,
+    #     #                 ),
+    #     #                 swap_inserter,
+    #     #             ),
+    #     #             CNOTSwapCancelation(),
+    #     #         ]
+    #     #     ),
+    #     # ),
+    #     # (
+    #     #     "TrivialLayout_WA_w2.2522522523",
+    #     #     PassManager(
+    #     #         [
+    #     #             trivial_layout,
+    #     #             ApplyLayout(),
+    #     #             RlRoutingPass(
+    #     #                 WeightedAStarSearch(
+    #     #                     model_dense,
+    #     #                     state_handler_dense,
+    #     #                     weight=2.2522522523,
+    #     #                 ),
+    #     #                 swap_inserter,
+    #     #             ),
+    #     #             CNOTSwapCancelation(),
+    #     #         ]
+    #     #     ),
+    #     # ),
+    # ]
 
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
