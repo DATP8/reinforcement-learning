@@ -4,12 +4,38 @@ from pathlib import Path
 
 RESULT_PATH = Path(__file__).parent.parent.parent / "results"
 
-METRIC_KEYS = ["Transpile", "Swap", "CX", "Depth", "Size", "Decomposed Depth"]
+METRIC_KEYS = ["Transpile", "Swap", "CX", "Depth", "Size", "Decomposed Depth", "2Q Size"]
 
-MQT_ALGOS = [
-    "ae", "bmw_quark_cardinality", "bmw_quark_copula", "cdkm_ripple_carry_adder", "dj", "draper_qft_adder", "full_adder", "ghz_dynamic", "graphstate", "grover", "half_adder", "hhl", "hrs_cumulative_multiplier", "modular_adder", "multiplier", "qaoa", "qftentangled", "qpeexact", "qpeinexact", "randomcircuit", "rg_qft_multiplier", "vbe_ripple_carry_adder", "vqe_real_amp", "vqe_su2", "vqe_two_local", "wstate"
+MQT_ALGOS_BLACKLIST = [
+    "qwalk", 
+    "ae", 
+    "bmw_quark_cardinality", 
+    "bmw_quark_copula", 
+    "cdkm_ripple_carry_adder", 
+    "dj", 
+    "draper_qft_adder", 
+    "full_adder", 
+    "ghz_dynamic", 
+    "graphstate", 
+    "grover", 
+    "half_adder", 
+    "hhl", 
+    "hrs_cumulative_multiplier", 
+    "modular_adder", 
+    "multiplier", 
+    "qaoa", 
+    "qftentangled", 
+    "qpeexact", 
+    "qpeinexact", 
+    "randomcircuit", 
+    "rg_qft_multiplier", 
+    "vbe_ripple_carry_adder", 
+    "vqe_real_amp", 
+    "vqe_su2", 
+    "vqe_two_local", 
+    "wstate",
+    "shor"
 ]
-
 
 def load_data(file_name):
     with open(RESULT_PATH / file_name) as f:
@@ -38,6 +64,7 @@ def typst_chart_block(metric, algorithms, configs):
     bars_str = "\n".join(bars)
     return f"""layout(size => {{
 lq.diagram(
+legend: (position: top + left),
 title: "{metric}",
 xlabel: "Algorithm",
 ylabel: "{metric}",
@@ -109,8 +136,8 @@ def main(file_name):
     for coupling_map, algorithms in data.items():
         configs = list(next(iter(algorithms.values())).keys())
 
-        if MQT_ALGOS:
-            filtered_algorithms = {k: v for k, v in algorithms.items() if not k in MQT_ALGOS}
+        if MQT_ALGOS_BLACKLIST:
+            filtered_algorithms = {k: v for k, v in algorithms.items() if not k in MQT_ALGOS_BLACKLIST}
         else:
             filtered_algorithms = algorithms
 

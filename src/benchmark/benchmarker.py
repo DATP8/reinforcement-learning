@@ -38,8 +38,41 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Gates", 10),
+    ("Decomposed Depth", 10),
+    ("2Q Size", 10),
 ]
+
+MQT_ALGOS_BLACKLIST = [
+    "qnn",
+    "qwalk", 
+    "ae", 
+    "bmw_quark_cardinality", 
+    "bmw_quark_copula", 
+    "cdkm_ripple_carry_adder", 
+    "dj", 
+    "draper_qft_adder", 
+    "full_adder", 
+    "ghz_dynamic", 
+    "graphstate", 
+    "grover", 
+    "half_adder", 
+    "hhl", 
+    "hrs_cumulative_multiplier", 
+    "modular_adder", 
+    "multiplier", 
+    "qaoa", 
+    "qftentangled", 
+    "qpeexact", 
+    "qpeinexact", 
+    "randomcircuit", 
+    "rg_qft_multiplier", 
+    "vbe_ripple_carry_adder", 
+    "vqe_real_amp", 
+    "vqe_su2", 
+    "vqe_two_local", 
+    "wstate"
+]
+
 
 EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
 random.seed(EVAL_SEED)
@@ -119,6 +152,7 @@ class Benchmarker:
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
         decomposed_depth = swaps * 3 + cx
+        two_q_size = swaps + cx
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
@@ -127,6 +161,7 @@ class Benchmarker:
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
             METRIC_KEYS[5][0]: decomposed_depth,
+            METRIC_KEYS[6][0]: two_q_size,
         }
         return metrics
 
@@ -162,6 +197,8 @@ class Benchmarker:
         algorithm_name_list = self._get_available_names_via_bridge()
         results = {}
         for algorithm_name in algorithm_name_list:
+            if algorithm_name in MQT_ALGOS_BLACKLIST:
+                continue
             try:
                 qc = self._get_mqt_circuit_via_bridge(algorithm_name, self.qubits)
                 qc = self._prepare_for_routing(qc)
@@ -282,22 +319,27 @@ if __name__ == "__main__":
         QiskitTranspiler,
     )
 
-    start_qubits = 6
-    end_qubits = 7
+    standard_start_qubits = 6
+    standard_end_qubits = 13
 
-    sqrt_qubits = int(sqrt(end_qubits).real)
+    square_start_qubits = int(sqrt(standard_start_qubits).real)
+    square_end_qubits = int(sqrt(standard_end_qubits).real)
 
+    hex_start_qubits = 3
+    hex_end_qubits = 4
+
+    sqrt_qubits = int(sqrt(standard_end_qubits).real)
+    
+    print(range(standard_start_qubits, sqrt_qubits))
+    print([f"{x}, {y}" for x in range(standard_start_qubits, sqrt_qubits) for y in range(standard_start_qubits, sqrt_qubits)])
+    
     coupling_map_list = []
-    # coupling_map_list.extend([("grid",            CouplingMap().from_grid(x, y))              for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
-    # coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, y)) for x in range(start_qubits, sqrt_qubits) for y in range(start_qubits, sqrt_qubits)])
-    # coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(start_qubits, end_qubits) if x % 2 == 1])
-    # coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(start_qubits, end_qubits) if x % 2 == 1])
-    coupling_map_list.extend(
-        [("ring", CouplingMap().from_ring(x)) for x in range(start_qubits, end_qubits)]
-    )
-    coupling_map_list.extend(
-        [("line", CouplingMap().from_line(x)) for x in range(start_qubits, end_qubits)]
-    )
+    coupling_map_list.extend([("grid",            CouplingMap().from_grid(x, x))              for x in range(square_start_qubits, square_end_qubits)])
+    coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, x)) for x in range(hex_start_qubits, hex_end_qubits)])
+    coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
+    coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
+    coupling_map_list.extend([("ring",            CouplingMap().from_ring(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
+    coupling_map_list.extend([("line",            CouplingMap().from_line(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
 
     results = {}
 
@@ -317,7 +359,7 @@ if __name__ == "__main__":
         qiskit_transpiler = QiskitTranspiler(op_level=0).build(coupling_map)
 
 
-        our_ppo = PPOBuilder(
+        basic_ppo = PPOBuilder(
             num_active_swaps=5,
             horizon=8,
             initial_difficulty=256,
@@ -330,16 +372,29 @@ if __name__ == "__main__":
             use_sabre_layout=False,
         ).build(coupling_map)
 
+        bipartite_ppo = PPOBuilder(
+            num_active_swaps=5,
+            horizon=8,
+            initial_difficulty=256,
+            max_difficulty=256,
+            diff_slope=0.9,
+            layout_exponent=1.0,
+            policy_type=ActorCriticPolicyType.BIPARTITE,
+            seed=42,
+            model_path="models/bipartite_model.zip",
+            use_sabre_layout=False,
+        ).build(coupling_map)
+
         configs = [
-            ("trivial layout ai routing (ibm)", trivial_ai_ibm),
-            ("trivial layout sabre", trivial_sabre),
-            ("trivial layout ppo", our_ppo),
-            ("sabre layout ai routing (ibm)", sabre_ai_ibm),
-            ("sabre layout sabre", sabre_sabre),
-            ("optimization level 0 qiskit standard transpiler", qiskit_transpiler),
+            ("op0 qiskit transpiler", qiskit_transpiler),
+            ("ai routing (ibm)", trivial_ai_ibm),
+            ("sabre", trivial_sabre),
+            ("ppo", basic_ppo),
+            # can only run on specific coupling map
+            #("bipartite", bipartite_ppo),
         ]
 
-        bench_iterations = 10
+        bench_iterations = 100
         bench_circut_gate_count = 100
         n_qubits = coupling_map.size()
         bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=bench_circut_gate_count)
@@ -354,27 +409,27 @@ if __name__ == "__main__":
             json.dump(results, f, indent=2)
 
 
-        # temp_results = bench.run_rand_benchmarks(
-        #     configs,
-        #     bench_iterations,
-        #     title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
-        #     is_printing=True,
-        # )  # pyrefly: ignore
-        # if title not in results:
-        #     results[title] = {}
+        temp_results = bench.run_rand_benchmarks(
+            configs,
+            bench_iterations,
+            title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
+            is_printing=True,
+        )  # pyrefly: ignore
+        if title not in results:
+            results[title] = {}
 
-        # for config in temp_results:
-        #     if config not in results[title]:
-        #         results[title][config] = {}
+        for config in temp_results:
+            if config not in results[title]:
+                results[title][config] = {}
 
-        #     mean, ci = temp_results[config]
-        #     results[title][config][n_qubits] = {
-        #         metric: {"mean": mean[metric], "ci": ci[metric]}
-        #         for metric, _ in METRIC_KEYS
-        #     }
+            mean, ci = temp_results[config]
+            results[title][config][n_qubits] = {
+                metric: {"mean": mean[metric], "ci": ci[metric]}
+                for metric, _ in METRIC_KEYS
+            }
 
-        # results_dir = ROOT_DIR / "results"
-        # results_dir.mkdir(exist_ok=True)
-        # results_file = results_dir / "benchmark_results.json"
-        # with open(results_file, "w") as f:
-        #     json.dump(results, f, indent=2)
+        results_dir = ROOT_DIR / "results"
+        results_dir.mkdir(exist_ok=True)
+        results_file = results_dir / "benchmark_results.json"
+        with open(results_file, "w") as f:
+            json.dump(results, f, indent=2)

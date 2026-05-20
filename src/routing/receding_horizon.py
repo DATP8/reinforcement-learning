@@ -105,9 +105,16 @@ if __name__ == "__main__":
     coupling_map = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    circuit = CircuitGenerator.generate_random_circuit(6, gateset={"cx"}, num_gates=30)
-    with open("circuits/dud2.qpy", "wb") as f:
-        dump(circuit, f)
+    ##circuit = CircuitGenerator.generate_random_circuit(6, gateset={"cx"}, num_gates=30)
+
+    circuit = QuantumCircuit(6)
+
+    circuit.h(0)
+    circuit.cx(0,1)
+    circuit.h(0)
+    circuit.cx(0,2)
+    # with open("circuits/dud2.qpy", "wb") as f:
+    #     dump(circuit, f)
 
     # with open("circuits/dud3.qpy", "rb") as f:
     #     circuit = load(f)[0]
@@ -118,7 +125,7 @@ if __name__ == "__main__":
     model = BiCircuitGNNDense(n_qubits)
     model.load_state_dict(
         torch.load(
-            "models/dense_graph/difficulty18_iteration82480.pt", map_location=device
+            "models/difficulty32_iteration42030_0.333.pt", map_location=device
         )
     )
 
