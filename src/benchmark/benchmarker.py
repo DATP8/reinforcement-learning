@@ -24,7 +24,8 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Gates", 10),
+    ("Decomposed Gate Depth", 10),
+    ("Decomposed Gate Size", 10),
 ]
 
 EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
@@ -88,9 +89,12 @@ class Benchmarker:
     def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
         ops = routed_circuit.count_ops()
 
+        decomposed_circuit = routed_circuit.decompose(
+            gates_to_decompose="swap"
+        ).to_dag()
+
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
-        decomposed_depth = swaps * 3 + cx
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
@@ -98,7 +102,8 @@ class Benchmarker:
             METRIC_KEYS[2][0]: cx,
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: decomposed_depth,
+            METRIC_KEYS[5][0]: decomposed_circuit.depth(),
+            METRIC_KEYS[6][0]: decomposed_circuit.size(),
         }
         return metrics
 
@@ -264,7 +269,7 @@ if __name__ == "__main__":
     # model = BiCircuitGNN(n_qubits)
     # model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    coupling_map = CouplingMap.from_ring(num_qubits)
+    coupling_map = CouplingMap.from_line(num_qubits)
     coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, num_qubits)
