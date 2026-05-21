@@ -61,7 +61,7 @@ class ActorCriticPolicyType(Enum):
                         gnn_hidden=gnn_hidden,
                         gnn_heads=gnn_heads,  # 2 for 6-qubit topology, 4 to torino
                         gnn_out=gnn_out,
-                        action_out=matrix_out,
+                        matrix_out=matrix_out,
                     ),
                     net_arch=[256, 256],  # policy/value MLP after extractor
                 )
@@ -80,7 +80,7 @@ class ActorCriticPolicyType(Enum):
                         gnn_layers=2,
                         action_mlp_hidden=64,
                         # action_out=16,
-                        matrix_out=matrix_out,
+                        action_out=matrix_out,
                         use_bipartite=True,
                         use_matrix=False,  # ← toggle this
                     ),
