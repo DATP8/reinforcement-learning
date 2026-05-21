@@ -23,14 +23,14 @@ from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import compute_avg_decomposed_cx, make_env
 from src.routing_env import RoutingEnv
 
-CPUS_PER_TRIAL = 8
+CPUS_PER_TRIAL = 5
 NUM_UNIQUE_SAMPLES = 128
 REPEATS_PER_CONFIG = 1
 GRACE_PERIOD = 5
 REDUCTION_FACTOR = 3
 BRACKETS = 1
 NUM_QUBITS = 19 # 6
-TOTAL_TIMESTEPS = 50_000_000
+TOTAL_TIMESTEPS = 10_000_000 # 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
@@ -64,6 +64,8 @@ class RayTuneCurriculumCallback(BaseCallback):
         curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
 
         if not curriculum_done:
+            if self._eval_freq > 0 and self.n_calls % self._eval_freq == 0:
+                tune.report({"seed": self._seed, "diff": current_diff})
             return True
 
         if self._eval_freq > 0 and self.n_calls % self._eval_freq == 0:
