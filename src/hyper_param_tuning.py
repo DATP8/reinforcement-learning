@@ -64,8 +64,6 @@ class RayTuneCurriculumCallback(BaseCallback):
         curriculum_done = current_diff >= self._curriculum_callback.max_difficulty
 
         if not curriculum_done:
-            if self._eval_freq > 0 and self.n_calls % self._eval_freq == 0:
-                tune.report({"seed": self._seed, "diff": current_diff})
             return True
 
         if self._eval_freq > 0 and self.n_calls % self._eval_freq == 0:
