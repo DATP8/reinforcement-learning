@@ -23,7 +23,7 @@ from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import compute_avg_decomposed_cx, make_env
 from src.routing_env import RoutingEnv
 
-CPUS_PER_TRIAL = 4
+CPUS_PER_TRIAL = 8
 NUM_UNIQUE_SAMPLES = 128
 REPEATS_PER_CONFIG = 1
 GRACE_PERIOD = 5
@@ -201,8 +201,14 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
     # batch_size must divide n_steps * num_envs
     num_envs = CPUS_PER_TRIAL
     buffer_size = n_steps * num_envs
-    batch_divisor = trial.suggest_int("batch_divisor", 1, 16)
+    batch_divisor = trial.suggest_int("batch_divisor", 2, 32)
     batch_size = max(1, buffer_size // batch_divisor)
+
+    MAX_BATCH_SIZE = 2048
+    batch_size = min(MAX_BATCH_SIZE, batch_size)
+
+    while buffer_size % batch_size:
+        batch_size -= 1
 
     config = {
         "policy_type": policy_type,
