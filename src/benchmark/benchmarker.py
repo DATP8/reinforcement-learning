@@ -249,14 +249,11 @@ if __name__ == "__main__":
     n_qubits = 6
     horizon = 100
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    state_handler = CircuitGraphStateHandler(n_qubits, topology)
+
     state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
 
-    path = "models/graph/difficulty62_updates7_iteration25150.pt"
-    model = BiCircuitGNN(n_qubits)
-    model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
+    path_dense = "models/davi_dense_graph/difficulty32_iteration57550.pt"
     # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
@@ -266,19 +263,8 @@ if __name__ == "__main__":
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
 
-    chuck_size = 18
-    chunk_router = ChunkRouter(
-        chunk_size=chuck_size, model=model, state_handler=state_handler
-    )
-    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
-
-    chuck_router_dense = ChunkRouter(
-        chunk_size=chuck_size, model=model_dense, state_handler=state_handler_dense
-    )
-    chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
-
     horizon = 100
-    path_qtensor = "models/qtensor_correct/qtensor_difficulty32_iteration6290.pt"
+    path_qtensor = "models/qtensor_correct/difficulty32_iteration6290.pt"
     model_qtensor = ValueModelFlat(n_qubits, horizon, len(topology))
     model_qtensor.load_state_dict(torch.load(path_qtensor, map_location="cpu"))
 
@@ -301,6 +287,7 @@ if __name__ == "__main__":
                         ),
                         swap_inserter,
                     ),
+                    CNOTSwapCancelation(),
                 ]
             ),
         ),
@@ -318,6 +305,7 @@ if __name__ == "__main__":
                         ),
                         swap_inserter,
                     ),
+                    CNOTSwapCancelation(),
                 ]
             ),
         ),
@@ -327,8 +315,8 @@ if __name__ == "__main__":
     # configs = [(title, PassManager([router])) for title, router in routers]
 
     bench_iterations = 10
-    bench_circut_gate_count = 100
+    bench_circut_gate_count = 18
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+    # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
     bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore

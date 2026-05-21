@@ -101,6 +101,9 @@ def qtensor():
     training_model = ValueModelFlat(n_qubits, horizon, len(topology))
     evaluation_model = ValueModelFlat(n_qubits, horizon, len(topology))
 
+    training_model.load_state_dict(torch.load("models/davi_qtensor_correct/difficulty32_iteration6290.pt"))
+    evaluation_model.load_state_dict(torch.load("models/davi_qtensor_correct/difficulty32_iteration6290.pt"))
+
     trainer = DAVI(training_model, evaluation_model, game)
 
     trainer.train(
