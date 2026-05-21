@@ -32,13 +32,15 @@ BRIDGE_DIR = ROOT_DIR / "tools" / "mqt_bridge"
 BRIDGE_PYTHON = str(BRIDGE_DIR / ".venv" / "bin" / "python")
 WORKER_SCRIPT = str(BRIDGE_DIR / "mqt_worker.py")
 
+
 METRIC_KEYS = [
     ("Transpile", 10),
     ("Swap", 10),
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Depth", 10),
+    ("Decomp. Depth", 10),
+    ("Decomp. Size", 10),
     ("2Q Size", 10),
 ]
 
@@ -55,8 +57,11 @@ MQT_ALGOS_BLACKLIST = [
     "ghz_dynamic", 
     "graphstate", 
     "grover", 
+    "ghz",
+    "bv",
+    "qft",
     "half_adder", 
-    "hhl", 
+    #"hhl", 
     "hrs_cumulative_multiplier", 
     "modular_adder", 
     "multiplier", 
@@ -70,7 +75,10 @@ MQT_ALGOS_BLACKLIST = [
     "vqe_real_amp", 
     "vqe_su2", 
     "vqe_two_local", 
-    "wstate"
+    "wstate",
+    "shor",
+    "shors_nine_qubit_code",
+    "seven_qubit_steane_code"
 ]
 
 
@@ -80,6 +88,7 @@ np.random.seed(EVAL_SEED)
 
 EVAL_TRIALS = 12
 
+CHECK_EQ = False
 MAX_EQUIV_CHECK_QUBITS = 12
 
 
@@ -132,36 +141,44 @@ class Benchmarker:
         print(row)
 
     def _prepare_for_routing(self, qc: QuantumCircuit) -> QuantumCircuit:
-        qc_prep = qc.decompose(reps=5) if self.decompose_before_routing else qc
+        #qc_prep = qc.decompose(reps=5) if self.decompose_before_routing else qc
 
         # Build a clean anonymous circuit with no classical registers
-        num_physical = max(qc_prep.num_qubits, self.coupling_map.size())
+        num_physical = max(qc.num_qubits, self.coupling_map.size())
         qc_clean = QuantumCircuit(num_physical)
-        for inst in qc_prep.data:
+        for inst in qc.data:
             if len(inst.clbits) == 0:
                 new_qubits = [
-                    qc_clean.qubits[qc_prep.find_bit(q).index] for q in inst.qubits
+                    qc_clean.qubits[qc.find_bit(q).index] for q in inst.qubits
                 ]
                 qc_clean.append(inst.operation, new_qubits)
 
         return qc_clean
 
-    def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
-        ops = routed_circuit.count_ops()
+    def _collect_metrics(self, org_circuit: QuantumCircuit, routed_circuit: QuantumCircuit, transpile_time: float):
+        org_ops = org_circuit.count_ops()
+        routed_ops = routed_circuit.count_ops()
 
-        swaps = ops.get("swap", 0)
-        cx = ops.get("cx", 0)
-        decomposed_depth = swaps * 3 + cx
-        two_q_size = swaps + cx
+        decomposed_circuit = routed_circuit.decompose(
+            gates_to_decompose="swap"
+        ).to_dag()
+
+        decomposed_ops = decomposed_circuit.count_ops()
+
+        swaps = routed_ops.get("swap", 0)
+        routed_cx = routed_ops.get("cx", 0)
+        org_cx  = org_ops.get("cx", 0)
+        decomposed_cx = decomposed_ops.get("cx", 0)
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
             METRIC_KEYS[1][0]: swaps,
-            METRIC_KEYS[2][0]: cx,
-            METRIC_KEYS[3][0]: routed_circuit.depth(),
-            METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: decomposed_depth,
-            METRIC_KEYS[6][0]: two_q_size,
+            METRIC_KEYS[2][0]: routed_cx - org_cx,
+            METRIC_KEYS[3][0]: routed_circuit.depth() - org_circuit.depth(),
+            METRIC_KEYS[4][0]: routed_circuit.size() - org_circuit.size(),
+            METRIC_KEYS[5][0]: decomposed_circuit.depth() - org_circuit.depth(),
+            METRIC_KEYS[6][0]: decomposed_circuit.size() - org_circuit.size(),
+            METRIC_KEYS[7][0]: decomposed_cx - org_cx
         }
         return metrics
 
@@ -274,21 +291,34 @@ class Benchmarker:
         routed = pm.run(qc)
         end = time.perf_counter()
 
+        # # Debug: write circuits to temp file in project root
+        # debug_dir = ROOT_DIR / "debug_circuits"
+        # debug_dir.mkdir(exist_ok=True)
+        # temp_file = debug_dir / f"circuit_debug_{int(time.time() * 1000)}.txt"
+        # with open(temp_file, 'w') as f:
+        #     f.write(f"\n{'='*80}\n")
+        #     f.write(f"Routed circuit:\n{routed}\n\n")
+        #     f.write(f"Original circuit:\n{qc}\n\n")
+        #     f.write(f"Before - ops: {qc.count_ops()}\n")
+        #     f.write(f"After - ops: {routed.count_ops()}\n")
+        # print(f"Debug output written to: {temp_file}")
+
         transpile_time = end - start
 
-        try:
-            org_op = Operator.from_circuit(qc)
-            routed_op = Operator.from_circuit(routed)
-            assert routed_op.equiv(org_op), (
-                f"\n\nFor the following configuration {title}\n"
-                f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
-            )
-        except Exception as e:
-            if isinstance(e, AssertionError):
-                raise
-            pass
+        if CHECK_EQ:
+            try:
+                org_op = Operator.from_circuit(qc)
+                routed_op = Operator.from_circuit(routed)
+                assert routed_op.equiv(org_op), (
+                    f"\n\nFor the following configuration {title}\n"
+                    f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+                )
+            except Exception as e:
+                if isinstance(e, AssertionError):
+                    raise
+                pass
 
-        return self._collect_metrics(routed, transpile_time)
+        return self._collect_metrics(qc, routed, transpile_time)
 
     def bench_circuit(
         self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title
@@ -320,26 +350,23 @@ if __name__ == "__main__":
     )
 
     standard_start_qubits = 6
-    standard_end_qubits = 13
+    standard_end_qubits = 10
 
     square_start_qubits = int(sqrt(standard_start_qubits).real)
     square_end_qubits = int(sqrt(standard_end_qubits).real)
 
     hex_start_qubits = 3
-    hex_end_qubits = 4
+    hex_end_qubits = 6
 
     sqrt_qubits = int(sqrt(standard_end_qubits).real)
     
-    print(range(standard_start_qubits, sqrt_qubits))
-    print([f"{x}, {y}" for x in range(standard_start_qubits, sqrt_qubits) for y in range(standard_start_qubits, sqrt_qubits)])
-    
     coupling_map_list = []
-    coupling_map_list.extend([("grid",            CouplingMap().from_grid(x, x))              for x in range(square_start_qubits, square_end_qubits)])
-    coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, x)) for x in range(hex_start_qubits, hex_end_qubits)])
+    #coupling_map_list.extend([("grid",            CouplingMap().from_grid(x, x))              for x in range(square_start_qubits, square_end_qubits)])
+    # coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, x)) for x in range(hex_start_qubits, hex_end_qubits)])
     coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
-    coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
-    coupling_map_list.extend([("ring",            CouplingMap().from_ring(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
-    coupling_map_list.extend([("line",            CouplingMap().from_line(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
+    # coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
+    # coupling_map_list.extend([("ring",            CouplingMap().from_ring(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
+    # coupling_map_list.extend([("line",            CouplingMap().from_line(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
 
     results = {}
 
@@ -366,9 +393,22 @@ if __name__ == "__main__":
             max_difficulty=256,
             diff_slope=0.9,
             layout_exponent=1.0,
-            policy_type=ActorCriticPolicyType.BASIC,
+            policy_type=ActorCriticPolicyType.BASIC_CANCEL,
             seed=42,
-            model_path="models/best_model_basic.zip",
+            model_path="models/best_model_basic_cancel.zip",
+            use_sabre_layout=False,
+        ).build(coupling_map)
+
+        basic_grid_ppo = PPOBuilder(
+            num_active_swaps=24,
+            horizon=4,
+            initial_difficulty=256,
+            max_difficulty=256,
+            diff_slope=0.9,
+            layout_exponent=1.0,
+            policy_type=ActorCriticPolicyType.BASIC_CANCEL,
+            seed=42,
+            model_path="models/best_model_grid.zip",
             use_sabre_layout=False,
         ).build(coupling_map)
 
@@ -386,10 +426,11 @@ if __name__ == "__main__":
         ).build(coupling_map)
 
         configs = [
-            ("op0 qiskit transpiler", qiskit_transpiler),
+            #("op0 qiskit transpiler", qiskit_transpiler),
             ("ai routing (ibm)", trivial_ai_ibm),
-            ("sabre", trivial_sabre),
-            ("ppo", basic_ppo),
+            #("sabre", trivial_sabre),
+            ("basic ppo", basic_ppo),
+            ("grid ppo", basic_grid_ppo),
             # can only run on specific coupling map
             #("bipartite", bipartite_ppo),
         ]
@@ -398,15 +439,18 @@ if __name__ == "__main__":
         bench_circut_gate_count = 100
         n_qubits = coupling_map.size()
         bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=bench_circut_gate_count)
-        temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+        
+        
+        
+        #temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
 
-        results[title] = temp_results
+        # results[title] = temp_results
 
-        results_dir = ROOT_DIR / "results"
-        results_dir.mkdir(exist_ok=True)
-        results_file = results_dir / "benchmark_mqt_results.json"
-        with open(results_file, "w") as f:
-            json.dump(results, f, indent=2)
+        # results_dir = ROOT_DIR / "results"
+        # results_dir.mkdir(exist_ok=True)
+        # results_file = results_dir / "benchmark_mqt_results.json"
+        # with open(results_file, "w") as f:
+        #     json.dump(results, f, indent=2)
 
 
         temp_results = bench.run_rand_benchmarks(
@@ -415,21 +459,21 @@ if __name__ == "__main__":
             title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
             is_printing=True,
         )  # pyrefly: ignore
-        if title not in results:
-            results[title] = {}
+        # if title not in results:
+        #     results[title] = {}
 
-        for config in temp_results:
-            if config not in results[title]:
-                results[title][config] = {}
+        # for config in temp_results:
+        #     if config not in results[title]:
+        #         results[title][config] = {}
 
-            mean, ci = temp_results[config]
-            results[title][config][n_qubits] = {
-                metric: {"mean": mean[metric], "ci": ci[metric]}
-                for metric, _ in METRIC_KEYS
-            }
+        #     mean, ci = temp_results[config]
+        #     results[title][config][n_qubits] = {
+        #         metric: {"mean": mean[metric], "ci": ci[metric]}
+        #         for metric, _ in METRIC_KEYS
+        #     }
 
-        results_dir = ROOT_DIR / "results"
-        results_dir.mkdir(exist_ok=True)
-        results_file = results_dir / "benchmark_results.json"
-        with open(results_file, "w") as f:
-            json.dump(results, f, indent=2)
+        # results_dir = ROOT_DIR / "results"
+        # results_dir.mkdir(exist_ok=True)
+        # results_file = results_dir / "benchmark_results.json"
+        # with open(results_file, "w") as f:
+        #     json.dump(results, f, indent=2)

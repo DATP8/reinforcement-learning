@@ -4,37 +4,42 @@ from pathlib import Path
 
 RESULT_PATH = Path(__file__).parent.parent.parent / "results"
 
-METRIC_KEYS = ["Transpile", "Swap", "CX", "Depth", "Size", "Decomposed Depth", "2Q Size"]
+METRIC_KEYS = ["Transpile", "Swap", "CX", "Depth", "Size", "Decomposed Gate", "2Q Size"]
 
 MQT_ALGOS_BLACKLIST = [
     "qwalk", 
-    "ae", 
+    #"ae", 
     "bmw_quark_cardinality", 
-    "bmw_quark_copula", 
-    "cdkm_ripple_carry_adder", 
-    "dj", 
-    "draper_qft_adder", 
-    "full_adder", 
+    #"bmw_quark_copula", 
+    #"cdkm_ripple_carry_adder", 
+    #"dj", 
+    #"draper_qft_adder", 
+    #"full_adder", 
+    "ghz",
     "ghz_dynamic", 
-    "graphstate", 
+    #"graphstate", 
     "grover", 
-    "half_adder", 
-    "hhl", 
-    "hrs_cumulative_multiplier", 
-    "modular_adder", 
-    "multiplier", 
-    "qaoa", 
-    "qftentangled", 
-    "qpeexact", 
-    "qpeinexact", 
-    "randomcircuit", 
-    "rg_qft_multiplier", 
-    "vbe_ripple_carry_adder", 
+    #"half_adder", 
+    #"hhl", 
+    #"hrs_cumulative_multiplier", 
+    #"modular_adder", 
+    #"multiplier", 
+    #"qaoa", 
+    #"qft",
+    #"qftentangled", 
+    "qnn",
+    #"qpeexact", 
+    #"qpeinexact", 
+    #"randomcircuit", 
+    #"rg_qft_multiplier", 
+    #"vbe_ripple_carry_adder", 
     "vqe_real_amp", 
     "vqe_su2", 
-    "vqe_two_local", 
+    #"vqe_two_local", 
     "wstate",
-    "shor"
+    "shor",
+    "shors_nine_qubit_code",
+    "seven_qubit_steane_code"
 ]
 
 def load_data(file_name):

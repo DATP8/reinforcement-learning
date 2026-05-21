@@ -3,6 +3,7 @@ import json
 import pickle
 from mqt.bench.benchmarks import get_available_benchmark_names  # pyrefly: ignore
 from mqt.bench import get_benchmark, BenchmarkLevel  # pyrefly: ignore
+from mqt.bench.targets import get_target_for_gateset
 
 
 def fetch_names():
@@ -12,7 +13,8 @@ def fetch_names():
 def fetch_circuit(algo_name, qubits):
     for q in range(3, int(qubits)).__reversed__():
         try:
-            qc = get_benchmark(algo_name, BenchmarkLevel.INDEP, q)
+            # pyrefly: ignore [missing-argument]
+            qc = get_benchmark(algo_name, BenchmarkLevel.NATIVEGATES, q, target=get_target_for_gateset('ibm_falcon', q))
             sys.stdout.buffer.write(pickle.dumps(qc))
             return
         except Exception:

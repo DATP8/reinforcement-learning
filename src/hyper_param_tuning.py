@@ -72,7 +72,7 @@ class RayTuneCurriculumCallback(BaseCallback):
             avg_decomposed_cx = self._compute_num_avg_decomposed_cx()
 
             metrics = {
-                "avg_d_cx": avg_decomposed_cx,
+                "avg_s_cx": avg_decomposed_cx,
                 "diff": current_diff,
                 "seed": self._seed,
                 "pc_evals": self._post_curriculum_evals,
@@ -80,13 +80,13 @@ class RayTuneCurriculumCallback(BaseCallback):
 
             if avg_decomposed_cx < self._best_avg_decomposed_cx:
                 self._best_avg_decomposed_cx = avg_decomposed_cx
-                metrics["best_avg_d_cx"] = self._best_avg_decomposed_cx
+                metrics["best_avg_s_cx"] = self._best_avg_decomposed_cx
                 with tempfile.TemporaryDirectory() as ckpt_dir:
                     self.model.save(os.path.join(ckpt_dir, "model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
                     tune.report(metrics, checkpoint=checkpoint)
             else:
-                metrics["best_avg_d_cx"] = self._best_avg_decomposed_cx
+                metrics["best_avg_s_cx"] = self._best_avg_decomposed_cx
                 tune.report(metrics)
 
         return True
@@ -260,13 +260,13 @@ if __name__ == "__main__":
 
     gpus_per_trial = GPUS / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
-    algo = OptunaSearch(space=optuna_space, metric="best_avg_d_cx", mode="min")
+    algo = OptunaSearch(space=optuna_space, metric="best_avg_s_cx", mode="min")
 
     max_evals = TOTAL_TIMESTEPS // BASE_EVAL_FREQ
 
     scheduler = ASHAScheduler(
         time_attr="pc_evals",
-        metric="avg_d_cx",
+        metric="avg_s_cx",
         mode="min",
         max_t=max_evals,
         grace_period=GRACE_PERIOD,
@@ -277,7 +277,7 @@ if __name__ == "__main__":
     reporter = CLIReporter(
         infer_limit=10,
         print_intermediate_tables=True,
-        metric="best_avg_d_cx",
+        metric="best_avg_s_cx",
         mode="min",
         sort_by_metric=True,
     )
@@ -307,7 +307,7 @@ if __name__ == "__main__":
                 progress_reporter=reporter,
                 log_to_file=True,
                 checkpoint_config=tune.CheckpointConfig(
-                    checkpoint_score_attribute="best_avg_d_cx",
+                    checkpoint_score_attribute="best_avg_s_cx",
                     checkpoint_score_order="min",
                     num_to_keep=2,
                 ),
@@ -323,13 +323,13 @@ if __name__ == "__main__":
     agg_df = (
         df.groupby(config_cols)
         .agg(
-            best_avg_d_cx=("best_avg_d_cx", "min"),
+            best_avg_s_cx=("best_avg_s_cx", "min"),
             seeds_used=("seed", lambda x: list(x)),
         )
         .reset_index()
     )
 
-    agg_df = agg_df.sort_values("best_avg_d_cx", ascending=True)
+    agg_df = agg_df.sort_values("best_avg_s_cx", ascending=True)
 
     print(f"\n--- Top Hyperparameters (Averaged over {REPEATS_PER_CONFIG} seeds) ---")
     print(agg_df.to_string(index=False))

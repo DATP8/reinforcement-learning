@@ -113,7 +113,7 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
         best_model_save_path: str,
         log_path: str,
         num_qubits: int,
-        log_avg_d_cx: bool = False,
+        log_avg_s_cx: bool = False,
     ):
         super().__init__(
             eval_env,
@@ -125,8 +125,8 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
         self._curriculum_callback = curriculum_callback
         self._target_env: RoutingEnv = eval_env.unwrapped  # pyrefly: ignore
         self._best_avg_decomposed_cx = sys.float_info.max
-        self._log_avg_d_cx = log_avg_d_cx
-        if self._log_avg_d_cx:
+        self._log_avg_s_cx = log_avg_s_cx
+        if self._log_avg_s_cx:
             self._eval_circuits = EvalCircuits.get_eval_circuits(
                 n_eval_episodes=n_eval_episodes, num_qubits=num_qubits
             )
@@ -138,13 +138,13 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
 
         result = super()._on_step()
 
-        if self._log_avg_d_cx:
+        if self._log_avg_s_cx:
             avg_decomposed_cx = self._compute_num_avg_decomposed_cx()
             if avg_decomposed_cx < self._best_avg_decomposed_cx:
                 self._best_avg_decomposed_cx = avg_decomposed_cx
 
-            self.logger.record("eval/best_avg_d_cx", self._best_avg_decomposed_cx)
-            self.logger.record("eval/avg_d_cx", avg_decomposed_cx)
+            self.logger.record("eval/best_avg_s_cx", self._best_avg_decomposed_cx)
+            self.logger.record("eval/avg_s_cx", avg_decomposed_cx)
 
         return result
 

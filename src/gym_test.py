@@ -32,7 +32,7 @@ POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True
-LOG_AVG_D_CX = False
+LOG_AVG_S_CX = False
 
 if __name__ == "__main__":
     # backend = FakeTorino()
@@ -102,7 +102,7 @@ if __name__ == "__main__":
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
         num_qubits=NUM_QUBITS,
-        log_avg_d_cx=LOG_AVG_D_CX,
+        log_avg_s_cx=LOG_AVG_S_CX,
     )
 
     model.learn(

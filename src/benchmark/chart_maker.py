@@ -52,13 +52,14 @@ def typst_chart_block(metric, config_data, coupling_map):
         xs = [str(q) for q, _ in points]
         ys = [str(round(m.get(metric, (0, 0))[0], 4)) for _, m in points]
         yerrs = [str(round(m.get(metric, (0, 0))[1], 4)) for _, m in points]
+        trailing = "," if len(xs) == 1 else ""
         lines.append(
             f'\
             lq.plot(\n\
-                ({", ".join(xs)}),\n\
-                ({", ".join(ys)}),\n\
+                ({", ".join(xs)}{trailing}),\n\
+                ({", ".join(ys)}{trailing}),\n\
                 label: "{config}",\n\
-                yerr: ({", ".join(yerrs)}),\n\
+                yerr: ({", ".join(yerrs)}{trailing}),\n\
             ),'
         )
 

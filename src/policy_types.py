@@ -44,8 +44,14 @@ class ActorCriticPolicyType(Enum):
         self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128
     ):
         match self.name:
-            case self.BASIC.name | self.BASIC_CANCEL:
+            case self.BASIC.name:
                 return None
+            case self.BASIC_CANCEL.name:
+                return dict(
+                    features_extractor_class=self.get_feature_extractor(),
+                    features_extractor_kwargs=dict(features_dim=128),
+                    net_arch=dict(pi=[64, 64], vf=[64, 64]),
+                )
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")
                 return dict(
@@ -76,8 +82,4 @@ class ActorCriticPolicyType(Enum):
                     net_arch=[256, 256],
                 )
             case _:
-                return dict(
-                    features_extractor_class=self.get_feature_extractor(),
-                    features_extractor_kwargs=dict(features_dim=128),
-                    net_arch=dict(pi=[64, 64], vf=[64, 64]),
-                )
+                raise ValueError(f"No architecture defined for {self.name}")
