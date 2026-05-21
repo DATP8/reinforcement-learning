@@ -192,7 +192,8 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
     policy_type = trial.suggest_categorical(
         "policy_type",
         [
-            p.name for p in [ActorCriticPolicyType.BASIC]
+            # p.name for p in [ActorCriticPolicyType.BASIC]
+            p.name for p in [ActorCriticPolicyType.BIPARTITE]
         ],  # [p.name for p in ActorCriticPolicyType],
     )
 
