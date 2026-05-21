@@ -1,3 +1,5 @@
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.model import ValueModelFlat
 from qiskit.transpiler.passes import (
     SabreLayout,
     ApplyLayout,
@@ -275,11 +277,12 @@ if __name__ == "__main__":
     )
     chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
 
-    bwas_router = BWASRouter(model_dense, state_handler_dense)
-    receding_horizon_router = RecedingHorizon(
-        horizon_length=chuck_size, step_size=chuck_size // 2, router=bwas_router
-    )
-    receding_horizon_pass = RlRoutingPass(receding_horizon_router, swap_inserter)
+    horizon = 100
+    path_qtensor = "models/qtensor_correct/qtensor_difficulty32_iteration6290.pt"
+    model_qtensor = ValueModelFlat(n_qubits, horizon, len(topology))
+    model_qtensor.load_state_dict(torch.load(path_qtensor, map_location="cpu"))
+
+    state_handler_qtensor = QtensorStateHandler(n_qubits, horizon, topology)
 
     trivial_layout = TrivialLayout(coupling_map)
     sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
@@ -288,90 +291,34 @@ if __name__ == "__main__":
     #### Standard qiskit pass manager inserted router
     configs = [
         (
-            "TrivialLayout_SabreSwap",
-            PassManager(
-                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
-            ),
-        ),
-        (
-            "TrivialLayout_SabreSwap_cancel",
+            "DenseGraph BWAS",
             PassManager(
                 [
                     trivial_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                    CNOTSwapCancelation(),
+                    RlRoutingPass(
+                        BWASRouter(
+                            model_dense, state_handler_dense, weight=0.8, batch_size=16
+                        ),
+                        swap_inserter,
+                    ),
                 ]
             ),
         ),
         (
-            f"TrivialLayout_RecedingHorizon_Dense_cancel{chuck_size}",
+            "Qtensor BWAS",
             PassManager(
                 [
                     trivial_layout,
-                    ApplyLayout(),
-                    receding_horizon_pass,
-                    CNOTSwapCancelation(),
+                    RlRoutingPass(
+                        BWASRouter(
+                            model_qtensor,
+                            state_handler_qtensor,
+                            weight=0.8,
+                            batch_size=16,
+                        ),
+                        swap_inserter,
+                    ),
                 ]
-            ),
-        ),
-        (
-            f"TrivialLayout_Chunking_Dense_cancel{chuck_size}",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                    CNOTSwapCancelation(),
-                ]
-            ),
-        ),
-        (
-            "SabreLayout_SabreSwap",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                ]
-            ),
-        ),
-        # (
-        #     f"SabreLayout_Chunking_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             chunck_swap_pass,
-        #         ]
-        #     ),
-        # ),
-        (
-            f"SabreLayout_Dense_Chunking_{chuck_size}",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                ]
-            ),
-        ),
-        (
-            "Op1 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=1, coupling_map=coupling_map
-            ),
-        ),
-        (
-            "Op2 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=2, coupling_map=coupling_map
-            ),
-        ),
-        (
-            "Op3 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=3, coupling_map=coupling_map
             ),
         ),
     ]
