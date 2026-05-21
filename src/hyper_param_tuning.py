@@ -34,8 +34,7 @@ TOTAL_TIMESTEPS = 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "basic_with_cancel"
-EXPERIMENT_NAME = "bipartite_tuning"
+EXPERIMENT_NAME = "bipartite_hh3_1"
 
 
 class RayTuneCurriculumCallback(BaseCallback):
@@ -104,7 +103,8 @@ class RayTuneCurriculumCallback(BaseCallback):
 def maskable_ppo_obj(config):
     seed = random.randint(0, 2**31 - 1)
     policy_type = ActorCriticPolicyType[config["policy_type"]]
-    coupling_map = CouplingMap.from_line(config["num_qubits"])
+    # coupling_map = CouplingMap.from_line(config["num_qubits"])
+    coupling_map = CouplingMap.from_heavy_hex(3)
 
     train_env = make_vec_env(
         lambda: make_env(
