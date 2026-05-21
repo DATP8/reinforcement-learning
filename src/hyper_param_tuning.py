@@ -35,6 +35,7 @@ BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
 EXPERIMENT_NAME = "basic_with_cancel"
+EXPERIMENT_NAME = "bipartite_tuning"
 
 
 class RayTuneCurriculumCallback(BaseCallback):
