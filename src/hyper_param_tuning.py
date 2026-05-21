@@ -34,7 +34,7 @@ TOTAL_TIMESTEPS = 10_000_000 # 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "bipartite_hh3_1"
+EXPERIMENT_NAME = "bipartite_hh3_2" # 2 after reducing steps
 
 
 class RayTuneCurriculumCallback(BaseCallback):
