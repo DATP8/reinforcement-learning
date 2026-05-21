@@ -13,7 +13,7 @@ import matplotlib
 from utils.to import To
 
 matplotlib.use("TkAgg")
-
+import os
 
 class DAVI[S: To]:
     def __init__(
@@ -29,13 +29,18 @@ class DAVI[S: To]:
     def train(
         self,
         save_path: str,
-        batchsize=100,
-        initial_difficulty=1,
-        num_iterations=1000,
+        batchsize=1000,
+        initial_difficulty=32,
+        num_iterations=10000000,
         update_frequency=10,
-        max_difficulty=100,
-        loss_threshold=0.06,
+        max_difficulty=32,
+        loss_threshold=0.08,
     ):
+        if os.path.exists(save_path):
+            print(f"Directory {save_path} already exists. Using existing directory to save models!")
+        else:
+            os.makedirs(save_path, exist_ok=True)
+        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
 
@@ -128,10 +133,10 @@ def graph():
     trainer.train(
         "models/line6",
         batchsize=1000,
-        initial_difficulty=1,
-        num_iterations=100000,
+        initial_difficulty=32,
+        num_iterations=10000000,
         update_frequency=10,
-        max_difficulty=1000,
+        max_difficulty=32,
         loss_threshold=0.08,
     )
 
