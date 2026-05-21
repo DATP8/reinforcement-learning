@@ -288,7 +288,7 @@ if __name__ == "__main__":
     # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
     # path_dense = "models/dense_graph/difficulty31_iteration8000_0.3.pt"
     # path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
-    path_dense = "models/davi_dense_graph/difficulty32_iteration57550.pt"
+    path_dense = "models/dense_graph/difficulty32_iteration42030_0.333.pt"
     
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
@@ -329,7 +329,7 @@ if __name__ == "__main__":
     # ]
     
     horizons = [4, 8, 12, 16, 20, 24, 28, 32]
-    step_size_factors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    step_size_factors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0][::-1]
     
     configs = []
     for horizon in horizons:
@@ -340,7 +340,7 @@ if __name__ == "__main__":
             
             configs.append(
                 (
-                    f"TrivialLayout_receding_horizon_b256_w0.8_h{horizon}_s{step_size}_sf{step_size_factor}",
+                    f"TrivialLayout_receding_horizon_b16_w0.8_h{horizon}_s{step_size}_sf{step_size_factor}",
                     PassManager(
                         [
                             trivial_layout,
@@ -352,7 +352,7 @@ if __name__ == "__main__":
                                     BWASRouter(
                                         model_dense,
                                         state_handler_dense,
-                                        batch_size=256,
+                                        batch_size=16,
                                         weight=0.8,
                                     ),
                                 ),
@@ -436,4 +436,4 @@ if __name__ == "__main__":
     bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
     # bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
     print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations, seed=40)  # pyrefly: ignore
+    bench.run_rand_benchmarks(configs, bench_iterations, seed=47)  # pyrefly: ignore

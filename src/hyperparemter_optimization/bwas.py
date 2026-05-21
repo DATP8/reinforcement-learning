@@ -18,7 +18,7 @@ import json
 
 N_CIRCUITS = 10
 N_TRAILS = 1000
-TRIAL_TIMEOUT = 500
+TRIAL_TIMEOUT = 2000
 
 NUM_QUBITS = 6
 NUM_GATES = 30
@@ -38,9 +38,7 @@ model.load_state_dict(torch.load(path, map_location=device))
 topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
 state_handler = DenseCircuitGraphStateHandler(NUM_QUBITS, topology)
 
-states = [
-    state_handler.state_from(circuit) for circuit in circuits
-]
+states = [state_handler.state_from(circuit) for circuit in circuits]
 
 
 def objective(trial: Trial):
@@ -49,13 +47,13 @@ def objective(trial: Trial):
     weight = trial.suggest_float("weight", 0.01, 1.0)
 
     bwas_router = BWASRouter(model, state_handler, batch_size=batch_size, weight=weight)
- 
+
     times = []
     costs = []
     for state in states:
         if time.time() - start_trial > TRIAL_TIMEOUT:
             raise optuna.TrialPruned()
-        
+
         time_start = time.time()
         _, goal_cost = bwas_router.search(state)
         time_end = time.time()
