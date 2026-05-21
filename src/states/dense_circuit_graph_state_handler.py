@@ -15,9 +15,8 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
     def __init__(self, coupling_map: CouplingMap | list[tuple[int, int]]):
         coupling_map = CouplingMap(coupling_map) if not isinstance(coupling_map, CouplingMap) else coupling_map
         coupling_map.make_symmetric()
-        self.swaps = list(
-            dict.fromkeys(frozenset(edge) for edge in coupling_map.get_edges())
-            )
+        
+        self.swaps = [(q1, q2) for q1, q2 in dict.fromkeys(frozenset(edge) for edge in coupling_map.get_edges())]
         self.n_qubits = coupling_map.size()
         self.next_state_cache = LFUCache[tuple[int, int], DenseCircuitGraph](
             maxsize=10000
@@ -26,7 +25,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
 
     def get_topology(self):
-        return [(q1, q2) for q1, q2 in self.swaps]
+        return self.swaps
 
     def get_num_qubits(self):
         return self.n_qubits
@@ -104,7 +103,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         for gate_index in range(state.x.shape[0] - 1):  # Exclude global node
             q1 = torch.where(state.x[gate_index, : state.x.shape[1] // 2] > 0)[0].item()
             q2 = torch.where(state.x[gate_index, state.x.shape[1] // 2 :] > 0)[0].item()
-            if not {q1, q2} in self.swaps:
+            if not ((q1, q2) in self.swaps or (q2, q1) in self.swaps):
                 self.is_terminal_cache[state_hash] = False
                 return False
 
