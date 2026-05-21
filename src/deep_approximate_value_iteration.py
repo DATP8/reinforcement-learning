@@ -1,3 +1,4 @@
+from qiskit.transpiler import CouplingMap
 from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
 from src.model import BiCircuitGNNDense
 from src.states.state_handler import StateHandler
@@ -27,6 +28,7 @@ class DAVI[S: To]:
 
     def train(
         self,
+        save_path: str,
         batchsize=100,
         initial_difficulty=1,
         num_iterations=1000,
@@ -89,7 +91,7 @@ class DAVI[S: To]:
                 difficulty = min(max_difficulty, 1 + difficulty)
                 torch.save(
                     self.train_model.state_dict(),
-                    f"models/davi/difficulty{difficulty}_iteration{iteration}.pt",
+                    f"{save_path}/difficulty{difficulty}_iteration{iteration}.pt",
                 )
 
 
@@ -104,6 +106,7 @@ def qtensor():
     trainer = DAVI(training_model, evaluation_model, game)
 
     trainer.train(
+        "models/FUUCKKK",
         batchsize=1000,
         initial_difficulty=1,
         num_iterations=100000,
@@ -114,15 +117,16 @@ def qtensor():
 
 
 def graph():
-    n_qubits = 6
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game = DenseCircuitGraphStateHandler(n_qubits, topology)
+    coupling_map = CouplingMap.from_line(6)
+    n_qubits = coupling_map.size()
+    game = DenseCircuitGraphStateHandler(coupling_map)
     training_model = BiCircuitGNNDense(n_qubits)
     evaluation_model = BiCircuitGNNDense(n_qubits)
 
     trainer = DAVI(training_model, evaluation_model, game)
 
     trainer.train(
+        "models/line6",
         batchsize=1000,
         initial_difficulty=1,
         num_iterations=100000,

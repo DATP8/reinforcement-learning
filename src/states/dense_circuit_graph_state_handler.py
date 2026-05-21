@@ -1,3 +1,4 @@
+from qiskit.transpiler import CouplingMap
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
@@ -11,9 +12,13 @@ from qiskit import QuantumCircuit
 
 
 class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
-    def __init__(self, n_qubits: int, topology: list[tuple[int, int]]):
-        self.n_qubits = n_qubits
-        self.topology = topology
+    def __init__(self, coupling_map: CouplingMap | list[tuple[int, int]]):
+        coupling_map = CouplingMap(coupling_map) if not isinstance(coupling_map, CouplingMap) else coupling_map
+        coupling_map.make_symmetric()
+        self.swaps = list(
+            dict.fromkeys(frozenset(edge) for edge in coupling_map.get_edges())
+            )
+        self.n_qubits = coupling_map.size()
         self.next_state_cache = LFUCache[tuple[int, int], DenseCircuitGraph](
             maxsize=10000
         )
@@ -21,13 +26,13 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
 
     def get_topology(self):
-        return self.topology
+        return [(q1, q2) for q1, q2 in self.swaps]
 
     def get_num_qubits(self):
         return self.n_qubits
 
     def get_possible_actions(self, state: DenseCircuitGraph) -> list[int]:
-        return list(range(len(self.topology)))
+        return list(range(len(self.swaps)))
 
     def get_next_state(
         self, state: DenseCircuitGraph, action: int
@@ -67,7 +72,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         ), "State must have x, edge_index, and edge_attr defined"
 
         n_qubits = pruned_state.x.shape[1] // 2
-        q1, q2 = self.topology[action]
+        q1, q2 = self.swaps[action]
 
         # swap first qubits
         new_state.x[:, q1] = pruned_state.x[:, q2]
@@ -99,7 +104,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         for gate_index in range(state.x.shape[0] - 1):  # Exclude global node
             q1 = torch.where(state.x[gate_index, : state.x.shape[1] // 2] > 0)[0].item()
             q2 = torch.where(state.x[gate_index, state.x.shape[1] // 2 :] > 0)[0].item()
-            if not ((q1, q2) in self.topology or (q2, q1) in self.topology):
+            if not {q1, q2} in self.swaps:
                 self.is_terminal_cache[state_hash] = False
                 return False
 
@@ -116,7 +121,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
 
         removed_gates = self.get_removed_gates(state)
         n_qubits = state.x.shape[1] // 2
-        q1, q2 = self.topology[action]
+        q1, q2 = self.swaps[action]
         action_cost = 1.0
         for removed_gate in removed_gates[::-1]:
             gate_q1 = torch.where(state.x[removed_gate, :n_qubits] > 0)[0].item()
@@ -154,7 +159,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         for gate_index in frontlayer:
             q1 = torch.where(state.x[gate_index, : state.x.shape[1] // 2] > 0)[0].item()
             q2 = torch.where(state.x[gate_index, state.x.shape[1] // 2 :] > 0)[0].item()
-            if (q1, q2) in self.topology or (q2, q1) in self.topology:
+            if (q1, q2) in self.swaps or (q2, q1) in self.swaps:
                 removed_gates.append(gate_index)
 
         return removed_gates
@@ -222,9 +227,10 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
 if __name__ == "__main__":
     from qiskit import QuantumCircuit
 
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    n_qubits = 6
-    game = DenseCircuitGraphStateHandler(6, topology)
+    #coupling_map = CouplingMap.from_grid(2, 3)
+    coupling_map = CouplingMap.from_line(6)
+    n_qubits = coupling_map.size()
+    game = DenseCircuitGraphStateHandler(coupling_map)
 
     circuit = QuantumCircuit(6)
     circuit.cx(0, 1)
@@ -237,3 +243,4 @@ if __name__ == "__main__":
     new_state = game.get_next_state(state, 2)
 
     print(new_state.x)
+    print(game.get_possible_actions(new_state))
