@@ -133,17 +133,23 @@ def maskable_ppo_obj(config):
     )
     eval_env = Monitor(eval_env)
 
-    vibe_kwargs = (
-        dict(
-            features_dim=config["vibe_features_dim"],
-            gnn_hidden=config["vibe_gnn_hidden"],
-            gnn_heads=config["vibe_gnn_heads"],
-            gnn_out=config["vibe_gnn_out"],
-            matrix_out=config["vibe_matrix_out"],
-        )
-        if policy_type == ActorCriticPolicyType.VIBE_GRAPH
-        else {}
-    )
+    vibe_kwargs = {}
+    if policy_type == ActorCriticPolicyType.VIBE_GRAPH:
+        vibe_kwargs = dict(
+                features_dim=config["vibe_features_dim"],
+                gnn_hidden=config["vibe_gnn_hidden"],
+                gnn_heads=config["vibe_gnn_heads"],
+                gnn_out=config["vibe_gnn_out"],
+                matrix_out=config["vibe_matrix_out"],
+            )
+    elif policy_type == ActorCriticPolicyType.BIPARTITE:
+        vibe_kwargs = dict(
+                features_dim=config["bi_features_dim"],
+                gnn_hidden=config["bi_gnn_hidden"],
+                gnn_heads=config["bi_gnn_heads"],
+                gnn_out=config["bi_gnn_out"],
+                matrix_out=config["bi_matrix_out"],
+            )
 
     # Restore model from checkpoint if one exists for this trial
     checkpoint = tune.get_checkpoint()
@@ -216,12 +222,13 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "policy_type": policy_type,
         "learning_rate": trial.suggest_float("learning_rate", 1e-5, 3e-3, log=True),
         "gamma": trial.suggest_float("gamma", 0.8, 1.0),
-        "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
+        # "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
+        "gae_lambda": 0.95,
         "batch_size": batch_size,
         "horizon": trial.suggest_int("horizon", 1, 64),
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
-        "n_epochs": trial.suggest_int("na_epochs", 1, 12),
+        "n_epochs": trial.suggest_int("na_epochs", 8, 12),
         "num_qubits": NUM_QUBITS,
         "num_active_swaps": NUM_QUBITS - 1,
         "initial_difficulty": 1,
@@ -250,6 +257,23 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         )
         config["vibe_matrix_out"] = trial.suggest_categorical(
             "vibe_matrix_out", [64, 128, 256]
+        )
+
+    if policy_type == ActorCriticPolicyType.BIPARTITE.name:
+        config["bi_features_dim"] = trial.suggest_categorical(
+            "bi_features_dim", [64, 128, 256, 512]
+        )
+        config["bi_gnn_hidden"] = trial.suggest_categorical(
+            "bi_gnn_hidden", [32, 64, 128]
+        )
+        config["bi_gnn_heads"] = trial.suggest_categorical(
+            "bi_gnn_heads", [2, 4, 8]
+        )
+        config["bi_gnn_out"] = trial.suggest_categorical(
+            "bi_gnn_out", [32, 64, 128]
+        )
+        config["bi_matrix_out"] = trial.suggest_categorical(
+            "bi_matrix_out", [16, 32, 64, 128]
         )
 
     return config
