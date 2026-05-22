@@ -14,7 +14,7 @@ from qiskit import QuantumCircuit
 class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
     def __init__(self, coupling_map: CouplingMap | list[tuple[int, int]]):
         coupling_map = CouplingMap(coupling_map) if not isinstance(coupling_map, CouplingMap) else coupling_map
-        coupling_map.make_symmetric()
+        self.coupling_map_edges = list(coupling_map.get_edges())
         
         self.swaps = [(q1, q2) for q1, q2 in dict.fromkeys(frozenset(edge) for edge in coupling_map.get_edges())]
         self.n_qubits = coupling_map.size()
@@ -23,6 +23,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         )
         self.is_terminal_cache = LFUCache[int, bool](maxsize=10000)
         self.action_cost_cache = LFUCache[tuple[int, int], float](maxsize=10000)
+        self.prune_cache = LFUCache[int, tuple[DenseCircuitGraph, list[int]]](maxsize=10000)
 
     def get_topology(self):
         return self.swaps
@@ -31,7 +32,23 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         return self.n_qubits
 
     def get_possible_actions(self, state: DenseCircuitGraph) -> list[int]:
-        return list(range(len(self.swaps)))
+        # pruned_state, _ = self.prune(state)
+        
+        # if pruned_state.x is None or pruned_state.edge_index is None or pruned_state.edge_attr is None:
+        #     raise ValueError("pruned_state must have x, edge_index, and edge_attr defined")
+        
+        # frontlayer = self.get_front_layer(pruned_state)
+        # frontlayer_qubits = set()
+        # for gate_index in frontlayer:
+        #     q1 = torch.where(pruned_state.x[gate_index, : pruned_state.x.shape[1] // 2] > 0)[0].item()
+        #     q2 = torch.where(pruned_state.x[gate_index, pruned_state.x.shape[1] // 2 :] > 0)[0].item()
+        #     frontlayer_qubits.add(q1)
+        #     frontlayer_qubits.add(q2)
+        
+        # actions = [self.coupling_map_edges.index(edge) for edge in self.swaps if any(q in frontlayer_qubits for q in edge)]
+        actions = [self.coupling_map_edges.index(edge) for edge in self.swaps]
+        
+        return actions
 
     def get_next_state(
         self, state: DenseCircuitGraph, action: int
@@ -71,7 +88,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         ), "State must have x, edge_index, and edge_attr defined"
 
         n_qubits = pruned_state.x.shape[1] // 2
-        q1, q2 = self.swaps[action]
+        q1, q2 = self.coupling_map_edges[action]
 
         # swap first qubits
         new_state.x[:, q1] = pruned_state.x[:, q2]
@@ -118,9 +135,9 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         if state.x is None:
             raise ValueError("State must have x defined")
 
-        removed_gates = self.get_removed_gates(state)
+        _, removed_gates = self.prune(state)
         n_qubits = state.x.shape[1] // 2
-        q1, q2 = self.swaps[action]
+        q1, q2 = self.coupling_map_edges[action]
         action_cost = 1.0
         for removed_gate in removed_gates[::-1]:
             gate_q1 = torch.where(state.x[removed_gate, :n_qubits] > 0)[0].item()
@@ -139,10 +156,10 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
 
         return action_cost
 
-    def get_removed_gates(self, state: DenseCircuitGraph) -> list[int]:
+    def get_front_layer(self, state: DenseCircuitGraph) -> set[int]:
         if state.x is None or state.edge_index is None or state.edge_attr is None:
-            return []
-
+            raise ValueError("State must have x, edge_index, and edge_attr defined")
+        
         frontlayer = set(i for i in range(state.x.shape[0] - 1))
         n_directed_edges = state.edge_index.shape[1] - 1  # Exclude global node edges
         for succ, prev in state.edge_index.t()[
@@ -153,6 +170,14 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
             )  # if a gate is a successor, it is not in the frontlayer
             if len(frontlayer) == 0:
                 break
+        
+        return frontlayer
+            
+    def get_removed_gates(self, state: DenseCircuitGraph) -> list[int]:
+        if state.x is None or state.edge_index is None or state.edge_attr is None:
+            raise ValueError("State must have x, edge_index, and edge_attr defined")
+
+        frontlayer = self.get_front_layer(state)
 
         removed_gates: list[int] = []
         for gate_index in frontlayer:
@@ -163,14 +188,19 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
 
         return removed_gates
 
-    def prune(self, state: DenseCircuitGraph) -> tuple[DenseCircuitGraph, int]:
+    def prune(self, state: DenseCircuitGraph) -> tuple[DenseCircuitGraph, list[int]]:
+        state_hash = hash(state)
+        if state_hash in self.prune_cache:
+            return self.prune_cache[state_hash]
+        
         if state.x is None or state.edge_index is None or state.edge_attr is None:
-            return state, 0
+            raise ValueError("State must have x, edge_index, and edge_attr defined")
 
         removed_gates = self.get_removed_gates(state)
 
         if len(removed_gates) == 0:
-            return state, 0
+            self.prune_cache[state_hash] = (state, [])
+            return state, []
 
         num_nodes = state.x.size(0)
 
@@ -194,10 +224,14 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         # filter node features
         x = state.x[keep_nodes]
 
-        new_state = DenseCircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
-        new_state, n_pruned_gates = self.prune(new_state)
+        next_state = DenseCircuitGraph(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        next_state, next_removed_gates = self.prune(next_state)
 
-        return new_state, len(removed_gates) + n_pruned_gates
+        total_removed_gates = removed_gates + next_removed_gates
+        
+        self.prune_cache[state_hash] = (next_state, total_removed_gates)
+        
+        return next_state, total_removed_gates
 
     def get_random_state(self, difficulty: int) -> DenseCircuitGraph:
         qc = QuantumCircuit(self.n_qubits)

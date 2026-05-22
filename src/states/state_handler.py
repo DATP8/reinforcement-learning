@@ -32,7 +32,7 @@ class StateHandler[S](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def prune(self, state: S) -> tuple[S, int]:
+    def prune(self, state: S) -> tuple[S, list[int]]:
         raise NotImplementedError
 
     def get_random_states_in_range(
