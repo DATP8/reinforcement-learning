@@ -6,6 +6,7 @@ from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 from src.states.qtensor_state_handler import QtensorStateHandler
 from src.model import ValueModel, BiCircuitGNN
 from torch import nn
+import numpy as np
 
 import torch
 import matplotlib
@@ -56,7 +57,8 @@ class DAVI[S: To]:
             states = self.state_handler.get_random_states_in_range(
                 batchsize, 1, difficulty
             )
-            y = torch.full((batchsize, 1), float("inf")).squeeze(-1).to(device)
+            #y = torch.full((batchsize, 1), float("inf")).squeeze(-1).to(device)
+            y = np.full((batchsize,), float("inf"), dtype=np.float32)
 
             next_states = []
             next_state_actions = []
@@ -70,22 +72,34 @@ class DAVI[S: To]:
                     next_state_actions.append((i, action))
 
             with torch.no_grad():
-                next_state_values = self.evaluation_model(
-                    self.state_handler.batch_states(next_states).to(device)
+                next_state_values = (
+                    self.evaluation_model(
+                        self.state_handler.batch_states(next_states).to(device)
+                    )
+                    .squeeze(-1)
+                    .cpu()
+                    .numpy()
                 )
 
             for state_index, (i, action) in enumerate(next_state_actions):
-                y[i] = torch.min(
+                candidate = (
                     self.state_handler.get_action_cost(state, action)
-                    + next_state_values[state_index],
-                    y[i],
-                )
+                    + next_state_values[state_index]
+                    )
 
+                y[i] = min(candidate, y[i])
+
+            y = torch.from_numpy(y).to(device)
             X = self.state_handler.batch_states(states).to(device)
             optimizer.zero_grad()
             loss = mse_loss(self.train_model(X), y)
             loss.backward()
             optimizer.step()
+            
+            del X
+            del y
+            del next_state_values
+
 
             print(
                 f"Difficulty: {difficulty}, Iteration {iteration}, Loss: {loss.item():.4f}"
@@ -127,6 +141,9 @@ def graph():
     game = DenseCircuitGraphStateHandler(coupling_map)
     training_model = BiCircuitGNNDense(n_qubits)
     evaluation_model = BiCircuitGNNDense(n_qubits)
+    evaluation_model.load_state_dict(
+        training_model.state_dict()
+    )
 
     trainer = DAVI(training_model, evaluation_model, game)
 
