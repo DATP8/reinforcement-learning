@@ -1,3 +1,13 @@
+from qiskit.transpiler import CouplingMap
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
+from src.model import BiCircuitGNNDense
+from src.states.state_handler import StateHandler
+from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.model import ValueModel, BiCircuitGNN
+from torch import nn
+
+import torch
 import matplotlib
 import torch
 import torch.nn as nn
@@ -9,7 +19,7 @@ from src.states.state_handler import StateHandler
 from src.utils.to import To
 
 matplotlib.use("TkAgg")
-
+import os
 
 class DAVI[S: To]:
     def __init__(
@@ -24,13 +34,19 @@ class DAVI[S: To]:
 
     def train(
         self,
-        batchsize=100,
-        initial_difficulty=1,
-        num_iterations=1000,
+        save_path: str,
+        batchsize=1000,
+        initial_difficulty=32,
+        num_iterations=10000000,
         update_frequency=10,
-        max_difficulty=100,
-        loss_threshold=0.06,
+        max_difficulty=32,
+        loss_threshold=0.08,
     ):
+        if os.path.exists(save_path):
+            print(f"Directory {save_path} already exists. Using existing directory to save models!")
+        else:
+            os.makedirs(save_path, exist_ok=True)
+        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
 
@@ -86,7 +102,7 @@ class DAVI[S: To]:
                 difficulty = min(max_difficulty, 1 + difficulty)
                 torch.save(
                     self.train_model.state_dict(),
-                    f"models/davi/difficulty{difficulty}_iteration{iteration}.pt",
+                    f"{save_path}/difficulty{difficulty}_iteration{iteration}.pt",
                 )
 
 
@@ -101,6 +117,7 @@ def qtensor():
     trainer = DAVI(training_model, evaluation_model, game)
 
     trainer.train(
+        "models/FUUCKKK",
         batchsize=1000,
         initial_difficulty=1,
         num_iterations=100000,
@@ -111,20 +128,21 @@ def qtensor():
 
 
 def graph():
-    n_qubits = 6
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    game = DenseCircuitGraphStateHandler(n_qubits, topology)
+    coupling_map = CouplingMap.from_line(6)
+    n_qubits = coupling_map.size()
+    game = DenseCircuitGraphStateHandler(coupling_map)
     training_model = BiCircuitGNNDense(n_qubits)
     evaluation_model = BiCircuitGNNDense(n_qubits)
 
     trainer = DAVI(training_model, evaluation_model, game)
 
     trainer.train(
+        "models/line6",
         batchsize=1000,
-        initial_difficulty=1,
-        num_iterations=100000,
+        initial_difficulty=32,
+        num_iterations=10000000,
         update_frequency=10,
-        max_difficulty=1000,
+        max_difficulty=32,
         loss_threshold=0.08,
     )
 

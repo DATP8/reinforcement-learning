@@ -32,7 +32,9 @@ class RecedingHorizon(Router):
 
             # If no actions, remove first gate to make progress and avoid infinite loop
             if len(actions) == 0:
-                first_node = next(circuit_dag.topological_op_nodes())
+                first_node = next(
+                    circuit_dag.topological_op_nodes()
+                )  # Guarenteed to be executable since the window is non-empty and is terminal.
                 circuit_dag.remove_op_node(first_node)
                 continue
 

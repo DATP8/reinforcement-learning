@@ -6,11 +6,9 @@ import random
 import time
 
 import numpy as np
-from qiskit import QuantumCircuit, generate_preset_pass_manager
+from qiskit import QuantumCircuit
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
-from qiskit_ibm_transpiler.ai.routing import AIRouting
-from sb3_contrib import MaskablePPO
 from scipy import stats
 from tqdm import tqdm
 import numpy as np

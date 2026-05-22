@@ -35,7 +35,7 @@ class BWASRouter[S, To](Router):
         self.batch_size = batch_size
         self.weight = weight
 
-    def search(self, root_state: S) -> list[int]:
+    def search(self, root_state: S) -> tuple[list[int], float]:
         device = next(self.model.parameters()).device
         with torch.no_grad():
             h = self.model(
@@ -90,18 +90,19 @@ class BWASRouter[S, To](Router):
                 heapq.heappush(open_set, (f, counter, node))
                 f_lookup[node.state.__hash__()] = f
 
-        return []
+        raise ValueError("No solution found")
 
     def reconstruct_path(self, node):
         path = []
+        goal_cost = node.g
         while node.action is not None:
             path.append(node.action)
             node = node.parent_node
-        return path[::-1]
+        return path[::-1], goal_cost
 
     def solve(self, circuit: QuantumCircuit) -> list[int]:
         root_state = self.state_handler.state_from(circuit)
-        return self.search(root_state)
+        return self.search(root_state)[0]
 
 
 if __name__ == "__main__":
