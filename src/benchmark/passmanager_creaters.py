@@ -1,3 +1,9 @@
+from src.routing.rl_routing_pass import RlRoutingPass
+from src.routing.swap_inserter.swap_inserter import SwapInserter
+from src.routing.bwas_router import BWASRouter
+from src.routing.receding_horizon import RecedingHorizon
+from src.model import BiCircuitGNNDense
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
@@ -11,6 +17,8 @@ from qiskit.transpiler import PassManager
 from qiskit.transpiler.basepasses import BasePass
 from qiskit_ibm_transpiler.ai.routing import AIRouting
 from qiskit.transpiler.passes import ApplyLayout, SabreLayout, SabreSwap, TrivialLayout
+
+import torch
 
 
 class Builder:
@@ -119,3 +127,32 @@ class PPOBuilder(BuilderWithLayout):
         ppo_model = MaskablePPO.load(self.model_path, env=ppo_env, seed=self.seed, device="cpu")
 
         return PassManager([self.layout_pass, ApplyLayout(), AgenticRlRoutingPass(ppo_model, coupling_map), CNOTSwapCancelation()])
+
+
+class RecedingBuilder(BuilderWithLayout):
+    def __init__(self, model_path, use_sabre_layout=False):
+        super().__init__(use_sabre_layout)
+        self.model_path = model_path
+    
+
+    def build(self, coupling_map):
+        self.set_layout_pass(coupling_map)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        n_qubits = coupling_map.size()
+        state_handler = DenseCircuitGraphStateHandler(coupling_map)
+        model = BiCircuitGNNDense(n_qubits)
+        model.load_state_dict(
+            torch.load(
+                self.model_path, map_location=device
+            )
+        )
+
+        router = RecedingHorizon(
+            horizon_length=18,
+            step_size=9,
+            router=BWASRouter(model.to(device), state_handler),
+        )
+
+        swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)
+
+        return PassManager([self.layout_pass, ApplyLayout(), RlRoutingPass(router, swap_inserter), CNOTSwapCancelation()])

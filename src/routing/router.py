@@ -1,8 +1,6 @@
-from abc import ABC, abstractmethod
-
-from qiskit import QuantumCircuit
-
 from src.states.state_handler import StateHandler
+from qiskit import QuantumCircuit
+from abc import ABC, abstractmethod
 
 
 class Router(ABC):

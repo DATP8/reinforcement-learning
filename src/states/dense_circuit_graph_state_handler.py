@@ -2,8 +2,13 @@ from qiskit.transpiler import CouplingMap
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
+from src.states.state_handler import StateHandler, Batchable
 from src.states.dense_circuit_graph import DenseCircuitGraph
-from src.states.state_handler import Batchable, StateHandler
+
+import torch
+import random
+from cachetools import LFUCache
+from qiskit import QuantumCircuit
 
 
 class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
@@ -21,7 +26,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         self.prune_cache = LFUCache[int, tuple[DenseCircuitGraph, list[int]]](maxsize=10000)
 
     def get_topology(self):
-        return self.swaps
+        return self.coupling_map_edges
 
     def get_num_qubits(self):
         return self.n_qubits

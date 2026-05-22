@@ -1,3 +1,4 @@
+from src.routing.receding_horizon import RecedingHorizon
 from src.policy_types import ActorCriticPolicyType
 from src.benchmark.passmanager_creaters import PPOBuilder
 # from mqt.bench import BenchmarkLevel, get_benchmark
@@ -344,6 +345,7 @@ if __name__ == "__main__":
     from src.benchmark.passmanager_creaters import (
         IbmRlBuilder,
         SabreBuilder,
+        RecedingBuilder
     )
 
     # --- Configure coupling map ---
@@ -355,19 +357,6 @@ if __name__ == "__main__":
     # --- Build pass managers ---
     trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
     trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
-
-    basic_ppo = PPOBuilder(
-        num_active_swaps=5,
-        horizon=8,
-        initial_difficulty=256,
-        max_difficulty=256,
-        diff_slope=0.9,
-        layout_exponent=1.0,
-        policy_type=ActorCriticPolicyType.BASIC_CANCEL,
-        seed=42,
-        model_path="models/best_model_basic_cancel.zip",
-        use_sabre_layout=False,
-    ).build(coupling_map)
 
     basic_grid_ppo = PPOBuilder(
         num_active_swaps=24,
@@ -381,27 +370,15 @@ if __name__ == "__main__":
         model_path="models/best_model_4x4_grid.zip",
         use_sabre_layout=False,
     ).build(coupling_map)
+    
+    receding = RecedingBuilder(model_path="models/difficulty32_iteration42030_0.333.pt").build(coupling_map)
 
-    new_basic_grid_ppo = PPOBuilder(
-        num_active_swaps=24,
-        horizon=4,
-        initial_difficulty=256,
-        max_difficulty=256,
-        diff_slope=0.9,
-        layout_exponent=1.0,
-        policy_type=ActorCriticPolicyType.BASIC_CANCEL,
-        seed=42,
-        model_path="models/big_model.zip",
-        use_sabre_layout=False,
-    ).build(coupling_map)
-
-
+    
     configs = [
         ("ai routing (ibm)", trivial_ai_ibm),
         ("sabre", trivial_sabre),
-        ("basic ppo", basic_ppo),
         ("grid ppo", basic_grid_ppo),
-        ("grid new ppo", new_basic_grid_ppo),
+        ("receding", receding)
     ]
 
     results_dir = ROOT_DIR / "results"

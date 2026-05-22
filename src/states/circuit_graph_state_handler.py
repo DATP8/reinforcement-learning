@@ -2,8 +2,13 @@ from qiskit.transpiler import CouplingMap
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
+from src.states.state_handler import StateHandler, Batchable
 from src.states.circuit_graph import CircuitGraph
-from src.states.state_handler import Batchable, StateHandler
+
+import torch
+import random
+from cachetools import LFUCache
+from qiskit import QuantumCircuit
 
 
 class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
@@ -120,7 +125,7 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
             if (
                 gate_q1 == q1 and gate_q2 == q2 or gate_q1 == q2 and gate_q2 == q1
             ):  # exact match
-                action_cost = 0.33333
+                action_cost = 0.5
                 break
             if (
                 gate_q1 == q2 or gate_q2 == q1 or gate_q1 == q1 or gate_q2 == q2

@@ -1,14 +1,13 @@
-from qiskit import QuantumCircuit
 from qiskit.converters import circuit_to_dag
-from qiskit.dagcircuit import DAGCircuit
-from qiskit.transpiler import PassManager
-from qiskit.transpiler.layout import Layout
-from qiskit.transpiler.passes import ApplyLayout, SetLayout
-
 from src.circuit_generator import CircuitGenerator
 from src.model import BiCircuitGNNDense
 from src.routing.bwas_router import BWASRouter
+from qiskit.transpiler import PassManager
+from qiskit.transpiler.passes import ApplyLayout, SetLayout
+from qiskit.transpiler.layout import Layout
+from qiskit import QuantumCircuit
 from src.routing.router import Router
+from qiskit.dagcircuit import DAGCircuit
 
 
 class RecedingHorizon(Router):
@@ -90,7 +89,6 @@ class RecedingHorizon(Router):
 
         return window_dag
 
-
 if __name__ == "__main__":
     from qiskit.qpy import dump
     import torch
@@ -99,22 +97,16 @@ if __name__ == "__main__":
         DenseCircuitGraphStateHandler,
     )
     from src.routing.rl_routing_pass import RlRoutingPass
-    from qiskit.transpiler import PassManager
+    from qiskit.transpiler import PassManager, CouplingMap
     from qiskit.quantum_info import Operator
 
     n_qubits = 6
     horizon = 100
-    coupling_map = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+    coupling_map = CouplingMap().from_line(6)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ##circuit = CircuitGenerator.generate_random_circuit(6, gateset={"cx"}, num_gates=30)
+    circuit = CircuitGenerator.generate_random_circuit(6, gateset={"cx"}, num_gates=100)
 
-    circuit = QuantumCircuit(6)
-
-    circuit.h(0)
-    circuit.cx(0,1)
-    circuit.h(0)
-    circuit.cx(0,2)
     # with open("circuits/dud2.qpy", "wb") as f:
     #     dump(circuit, f)
 
@@ -123,7 +115,7 @@ if __name__ == "__main__":
 
     print(circuit)
 
-    state_handler = DenseCircuitGraphStateHandler(n_qubits, coupling_map)
+    state_handler = DenseCircuitGraphStateHandler(coupling_map)
     model = BiCircuitGNNDense(n_qubits)
     model.load_state_dict(
         torch.load(
