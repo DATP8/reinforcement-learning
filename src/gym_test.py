@@ -21,23 +21,24 @@ TOTAL_STEPS = 25_000_000
 EVAL_FREQ = 256_000
 N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
-BATCH_DIVISOR = 7
+BATCH_DIVISOR = 8 * 2
 N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
-NUM_QUBITS = 6
+NUM_QUBITS = 19 # 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
 POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True
-LOG_AVG_D_CX = False
+LOG_AVG_S_CX = False
 
 if __name__ == "__main__":
     # backend = FakeTorino()
     # coupling_map = backend.coupling_map
-    coupling_map = CouplingMap.from_line(NUM_QUBITS)
+    # coupling_map = CouplingMap.from_line(NUM_QUBITS)
+    coupling_map = CouplingMap.from_heavy_hex(3)
     n_envs = mp.cpu_count()
     buffer_size = N_STEPS * n_envs
     batch_size = max(1, buffer_size // BATCH_DIVISOR)
@@ -86,7 +87,6 @@ if __name__ == "__main__":
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
         sample_diff=SAMPLE_DIFF,
-        clear_visited_on_stuck=True,
     )
     eval_env = Monitor(eval_env)
 
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
         num_qubits=NUM_QUBITS,
-        log_avg_d_cx=LOG_AVG_D_CX,
+        log_avg_s_cx=LOG_AVG_S_CX,
     )
 
     model.learn(

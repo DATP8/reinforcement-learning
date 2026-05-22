@@ -12,6 +12,7 @@ from sb3_contrib import MaskablePPO
 from scipy import stats
 from tqdm import tqdm
 
+from src.circuit_generator import CircuitGenerator
 from src.eval_circuits import EvalCircuits
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
@@ -23,7 +24,8 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Gates", 10),
+    ("Decomposed Gate Depth", 10),
+    ("Decomposed Gate Size", 10),
 ]
 
 EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
@@ -32,18 +34,18 @@ np.random.seed(EVAL_SEED)
 
 EVAL_TRIALS = 12
 
+MAX_EQUIV_CHECK_QUBITS = 12
+
 
 class Benchmarker:
     def __init__(
         self,
         qubits,
-        num_gates,
         coupling_map,
         decompose_before_routing=True,
         decompose_reps=2,
     ):
         self.qubits = qubits
-        self.max_gates = num_gates
         self.coupling_map = coupling_map
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
@@ -87,9 +89,12 @@ class Benchmarker:
     def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
         ops = routed_circuit.count_ops()
 
+        decomposed_circuit = routed_circuit.decompose(
+            gates_to_decompose="swap"
+        ).to_dag()
+
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
-        decomposed_depth = swaps * 3 + cx
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
@@ -97,7 +102,8 @@ class Benchmarker:
             METRIC_KEYS[2][0]: cx,
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: decomposed_depth,
+            METRIC_KEYS[5][0]: decomposed_circuit.depth(),
+            METRIC_KEYS[6][0]: decomposed_circuit.size(),
         }
         return metrics
 
@@ -134,11 +140,11 @@ class Benchmarker:
         self,
         configs: list[tuple[str, PassManager]],
         iterations: int,
+        num_gates: int,
         confidence: float = 0.95,
     ):
-        qc_list = EvalCircuits.get_eval_circuits(
-            n_eval_episodes=iterations,
-            num_qubits=self.qubits,
+        qc_list = CircuitGenerator.generate_n_random_cx_circuits(
+            iterations, num_qubits=self.qubits, num_gates=num_gates, seed=EVAL_SEED
         )
         self._run_benchmark(configs, confidence, qc_list, "random")
 
@@ -158,18 +164,25 @@ class Benchmarker:
         # from AIRouting: self.property_set["layout"] = initial_layout_qiskit
         # print(pm.property_set["layout"])
 
-#        org_op = Operator.from_circuit(qc)
-#        routed_op = Operator.from_circuit(routed)
+        if (
+            qc.num_qubits <= MAX_EQUIV_CHECK_QUBITS
+        ):  # Matrix takes too much memory on big circuits so skip equiv check
+            org_op = Operator.from_circuit(qc)
+            routed_op = Operator.from_circuit(routed)
 
-#        is_equiv = routed_op.equiv(org_op)
+            is_equiv = routed_op.equiv(org_op)
 
-#        if not is_equiv:
-#            routed_op = Operator.from_circuit(routed, layout=pm.property_set["layout"])
+            if not is_equiv:
+                routed_op = Operator.from_circuit(
+                    routed, layout=pm.property_set["layout"]
+                )
 
-#        assert routed_op.equiv(org_op), (
-#            f"\n\nFor the following configuration {title}\n"
-#            f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
-#        )
+            assert routed_op.equiv(org_op), (
+                f"\n\nFor the following configuration {title}\n"
+                f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+            )
+        else:
+            print("Topology too big to check equivalence. Skipping...")
 
         return self._collect_metrics(routed, transpile_time)
 
@@ -267,7 +280,7 @@ if __name__ == "__main__":
     # )
 
     horizon = 8
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
     ppo_env = make_env(
         coupling_map,
@@ -278,9 +291,8 @@ if __name__ == "__main__":
         diff_slope=0.9,
         layout_exponent=1.0,
         policy_type=policy_type,
-        clear_visited_on_stuck=True,
     )
-    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env)
+    ppo_model = MaskablePPO.load("best_model_basic.zip", ppo_env)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -428,8 +440,8 @@ if __name__ == "__main__":
 
     bench_iterations = 256
     bench_circut_gate_count = 100
-    bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
+    bench = Benchmarker(num_qubits, coupling_map)
     # bench.run_mqt_benchmarks(configs)
     print("\n")
-    # bench.run_rand_benchmarks(configs, bench_iterations)
+    # bench.run_rand_benchmarks(configs, bench_iterations, bench_circut_gate_count)
     bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)

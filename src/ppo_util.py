@@ -33,7 +33,6 @@ def make_env(
     policy_type: ActorCriticPolicyType,
     sample_diff: bool = True,
     render_mode: str | None = None,
-    clear_visited_on_stuck: bool = False,
 ):
     env = RoutingEnv(
         coupling_map=coupling_map,
@@ -46,7 +45,6 @@ def make_env(
         policy_type=policy_type,
         sample_diff=sample_diff,
         render_mode=render_mode,
-        clear_visited_on_stuck=clear_visited_on_stuck,
     )
     env = ActionMasker(env, mask_fn)
     return env
@@ -68,7 +66,9 @@ def route_circuit(
     while not terminated:
         mask = env.valid_action_mask()
         action, _ = model.predict(obs, action_masks=mask, deterministic=True)
-        obs, _, terminated, truncated, _ = env.step(action)
+        obs, _, terminated, _, opts = env.step(action)
+        if opts["is_looping"]:
+            raise ValueError("Model is looping")
 
     routed_qc = env.get_routed_circuit()
     layout = Layout(env.get_final_mapping())
@@ -113,7 +113,7 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
         best_model_save_path: str,
         log_path: str,
         num_qubits: int,
-        log_avg_d_cx: bool = False,
+        log_avg_s_cx: bool = False,
     ):
         super().__init__(
             eval_env,
@@ -125,8 +125,8 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
         self._curriculum_callback = curriculum_callback
         self._target_env: RoutingEnv = eval_env.unwrapped  # pyrefly: ignore
         self._best_avg_decomposed_cx = sys.float_info.max
-        self._log_avg_d_cx = log_avg_d_cx
-        if self._log_avg_d_cx:
+        self._log_avg_s_cx = log_avg_s_cx
+        if self._log_avg_s_cx:
             self._eval_circuits = EvalCircuits.get_eval_circuits(
                 n_eval_episodes=n_eval_episodes, num_qubits=num_qubits
             )
@@ -138,13 +138,13 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
 
         result = super()._on_step()
 
-        if self._log_avg_d_cx:
+        if self._log_avg_s_cx:
             avg_decomposed_cx = self._compute_num_avg_decomposed_cx()
             if avg_decomposed_cx < self._best_avg_decomposed_cx:
                 self._best_avg_decomposed_cx = avg_decomposed_cx
 
-            self.logger.record("eval/best_avg_d_cx", self._best_avg_decomposed_cx)
-            self.logger.record("eval/avg_d_cx", avg_decomposed_cx)
+            self.logger.record("eval/best_avg_s_cx", self._best_avg_decomposed_cx)
+            self.logger.record("eval/avg_s_cx", avg_decomposed_cx)
 
         return result
 

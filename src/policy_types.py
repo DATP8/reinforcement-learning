@@ -1,13 +1,13 @@
 from enum import Enum, auto
 
-import ppo_models.vibed.hybrid_extractor as vibed
-from gym_extractor import (
+import src.ppo_models.vibed.hybrid_extractor as vibed
+from src.gym_extractor import (
     DenseDagExtractor,
     HybridExtractor,
     SimpleExtractor,
     SimpleExtractor2,
 )
-from ppo_models.bipartite.extractor import BipartiteExtractor
+from src.ppo_models.bipartite.extractor import BipartiteExtractor
 
 
 class ActorCriticPolicyType(Enum):
@@ -44,8 +44,14 @@ class ActorCriticPolicyType(Enum):
         self, features_dim=256, gnn_hidden=64, gnn_heads=2, gnn_out=64, matrix_out=128
     ):
         match self.name:
-            case self.BASIC.name | self.BASIC_CANCEL:
+            case self.BASIC.name:
                 return None
+            case self.BASIC_CANCEL.name:
+                return dict(
+                    features_extractor_class=self.get_feature_extractor(),
+                    features_extractor_kwargs=dict(features_dim=128),
+                    net_arch=dict(pi=[64, 64], vf=[64, 64]),
+                )
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")
                 return dict(
@@ -63,21 +69,22 @@ class ActorCriticPolicyType(Enum):
                 return dict(
                     features_extractor_class=BipartiteExtractor,
                     features_extractor_kwargs=dict(
-                        features_dim=128,
-                        gnn_hidden=64,
-                        gnn_heads=4,
-                        gnn_out=64,
+                        # features_dim=128,
+                        features_dim=features_dim,
+                        # gnn_hidden=64,
+                        gnn_hidden=gnn_hidden,
+                        # gnn_heads=4,
+                        gnn_heads=gnn_heads,  # 2 for 6-qubit topology, 4 to torino
+                        # gnn_out=64,
+                        gnn_out=gnn_out,
                         gnn_layers=2,
                         action_mlp_hidden=64,
-                        action_out=16,
+                        # action_out=16,
+                        action_out=matrix_out,
                         use_bipartite=True,
                         use_matrix=False,  # ← toggle this
                     ),
                     net_arch=[256, 256],
                 )
             case _:
-                return dict(
-                    features_extractor_class=self.get_feature_extractor(),
-                    features_extractor_kwargs=dict(features_dim=128),
-                    net_arch=dict(pi=[64, 64], vf=[64, 64]),
-                )
+                raise ValueError(f"No architecture defined for {self.name}")

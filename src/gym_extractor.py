@@ -38,6 +38,7 @@ class SimpleExtractor2(BaseFeaturesExtractor):
         input_dim = matrix_dim + cancel_dim
 
         self.net = nn.Sequential(
+            nn.Flatten(),
             nn.Linear(input_dim, 128),
             nn.ReLU(),
             nn.Linear(128, features_dim),
@@ -45,9 +46,11 @@ class SimpleExtractor2(BaseFeaturesExtractor):
         )
 
     def forward(self, obs):
-        matrix_flat = torch.flatten(obs["matrix"], start_dim=1)
-        cancel_flat = torch.flatten(obs["swap_cancellation"], start_dim=1)
-        combined = torch.cat([matrix_flat, cancel_flat], dim=1)
+        matrix = obs["matrix"]
+        cancel = obs["swap_cancellation"].unsqueeze(-1)
+
+        combined = torch.cat([matrix, cancel], dim=-1)
+
         return self.net(combined)
 
 
