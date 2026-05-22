@@ -34,8 +34,7 @@ TOTAL_TIMESTEPS = 10_000_000 # 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "bipartite_hh3_2" # 2 after reducing steps
-
+EXPERIMENT_NAME = "bipartite_hh3_3" # 3 after reducing memory issues, but now Emil is on CPU
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
