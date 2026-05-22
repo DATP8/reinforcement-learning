@@ -1,6 +1,5 @@
 from src.policy_types import ActorCriticPolicyType
 from src.benchmark.passmanager_creaters import PPOBuilder
-from cmath import sqrt
 # from mqt.bench import BenchmarkLevel, get_benchmark
 # from mqt.bench.benchmarks import get_available_benchmark_names
 import random
@@ -47,38 +46,38 @@ METRIC_KEYS = [
 MQT_ALGOS_BLACKLIST = [
     "qnn",
     "qwalk", 
-    "ae", 
+    #"ae", 
     "bmw_quark_cardinality", 
-    "bmw_quark_copula", 
-    "cdkm_ripple_carry_adder", 
-    "dj", 
-    "draper_qft_adder", 
-    "full_adder", 
+    #"bmw_quark_copula", 
+    #"cdkm_ripple_carry_adder", 
+    #"dj", 
+    #"draper_qft_adder", 
+    #"full_adder", 
     "ghz_dynamic", 
-    "graphstate", 
-    "grover", 
     "ghz",
-    "bv",
+    #"graphstate", 
+    "grover", 
+    #"bv",
     "qft",
-    "half_adder", 
+    #"half_adder", 
     #"hhl", 
     "hrs_cumulative_multiplier", 
-    "modular_adder", 
-    "multiplier", 
-    "qaoa", 
-    "qftentangled", 
-    "qpeexact", 
-    "qpeinexact", 
+    #"modular_adder", 
+    #"multiplier", 
+    #"qaoa", 
+    #"qftentangled", 
+    #"qpeexact", 
+    #"qpeinexact", 
     "randomcircuit", 
-    "rg_qft_multiplier", 
-    "vbe_ripple_carry_adder", 
+    #"rg_qft_multiplier", 
+    #"vbe_ripple_carry_adder", 
     "vqe_real_amp", 
     "vqe_su2", 
-    "vqe_two_local", 
+    #"vqe_two_local", 
     "wstate",
     "shor",
-    "shors_nine_qubit_code",
-    "seven_qubit_steane_code"
+    #"shors_nine_qubit_code",
+    #"seven_qubit_steane_code"
 ]
 
 
@@ -218,13 +217,14 @@ class Benchmarker:
                 continue
             try:
                 qc = self._get_mqt_circuit_via_bridge(algorithm_name, self.qubits)
+                circuit_qubits = qc.num_qubits
                 qc = self._prepare_for_routing(qc)
                 qc.remove_final_measurements()
                 runs = self.bench_circuit(qc, configs, algorithm_name)
-                self._print_header(f"Algorithm: {algorithm_name}", title_size=name_size)
-                results[algorithm_name] = {}
+                self._print_header(f"Algorithm: {algorithm_name} ({circuit_qubits}q)", title_size=name_size)
+                results[algorithm_name] = {"circuit_qubits": circuit_qubits, "configs": {}}
                 for config_name, metrics in runs.items():
-                    results[algorithm_name][config_name] = metrics
+                    results[algorithm_name]["configs"][config_name] = metrics
                     self._print_row(config_name, metrics, title_size=name_size)
 
             except AssertionError:
@@ -346,134 +346,101 @@ if __name__ == "__main__":
     from src.benchmark.passmanager_creaters import (
         IbmRlBuilder,
         SabreBuilder,
-        QiskitTranspiler,
     )
 
-    standard_start_qubits = 6
-    standard_end_qubits = 10
+    # --- Configure coupling map ---
+    coupling_map_title = "line 6"
+    coupling_map = CouplingMap().from_line(6)
+    coupling_map.make_symmetric()
+    n_qubits = coupling_map.size()
 
-    square_start_qubits = int(sqrt(standard_start_qubits).real)
-    square_end_qubits = int(sqrt(standard_end_qubits).real)
+    # --- Build pass managers ---
+    trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
+    trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
 
-    hex_start_qubits = 3
-    hex_end_qubits = 6
+    basic_ppo = PPOBuilder(
+        num_active_swaps=5,
+        horizon=8,
+        initial_difficulty=256,
+        max_difficulty=256,
+        diff_slope=0.9,
+        layout_exponent=1.0,
+        policy_type=ActorCriticPolicyType.BASIC_CANCEL,
+        seed=42,
+        model_path="models/best_model_basic_cancel.zip",
+        use_sabre_layout=False,
+    ).build(coupling_map)
 
-    sqrt_qubits = int(sqrt(standard_end_qubits).real)
-    
-    coupling_map_list = []
-    #coupling_map_list.extend([("grid",            CouplingMap().from_grid(x, x))              for x in range(square_start_qubits, square_end_qubits)])
-    # coupling_map_list.extend([("hex_lattice",     CouplingMap().from_hexagonal_lattice(x, x)) for x in range(hex_start_qubits, hex_end_qubits)])
-    coupling_map_list.extend([("hex_heavy",       CouplingMap().from_heavy_hex(x))            for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
-    # coupling_map_list.extend([("hex_square",      CouplingMap().from_heavy_square(x))         for x in range(hex_start_qubits, hex_end_qubits) if x % 2 == 1])
-    # coupling_map_list.extend([("ring",            CouplingMap().from_ring(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
-    # coupling_map_list.extend([("line",            CouplingMap().from_line(x))                 for x in range(standard_start_qubits, standard_end_qubits)])
+    basic_grid_ppo = PPOBuilder(
+        num_active_swaps=24,
+        horizon=4,
+        initial_difficulty=256,
+        max_difficulty=256,
+        diff_slope=0.9,
+        layout_exponent=1.0,
+        policy_type=ActorCriticPolicyType.BASIC_CANCEL,
+        seed=42,
+        model_path="models/best_model_4x4_grid.zip",
+        use_sabre_layout=False,
+    ).build(coupling_map)
 
-    results = {}
-
-    for title, coupling_map in coupling_map_list:
-        coupling_map.make_symmetric()
-
-        trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
-
-        sabre_ai_ibm = IbmRlBuilder(op_level=3, use_sabre_layout=True).build(
-            coupling_map
-        )
-
-        trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
-
-        sabre_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
-
-        qiskit_transpiler = QiskitTranspiler(op_level=0).build(coupling_map)
-
-
-        basic_ppo = PPOBuilder(
-            num_active_swaps=5,
-            horizon=8,
-            initial_difficulty=256,
-            max_difficulty=256,
-            diff_slope=0.9,
-            layout_exponent=1.0,
-            policy_type=ActorCriticPolicyType.BASIC_CANCEL,
-            seed=42,
-            model_path="models/best_model_basic_cancel.zip",
-            use_sabre_layout=False,
-        ).build(coupling_map)
-
-        basic_grid_ppo = PPOBuilder(
-            num_active_swaps=24,
-            horizon=4,
-            initial_difficulty=256,
-            max_difficulty=256,
-            diff_slope=0.9,
-            layout_exponent=1.0,
-            policy_type=ActorCriticPolicyType.BASIC_CANCEL,
-            seed=42,
-            model_path="models/best_model_grid.zip",
-            use_sabre_layout=False,
-        ).build(coupling_map)
-
-        bipartite_ppo = PPOBuilder(
-            num_active_swaps=5,
-            horizon=8,
-            initial_difficulty=256,
-            max_difficulty=256,
-            diff_slope=0.9,
-            layout_exponent=1.0,
-            policy_type=ActorCriticPolicyType.BIPARTITE,
-            seed=42,
-            model_path="models/bipartite_model.zip",
-            use_sabre_layout=False,
-        ).build(coupling_map)
-
-        configs = [
-            #("op0 qiskit transpiler", qiskit_transpiler),
-            ("ai routing (ibm)", trivial_ai_ibm),
-            #("sabre", trivial_sabre),
-            ("basic ppo", basic_ppo),
-            ("grid ppo", basic_grid_ppo),
-            # can only run on specific coupling map
-            #("bipartite", bipartite_ppo),
-        ]
-
-        bench_iterations = 100
-        bench_circut_gate_count = 100
-        n_qubits = coupling_map.size()
-        bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=bench_circut_gate_count)
-        
-        
-        
-        #temp_results = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
-
-        # results[title] = temp_results
-
-        # results_dir = ROOT_DIR / "results"
-        # results_dir.mkdir(exist_ok=True)
-        # results_file = results_dir / "benchmark_mqt_results.json"
-        # with open(results_file, "w") as f:
-        #     json.dump(results, f, indent=2)
+    new_basic_grid_ppo = PPOBuilder(
+        num_active_swaps=24,
+        horizon=4,
+        initial_difficulty=256,
+        max_difficulty=256,
+        diff_slope=0.9,
+        layout_exponent=1.0,
+        policy_type=ActorCriticPolicyType.BASIC_CANCEL,
+        seed=42,
+        model_path="models/big_model.zip",
+        use_sabre_layout=False,
+    ).build(coupling_map)
 
 
-        temp_results = bench.run_rand_benchmarks(
+    configs = [
+        ("ai routing (ibm)", trivial_ai_ibm),
+        ("sabre", trivial_sabre),
+        ("basic ppo", basic_ppo),
+        ("grid ppo", basic_grid_ppo),
+        ("grid new ppo", new_basic_grid_ppo),
+    ]
+
+    results_dir = ROOT_DIR / "results"
+    results_dir.mkdir(exist_ok=True)
+
+    # --- MQT benchmark ---
+    bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=100)
+    mqt_results = {
+        "coupling_map": coupling_map_title,
+        "num_qubits": n_qubits,
+        "algorithms": bench.run_mqt_benchmarks(configs),  # pyrefly: ignore
+    }
+    with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
+        json.dump(mqt_results, f, indent=2)
+
+    #--- Random circuit benchmark ---
+    gate_amounts = [i for i in range(50, 150) if i % 10 == 0 ]
+    bench_iterations = 100
+    rand_results: dict = {
+        "coupling_map": coupling_map_title,
+        "num_qubits": n_qubits,
+        "configs": {},
+    }
+    for gate_count in gate_amounts:
+        b = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=gate_count)
+        temp = b.run_rand_benchmarks(
             configs,
             bench_iterations,
-            title=f"{title} | Qubits: {n_qubits} | Random circuits: {bench_iterations}",
+            title=f"{coupling_map_title} | Qubits: {n_qubits} | Gates: {gate_count}",
             is_printing=True,
         )  # pyrefly: ignore
-        # if title not in results:
-        #     results[title] = {}
-
-        # for config in temp_results:
-        #     if config not in results[title]:
-        #         results[title][config] = {}
-
-        #     mean, ci = temp_results[config]
-        #     results[title][config][n_qubits] = {
-        #         metric: {"mean": mean[metric], "ci": ci[metric]}
-        #         for metric, _ in METRIC_KEYS
-        #     }
-
-        # results_dir = ROOT_DIR / "results"
-        # results_dir.mkdir(exist_ok=True)
-        # results_file = results_dir / "benchmark_results.json"
-        # with open(results_file, "w") as f:
-        #     json.dump(results, f, indent=2)
+        for config_name, (mean_dic, ci_dic) in temp.items():
+            if config_name not in rand_results["configs"]:
+                rand_results["configs"][config_name] = {}
+            rand_results["configs"][config_name][str(gate_count)] = {
+                metric: {"mean": mean_dic[metric], "ci": ci_dic[metric]}
+                for metric, _ in METRIC_KEYS
+            }
+    with open(results_dir / f"benchmark_rand_{coupling_map_title}.json", "w") as f:
+        json.dump(rand_results, f, indent=2)

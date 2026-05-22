@@ -4,7 +4,7 @@ from pathlib import Path
 
 RESULT_PATH = Path(__file__).parent.parent.parent / "results"
 
-METRIC_KEYS = ["Transpile", "Swap", "CX", "Depth", "Size", "Decomposed Gate", "2Q Size"]
+METRIC_KEYS = ["Transpile", "Swap", "CX", "Depth", "Size", "Decomp. Depth", "Decomp. Size", "2Q Size"]
 
 MQT_ALGOS_BLACKLIST = [
     "qwalk", 
@@ -44,7 +44,8 @@ MQT_ALGOS_BLACKLIST = [
 
 def load_data(file_name):
     with open(RESULT_PATH / file_name) as f:
-        return json.load(f)
+        data = json.load(f)
+    return data["coupling_map"], data["num_qubits"], data["algorithms"]
 
 
 def typst_chart_block(metric, algorithms, configs):
@@ -94,23 +95,48 @@ def typst_charts_section(algorithms, configs):
 )
 """
 
-def typst_table(metric, algorithms, configs):
-    col_widths = ", ".join(["auto"] * (1 + len(configs)))
+def typst_table(metric, algorithms, configs, main_config = None):
     header_cols = ", ".join(f"[*{c}*]" for c in configs)
-    header = f"table.header([*Algorithm*], {header_cols}),"
+    if main_config is not None:
+        configs_no_main = list((set(configs) - {main_config}))
+        compared_header_cols = ", ".join(f"[*{c} - {main_config} / {c}*]" for c in configs_no_main)
+        header = f"table.header([*Algorithm*], {header_cols}, {compared_header_cols}),"
+        col_widths = ", ".join(["auto"] * (1 + len(configs) + len(configs_no_main)))
+    else:
+        header = f"table.header([*Algorithm*], {header_cols}),"
+        col_widths = ", ".join(["auto"] * (1 + len(configs)))
 
     rows = []
     for algo, config_metrics in algorithms.items():
         cells = [f"[{algo}]"]
+        compare_cells = []
+        main_val = config_metrics.get(main_config, {}).get(metric)
+
         for config in configs:
             val = config_metrics.get(config, {}).get(metric)
+
             if val is None:
                 cells.append("[-]")
             elif isinstance(val, float):
                 cells.append(f"[{val:.4f}]")
             else:
                 cells.append(f"[{val}]")
-        rows.append("  " + ", ".join(cells) + ",")
+
+            if main_config == config:
+                continue
+
+            if main_config is not None:    
+                if val is None or main_val is None:
+                    compare_cells.append(f"[-]")
+                elif val != 0: 
+                    compare_cells.append(f"[{((val-main_val)/val)*100:.4f}%]")
+                else:
+                    compare_cells.append(f"[NAN]")
+           
+        row = "  " + ", ".join(cells) + ", " 
+        if main_config is not None:
+            row += ", ".join(compare_cells) + ","
+        rows.append(row)
 
     rows_str = "\n".join(rows)
     return f"""=== {metric}
@@ -125,32 +151,31 @@ def typst_table(metric, algorithms, configs):
 
 
 def typst_tables_section(algorithms, configs):
-    tables = "".join(typst_table(m, algorithms, configs) for m in METRIC_KEYS)
+    tables = "".join(typst_table(m, algorithms, configs, "basic ppo") for m in METRIC_KEYS)
     return f"== Tables\n\n{tables}"
 
 
 def main(file_name):
-    data = load_data(file_name)
+    coupling_map, num_qubits, algorithms = load_data(file_name)
+
+    # Flatten to {"{algo} ({n}q)": {config: metrics}} and drop blacklisted entries
+    filtered_algorithms = {
+        f"{k} ({v['circuit_qubits']}q)": v["configs"]
+        for k, v in algorithms.items()
+        if k not in MQT_ALGOS_BLACKLIST
+    }
+    configs = list(next(iter(filtered_algorithms.values())).keys())
 
     lines = [
         '#import "@preview/lilaq:0.4.0" as lq\n',
         "#set page(width: 297mm, height: 210mm, flipped: true, margin: 1cm)\n",
         "#set text(size: 7pt)\n\n",
+        f"= {coupling_map} ({num_qubits} qubits)\n\n",
+        typst_tables_section(filtered_algorithms, configs),
+        "\n#pagebreak()\n\n",
+        typst_charts_section(filtered_algorithms, configs),
+        "\n#pagebreak()\n\n",
     ]
-
-    for coupling_map, algorithms in data.items():
-        configs = list(next(iter(algorithms.values())).keys())
-
-        if MQT_ALGOS_BLACKLIST:
-            filtered_algorithms = {k: v for k, v in algorithms.items() if not k in MQT_ALGOS_BLACKLIST}
-        else:
-            filtered_algorithms = algorithms
-
-        lines.append(f"= {coupling_map}\n\n")
-        lines.append(typst_tables_section(filtered_algorithms, configs))
-        lines.append("\n#pagebreak()\n\n")
-        lines.append(typst_charts_section(filtered_algorithms, configs))
-        lines.append("\n#pagebreak()\n\n")
 
     out_path = RESULT_PATH / (file_name + ".typ")
     with open(out_path, "w") as f:

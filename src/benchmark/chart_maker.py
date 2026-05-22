@@ -8,28 +8,23 @@ RESULT_PATH = Path(__file__).parent.parent.parent / "results"
 def load_data(file_name):
     with open(RESULT_PATH / file_name) as f:
         data = json.load(f)
-    # data: {coupling_map: {config: {qubits: {metric: {mean, ci}}}}}
+    # data: {coupling_map, num_qubits, configs: {config: {gate_count: {metric: {mean, ci}}}}}
+    coupling_map = data["coupling_map"]
+    num_qubits = data["num_qubits"]
     all_metrics = set()
-    # We'll generate charts for each coupling_map separately
-    coupling_map_data = {}
-    for coupling_map, configs in data.items():
-        config_data = {}
-        for config, qubit_entries in configs.items():
-            points = []
-            for qubit_str, metrics in qubit_entries.items():
-                try:
-                    num_qubits = int(qubit_str)
-                except ValueError:
-                    continue
-                metric_means = {}
-                for metric, val in metrics.items():
-                    metric_means[metric] = (val["mean"], val["ci"])
-                    all_metrics.add(metric)
-                points.append((num_qubits, metric_means))
-            points.sort(key=lambda x: x[0])
-            config_data[config] = points
-        coupling_map_data[coupling_map] = config_data
-    return coupling_map_data, sorted(all_metrics)
+    config_data = {}
+    for config, gate_entries in data["configs"].items():
+        points = []
+        for gate_str, metrics in gate_entries.items():
+            gate_count = int(gate_str)
+            metric_means = {}
+            for metric, val in metrics.items():
+                metric_means[metric] = (val["mean"], val["ci"])
+                all_metrics.add(metric)
+            points.append((gate_count, metric_means))
+        points.sort(key=lambda x: x[0])
+        config_data[config] = points
+    return coupling_map, num_qubits, config_data, sorted(all_metrics)
 
 
 def typst_chart_block(metric, config_data, coupling_map):
@@ -42,7 +37,7 @@ def typst_chart_block(metric, config_data, coupling_map):
     layout(size => {{ \n\
         lq.diagram(\n\
             title: "{coupling_map}",\n\
-            xlabel: "Qubits",\n\
+            xlabel: "Gate Count",\n\
             ylabel: "{metric}",\n\
             width: size.width,\n\
             height: size.height,'
@@ -73,17 +68,17 @@ def typst_chart_block(metric, config_data, coupling_map):
 
 
 def main(file_name):
-    coupling_map_data, metrics = load_data(file_name)
+    coupling_map, num_qubits, config_data, metrics = load_data(file_name)
 
+    title = f"{coupling_map} ({num_qubits} qubits)"
     typst_lines = [
         '#import "@preview/lilaq:0.4.0" as lq\n',
         "#set page(width: 22cm, height: 30cm)\n",
     ]
 
-    for coupling_map, config_data in coupling_map_data.items():
-        for metric in metrics:
-            typst_lines.append(typst_chart_block(metric, config_data, coupling_map))
-            typst_lines.append("\n")
+    for metric in metrics:
+        typst_lines.append(typst_chart_block(metric, config_data, title))
+        typst_lines.append("\n")
 
     new_file_name = file_name + ".typ"
     with open(RESULT_PATH / new_file_name, "w") as f:
