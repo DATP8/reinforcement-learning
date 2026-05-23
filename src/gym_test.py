@@ -13,7 +13,7 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 8
+HORIZON = 32
 MAX_DIFF = 256
 SLOPE = 0.9
 TEST_SAMPLES = 3
@@ -28,7 +28,7 @@ LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 19 # 6
 NUM_ACTIVE_SWAPS = 5
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True

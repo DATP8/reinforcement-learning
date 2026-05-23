@@ -23,18 +23,18 @@ from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import compute_avg_decomposed_cx, make_env
 from src.routing_env import RoutingEnv
 
-CPUS_PER_TRIAL = 5
+CPUS_PER_TRIAL = 16
 NUM_UNIQUE_SAMPLES = 128
 REPEATS_PER_CONFIG = 1
 GRACE_PERIOD = 5
 REDUCTION_FACTOR = 3
 BRACKETS = 1
 NUM_QUBITS = 19 # 6
-TOTAL_TIMESTEPS = 10_000_000 # 50_000_000
+TOTAL_TIMESTEPS = 25_000_000 # 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "bipartite_hh3_3" # 3 after reducing memory issues, but now Emil is on CPU
+EXPERIMENT_NAME = "bipartite_25TT_hh3_3" # 3 after reducing memory issues, but now Emil is on CPU
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
@@ -224,10 +224,11 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         # "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
         "gae_lambda": 0.95,
         "batch_size": batch_size,
-        "horizon": trial.suggest_int("horizon", 1, 64),
+        "horizon": trial.suggest_int("horizon", 8, 64),
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
-        "n_epochs": trial.suggest_int("na_epochs", 8, 12),
+        # "n_epochs": trial.suggest_int("na_epochs", 8, 12),
+        "n_epochs": 10,
         "num_qubits": NUM_QUBITS,
         "num_active_swaps": NUM_QUBITS - 1,
         "initial_difficulty": 1,
