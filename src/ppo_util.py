@@ -1,4 +1,5 @@
 import sys
+import time
 from typing import Callable
 
 import gymnasium
@@ -62,10 +63,18 @@ def get_decomposed_size(circuit: QuantumCircuit):
 
 
 def route_circuit(
-    model: MaskablePPO, circuit: DAGCircuit | QuantumCircuit, samples: int
+    model: MaskablePPO,
+    circuit: DAGCircuit | QuantumCircuit,
+    samples: int | None = None,
+    time_limit_s: float | None = None,
 ) -> tuple[DAGCircuit, Layout]:
-    if not isinstance(samples, int) or samples < 1:
-        raise ValueError("Samples must be a positive integer")
+    if samples and (not isinstance(samples, int) or samples < 1):
+        raise ValueError("Samples must be a positive integer.")
+
+    if time_limit_s and (
+        not isinstance(time_limit_s, (int, float)) or not time_limit_s > 0.0
+    ):
+        raise ValueError("Time limit must be a positive real.")
 
     if isinstance(circuit, DAGCircuit):
         circuit = dag_to_circuit(circuit)
@@ -77,7 +86,21 @@ def route_circuit(
         return circuit_to_dag(circuit), Layout.generate_trivial_layout(*circuit.qregs)
 
     routed_qcs = []
-    for i in range(samples):
+    i = 0
+    start = time.time()
+
+    if not samples and not time_limit_s:
+        samples = 1
+
+    while True:
+        if i > 0 and (
+            samples
+            and i >= samples
+            or time_limit_s
+            and time.time() - start >= time_limit_s
+        ):
+            break
+
         obs, _ = env.set_circuit(circuit, seed=model.seed)
         terminated = False
         is_looping = False
@@ -92,6 +115,8 @@ def route_circuit(
             routed_qc = env.get_routed_circuit()
             layout = Layout(env.get_final_mapping())
             routed_qcs.append((routed_qc, layout))
+
+        i += 1
 
     if not routed_qcs:
         raise ValueError("Model is looping")
