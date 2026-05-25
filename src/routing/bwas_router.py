@@ -31,6 +31,7 @@ class BWASRouter[S, To](Router):
         self, model, state_handler: StateHandler[S], batch_size=64, weight=0.3
     ):
         self.model = model
+        self.model.eval()
         self.state_handler = state_handler
         self.batch_size = batch_size
         self.weight = weight

@@ -130,9 +130,11 @@ class PPOBuilder(BuilderWithLayout):
 
 
 class RecedingBuilder(BuilderWithLayout):
-    def __init__(self, model_path, use_sabre_layout=False):
+    def __init__(self, model_path, horizon, step_size, use_sabre_layout=False):
         super().__init__(use_sabre_layout)
         self.model_path = model_path
+        self.horizon = horizon
+        self.step_size = step_size
     
 
     def build(self, coupling_map):
@@ -148,8 +150,8 @@ class RecedingBuilder(BuilderWithLayout):
         )
 
         router = RecedingHorizon(
-            horizon_length=18,
-            step_size=9,
+            horizon_length=self.horizon,
+            step_size=self.step_size,
             router=BWASRouter(model.to(device), state_handler),
         )
 

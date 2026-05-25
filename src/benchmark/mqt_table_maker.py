@@ -98,7 +98,7 @@ def typst_charts_section(algorithms, configs):
 def typst_table(metric, algorithms, configs, main_config = None):
     header_cols = ", ".join(f"[*{c}*]" for c in configs)
     if main_config is not None:
-        configs_no_main = list((set(configs) - {main_config}))
+        configs_no_main = [c for c in configs if c != main_config]
         compared_header_cols = ", ".join(f"[*{c} - {main_config} / {c}*]" for c in configs_no_main)
         header = f"table.header([*Algorithm*], {header_cols}, {compared_header_cols}),"
         col_widths = ", ".join(["auto"] * (1 + len(configs) + len(configs_no_main)))
@@ -151,7 +151,7 @@ def typst_table(metric, algorithms, configs, main_config = None):
 
 
 def typst_tables_section(algorithms, configs):
-    tables = "".join(typst_table(m, algorithms, configs, "basic ppo") for m in METRIC_KEYS)
+    tables = "".join(typst_table(m, algorithms, configs, "receding") for m in METRIC_KEYS)
     return f"== Tables\n\n{tables}"
 
 

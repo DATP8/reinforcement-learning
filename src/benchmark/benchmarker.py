@@ -42,9 +42,46 @@ METRIC_KEYS = [
     ("2Q Size", 10),
 ]
 
+# MQT_ALGOS_BLACKLIST = [
+#     "qnn",
+#     "qwalk", 
+#     "ae", 
+#     "bmw_quark_cardinality", 
+#     #"bmw_quark_copula", 
+#     "cdkm_ripple_carry_adder", 
+#     "dj", 
+#     "draper_qft_adder", 
+#     "full_adder", 
+#     "ghz_dynamic", 
+#     "ghz",
+#     "graphstate", 
+#     "grover", 
+#     "bv",
+#     "qft",
+#     "half_adder", 
+#     "hhl", 
+#     "hrs_cumulative_multiplier", 
+#     "modular_adder", 
+#     "multiplier", 
+#     "qaoa", 
+#     "qftentangled", 
+#     "qpeexact", 
+#     "qpeinexact", 
+#     "randomcircuit", 
+#     "rg_qft_multiplier", 
+#     "vbe_ripple_carry_adder", 
+#     "vqe_real_amp", 
+#     "vqe_su2", 
+#     "vqe_two_local", 
+#     "wstate",
+#     "shor",
+#     "shors_nine_qubit_code",
+#     "seven_qubit_steane_code"
+# ]
+
 MQT_ALGOS_BLACKLIST = [
     "qnn",
-    "qwalk", 
+    #"qwalk", 
     #"ae", 
     "bmw_quark_cardinality", 
     #"bmw_quark_copula", 
@@ -55,12 +92,12 @@ MQT_ALGOS_BLACKLIST = [
     "ghz_dynamic", 
     "ghz",
     #"graphstate", 
-    "grover", 
+    #"grover", 
     #"bv",
-    "qft",
+    #"qft",
     #"half_adder", 
     #"hhl", 
-    "hrs_cumulative_multiplier", 
+    #"hrs_cumulative_multiplier", 
     #"modular_adder", 
     #"multiplier", 
     #"qaoa", 
@@ -74,7 +111,7 @@ MQT_ALGOS_BLACKLIST = [
     "vqe_su2", 
     #"vqe_two_local", 
     "wstate",
-    "shor",
+    #"shor",
     #"shors_nine_qubit_code",
     #"seven_qubit_steane_code"
 ]
@@ -145,6 +182,9 @@ class Benchmarker:
         num_physical = max(qc.num_qubits, self.coupling_map.size())
         qc_clean = QuantumCircuit(num_physical)
         for inst in qc.data:
+            if inst.operation.name == "barrier":
+                continue
+
             if len(inst.clbits) == 0:
                 new_qubits = [
                     qc_clean.qubits[qc.find_bit(q).index] for q in inst.qubits
@@ -289,8 +329,9 @@ class Benchmarker:
         start = time.perf_counter()
         routed = pm.run(qc)
         end = time.perf_counter()
-
-        # # Debug: write circuits to temp file in project root
+        
+        
+        # Debug: write circuits to temp file in project root
         # debug_dir = ROOT_DIR / "debug_circuits"
         # debug_dir.mkdir(exist_ok=True)
         # temp_file = debug_dir / f"circuit_debug_{int(time.time() * 1000)}.txt"
@@ -349,8 +390,18 @@ if __name__ == "__main__":
     )
 
     # --- Configure coupling map ---
-    coupling_map_title = "line 6"
-    coupling_map = CouplingMap().from_line(6)
+    # coupling_map_title = "line_6"
+    # coupling_map = CouplingMap().from_line(6)
+
+    coupling_map_title = "grid_3x4"
+    coupling_map = CouplingMap().from_grid(3,4)
+
+    # coupling_map_title = "grid_2x3"
+    # coupling_map = CouplingMap().from_grid(2,3)
+
+    # coupling_map_title = "heavy_hex_3"
+    # coupling_map = CouplingMap().from_heavy_hex(3)
+
     coupling_map.make_symmetric()
     n_qubits = coupling_map.size()
 
@@ -360,18 +411,22 @@ if __name__ == "__main__":
 
     basic_grid_ppo = PPOBuilder(
         num_active_swaps=24,
-        horizon=4,
+        horizon=6,
         initial_difficulty=256,
         max_difficulty=256,
         diff_slope=0.9,
         layout_exponent=1.0,
         policy_type=ActorCriticPolicyType.BASIC_CANCEL,
         seed=42,
-        model_path="models/best_model_4x4_grid.zip",
+        model_path="models/mikkel/new_grid_ppo.zip",
         use_sabre_layout=False,
     ).build(coupling_map)
     
-    receding = RecedingBuilder(model_path="models/difficulty32_iteration42030_0.333.pt").build(coupling_map)
+    
+    #receding = RecedingBuilder(horizon=28, step_size=16, model_path="models/emil/difficulty32_iteration17170_line6.pt").build(coupling_map)
+    receding = RecedingBuilder(horizon=14, step_size=16, model_path="models/emil/difficulty32_iteration11210_grid3x4.pt").build(coupling_map)
+    #receding = RecedingBuilder(model_path="models/emil/difficulty32_iteration13940_grid2x3.pt").build(coupling_map)
+    #receding = RecedingBuilder(model_path="models/emil/difficulty32_iteration11750_heavy_hex3.pt").build(coupling_map)
 
     
     configs = [
@@ -385,18 +440,18 @@ if __name__ == "__main__":
     results_dir.mkdir(exist_ok=True)
 
     # --- MQT benchmark ---
-    bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=100)
-    mqt_results = {
-        "coupling_map": coupling_map_title,
-        "num_qubits": n_qubits,
-        "algorithms": bench.run_mqt_benchmarks(configs),  # pyrefly: ignore
-    }
-    with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
-        json.dump(mqt_results, f, indent=2)
+    # bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=100)
+    # mqt_results = {
+    #     "coupling_map": coupling_map_title,
+    #     "num_qubits": n_qubits,
+    #     "algorithms": bench.run_mqt_benchmarks(configs),  # pyrefly: ignore
+    # }
+    # with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
+    #     json.dump(mqt_results, f, indent=2)
 
     #--- Random circuit benchmark ---
-    gate_amounts = [i for i in range(50, 150) if i % 10 == 0 ]
-    bench_iterations = 100
+    gate_amounts = [i for i in range(90, 130) if i % 10 == 0 ]
+    bench_iterations = 10
     rand_results: dict = {
         "coupling_map": coupling_map_title,
         "num_qubits": n_qubits,
@@ -410,12 +465,12 @@ if __name__ == "__main__":
             title=f"{coupling_map_title} | Qubits: {n_qubits} | Gates: {gate_count}",
             is_printing=True,
         )  # pyrefly: ignore
-        for config_name, (mean_dic, ci_dic) in temp.items():
-            if config_name not in rand_results["configs"]:
-                rand_results["configs"][config_name] = {}
-            rand_results["configs"][config_name][str(gate_count)] = {
-                metric: {"mean": mean_dic[metric], "ci": ci_dic[metric]}
-                for metric, _ in METRIC_KEYS
-            }
-    with open(results_dir / f"benchmark_rand_{coupling_map_title}.json", "w") as f:
-        json.dump(rand_results, f, indent=2)
+    #     for config_name, (mean_dic, ci_dic) in temp.items():
+    #         if config_name not in rand_results["configs"]:
+    #             rand_results["configs"][config_name] = {}
+    #         rand_results["configs"][config_name][str(gate_count)] = {
+    #             metric: {"mean": mean_dic[metric], "ci": ci_dic[metric]}
+    #             for metric, _ in METRIC_KEYS
+    #         }
+    # with open(results_dir / f"benchmark_rand_{coupling_map_title}.json", "w") as f:
+    #     json.dump(rand_results, f, indent=2)
