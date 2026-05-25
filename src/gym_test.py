@@ -13,11 +13,11 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 32
+HORIZON = 8
 MAX_DIFF = 256
 SLOPE = 0.9
 TEST_SAMPLES = 3
-TOTAL_STEPS = 25_000_000
+TOTAL_STEPS = 40_000_000
 EVAL_FREQ = 256_000
 N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
@@ -26,13 +26,13 @@ N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 19 # 6
-NUM_ACTIVE_SWAPS = 5
+NUM_ACTIVE_SWAPS = 20
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True
-LOG_AVG_S_CX = False
+LOG_AVG_S_CX = True
 
 if __name__ == "__main__":
     # backend = FakeTorino()
@@ -74,6 +74,8 @@ if __name__ == "__main__":
         # clip_range=0.2,
         # ent_coef=0.01,
         # vf_coef=0.5,
+        learning_rate=1e-4,
+        ent_coef=0.01
     )
 
     eval_env = make_env(
