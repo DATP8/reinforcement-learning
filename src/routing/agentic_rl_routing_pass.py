@@ -7,12 +7,13 @@ from src.ppo_util import route_circuit
 
 
 class AgenticRlRoutingPass(TransformationPass):
-    def __init__(self, model: MaskablePPO, coupling_map: CouplingMap):
+    def __init__(self, model: MaskablePPO, coupling_map: CouplingMap, samples: int = 1):
         super().__init__()
         self.model = model
         self.cmap = coupling_map
+        self._samples = samples
 
     def run(self, dag: DAGCircuit):
-        new_dag, layout = route_circuit(self.model, dag)
+        new_dag, layout = route_circuit(self.model, dag, self._samples)
         self.property_set["final_layout"] = layout
         return new_dag

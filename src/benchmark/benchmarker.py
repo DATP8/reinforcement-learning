@@ -417,6 +417,7 @@ if __name__ == "__main__":
         diff_slope=0.9,
         layout_exponent=1.0,
         policy_type=ActorCriticPolicyType.BASIC_CANCEL,
+        samples=8,
         seed=42,
         model_path="models/mikkel/new_grid_ppo.zip",
         use_sabre_layout=False,

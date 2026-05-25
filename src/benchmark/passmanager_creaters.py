@@ -98,6 +98,7 @@ class PPOBuilder(BuilderWithLayout):
                  diff_slope,
                  layout_exponent,
                  policy_type,
+                 samples,
                  seed,
                  model_path,
                  use_sabre_layout):
@@ -111,6 +112,7 @@ class PPOBuilder(BuilderWithLayout):
         self.policy_type = policy_type
         self.seed = seed
         self.model_path = model_path
+        self.samples = samples
 
     def build(self, coupling_map):
         self.set_layout_pass(coupling_map)
@@ -126,7 +128,7 @@ class PPOBuilder(BuilderWithLayout):
         )
         ppo_model = MaskablePPO.load(self.model_path, env=ppo_env, seed=self.seed, device="cpu")
 
-        return PassManager([self.layout_pass, ApplyLayout(), AgenticRlRoutingPass(ppo_model, coupling_map), CNOTSwapCancelation()])
+        return PassManager([self.layout_pass, ApplyLayout(), AgenticRlRoutingPass(ppo_model, coupling_map, self.samples), CNOTSwapCancelation()])
 
 
 class RecedingBuilder(BuilderWithLayout):

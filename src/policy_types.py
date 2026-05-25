@@ -48,9 +48,7 @@ class ActorCriticPolicyType(Enum):
                 return None
             case self.BASIC_CANCEL.name:
                 return dict(
-                    features_extractor_class=self.get_feature_extractor(),
-                    features_extractor_kwargs=dict(features_dim=128),
-                    net_arch=dict(pi=[64, 64], vf=[64, 64]),
+                    net_arch=dict(pi=[256, 256], vf=[256, 256]),
                 )
             case self.VIBE_GRAPH.name:
                 print("Using vibe extractor")
@@ -69,13 +67,18 @@ class ActorCriticPolicyType(Enum):
                 return dict(
                     features_extractor_class=BipartiteExtractor,
                     features_extractor_kwargs=dict(
-                        features_dim=128,
-                        gnn_hidden=64,
-                        gnn_heads=4,
-                        gnn_out=64,
+                        # features_dim=128,
+                        features_dim=features_dim,
+                        # gnn_hidden=64,
+                        gnn_hidden=gnn_hidden,
+                        # gnn_heads=4,
+                        gnn_heads=gnn_heads,  # 2 for 6-qubit topology, 4 to torino
+                        # gnn_out=64,
+                        gnn_out=gnn_out,
                         gnn_layers=2,
                         action_mlp_hidden=64,
-                        action_out=16,
+                        # action_out=16,
+                        action_out=matrix_out,
                         use_bipartite=True,
                         use_matrix=False,  # ← toggle this
                     ),

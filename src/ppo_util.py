@@ -1,4 +1,5 @@
 import sys
+from typing import Callable
 
 import gymnasium
 import numpy as np
@@ -31,6 +32,8 @@ def make_env(
     diff_slope: float,
     layout_exponent: float,
     policy_type: ActorCriticPolicyType,
+    gamma: float = 0.99,
+    shaping_coef: float = 0.0,
     sample_diff: bool = True,
     render_mode: str | None = None,
 ):
@@ -43,6 +46,8 @@ def make_env(
         diff_slope=diff_slope,
         layout_exponent=layout_exponent,
         policy_type=policy_type,
+        gamma=gamma,
+        shaping_coef=shaping_coef,
         sample_diff=sample_diff,
         render_mode=render_mode,
     )
@@ -50,9 +55,18 @@ def make_env(
     return env
 
 
+def get_decomposed_size(circuit: QuantumCircuit):
+    ops = circuit.count_ops()
+    num_decomposed_cx = ops.get("cx", 0) + ops.get("swap", 0) * 3
+    return num_decomposed_cx
+
+
 def route_circuit(
-    model: MaskablePPO, circuit: DAGCircuit | QuantumCircuit
+    model: MaskablePPO, circuit: DAGCircuit | QuantumCircuit, samples: int
 ) -> tuple[DAGCircuit, Layout]:
+    if not isinstance(samples, int) or samples < 1:
+        raise ValueError("Samples must be a positive integer")
+
     if isinstance(circuit, DAGCircuit):
         circuit = dag_to_circuit(circuit)
 
@@ -62,17 +76,28 @@ def route_circuit(
     if env.is_terminal():
         return circuit_to_dag(circuit), Layout.generate_trivial_layout(*circuit.qregs)
 
-    terminated = False
-    while not terminated:
-        mask = env.valid_action_mask()
-        action, _ = model.predict(obs, action_masks=mask, deterministic=True)
-        obs, _, terminated, _, opts = env.step(action)
-        if opts["is_looping"]:
-            raise ValueError("Model is looping")
+    routed_qcs = []
+    for i in range(samples):
+        obs, _ = env.set_circuit(circuit, seed=model.seed)
+        terminated = False
+        is_looping = False
+        while not terminated:
+            mask = env.valid_action_mask()
+            action, _ = model.predict(obs, action_masks=mask, deterministic=(not i))
+            obs, _, terminated, _, opts = env.step(action)
+            if opts["is_looping"]:
+                is_looping = True
 
-    routed_qc = env.get_routed_circuit()
-    layout = Layout(env.get_final_mapping())
+        if not is_looping:
+            routed_qc = env.get_routed_circuit()
+            layout = Layout(env.get_final_mapping())
+            routed_qcs.append((routed_qc, layout))
 
+    if not routed_qcs:
+        raise ValueError("Model is looping")
+
+    routed_qcs.sort(key=lambda x: get_decomposed_size(x[0]))
+    routed_qc, layout = routed_qcs[0]
     return circuit_to_dag(routed_qc), layout
 
 
@@ -98,8 +123,7 @@ def compute_avg_decomposed_cx(
 
         routed_circuit = env.get_routed_circuit()
         ops = routed_circuit.count_ops()
-        num_decomposed_cx += ops.get("swap", 0) * 3
-        num_decomposed_cx += ops.get("cx", 0)
+        num_decomposed_cx += ops.get("cx", 0) + ops.get("swap", 0) * 3
     return num_decomposed_cx / len(eval_circuits)
 
 
@@ -155,3 +179,12 @@ class PostCurriculumEvalCallback(MaskableEvalCallback):
         return compute_avg_decomposed_cx(
             self.model, self._target_env, self._eval_circuits
         )
+
+
+def linear_schedule(
+    initial_value: float, end_value: float = 0.0
+) -> Callable[[float], float]:
+    def func(progress_remaining: float) -> float:
+        return end_value + progress_remaining * (initial_value - end_value)
+
+    return func
