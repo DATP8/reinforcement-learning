@@ -68,7 +68,13 @@ if __name__ == "__main__":
         batch_size=batch_size,
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
-        policy_kwargs=POLICY_TYPE.get_policy_kwargs(),
+        policy_kwargs=POLICY_TYPE.get_policy_kwargs(
+            features_dim=256,
+            gnn_hidden=64,
+            gnn_heads=4,
+            gnn_out=64,
+            matrix_out=64 # Becomes action_out for bipartite
+        ),
         # gamma=0.99,
         # gae_lambda=0.95,
         # clip_range=0.2,
