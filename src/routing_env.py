@@ -195,6 +195,8 @@ class RoutingEnv(gymnasium.Env):
         diff_slope: float,
         layout_exponent: float,
         policy_type: ActorCriticPolicyType,
+        gamma: float,
+        shaping_coef: float,
         sample_diff: bool = True,
         render_mode: str | None = None,
     ) -> None:
@@ -210,6 +212,8 @@ class RoutingEnv(gymnasium.Env):
         self._diff_slope = diff_slope
         self._layout_exponent = layout_exponent
         self._policy_type = policy_type
+        self._gamma = gamma
+        self._shaping_coef = shaping_coef
         self._sample_diff = sample_diff
         self._render_mode = render_mode
         self._distance_matrix: np.ndarray = (
@@ -459,6 +463,8 @@ class RoutingEnv(gymnasium.Env):
         if self.is_terminal():
             return self._get_obs(), 0.0, True, False, {}
 
+        phi_before = self._compute_potential()
+
         action = int(action)
         edge_idx = self._active_swaps[action]
         p0, p1 = self._cmap_edges[edge_idx]
@@ -492,7 +498,9 @@ class RoutingEnv(gymnasium.Env):
         )
         achieved = self._completion_reward if terminated else 0.0
         penalty = self._swap_penalty * cancellation_discount_factor
-        reward = achieved - penalty
+        phi_after = self._compute_potential()
+        shaping = self._shaping_coef * (self._gamma * phi_after - phi_before)
+        reward = achieved - penalty + shaping
 
         self._update_obs()
 
@@ -509,6 +517,25 @@ class RoutingEnv(gymnasium.Env):
             truncated,
             {"is_looping": is_looping},
         )
+
+    def _compute_potential(self) -> float:
+        if self._shaping_coef == 0.0:
+            return 0.0
+
+        mask = ~self._gate_executed
+        q0s = self._gates[mask, 0]
+        q1s = self._gates[mask, 1]
+
+        two_qubit = q1s != -1
+        q0s = q0s[two_qubit]
+        q1s = q1s[two_qubit]
+
+        if len(q0s) == 0:
+            return 0.0
+
+        p0s = self.l2p[q0s]
+        p1s = self.l2p[q1s]
+        return -float(self._distance_matrix[p0s, p1s].mean())
 
     def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
         for i in range(len(self._action_history) - 1, -1, -1):

@@ -279,20 +279,21 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    horizon = 8
-    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
+    HORIZON = 6
+    NUM_ACTIVE_SWAPS = 24
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
 
     ppo_env = make_env(
         coupling_map,
-        num_active_swaps=5,
-        horizon=horizon,
+        num_active_swaps=NUM_ACTIVE_SWAPS,
+        horizon=HORIZON,
         initial_difficulty=256,
         max_difficulty=256,
         diff_slope=0.9,
         layout_exponent=1.0,
         policy_type=policy_type,
     )
-    ppo_model = MaskablePPO.load("best_model_basic.zip", ppo_env)
+    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env)
 
     agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
@@ -312,6 +313,7 @@ if __name__ == "__main__":
         layout_mode="keep",
         optimization_level=3,
         optimization_preferences="n_gates",
+        local_mode=True,
     )
 
     original_run = AIRouting.run
@@ -362,7 +364,7 @@ if __name__ == "__main__":
             ),
         ),
         (
-            f"TrivialLayout_MaskablePPO_{horizon}_{policy_type.name}",
+            f"TrivialLayout_MaskablePPO_{HORIZON}_{policy_type.name}",
             PassManager(agentic_router),
         ),
         (
@@ -412,7 +414,7 @@ if __name__ == "__main__":
             ),
         ),
         (
-            f"SabreLayout_MaskablePPO_{horizon}_{policy_type.name}",
+            f"SabreLayout_MaskablePPO_{HORIZON}_{policy_type.name}",
             PassManager(
                 [
                     sabre_layout,

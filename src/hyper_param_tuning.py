@@ -29,12 +29,15 @@ REPEATS_PER_CONFIG = 1
 GRACE_PERIOD = 5
 REDUCTION_FACTOR = 3
 BRACKETS = 1
-NUM_QUBITS = 19 # 6
-TOTAL_TIMESTEPS = 25_000_000 # 50_000_000
+NUM_QUBITS = 19  # 6
+TOTAL_TIMESTEPS = 25_000_000  # 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "bipartite_25TT_hh3_3" # 3 after reducing memory issues, but now Emil is on CPU
+EXPERIMENT_NAME = (
+    "bipartite_25TT_hh3_3"  # 3 after reducing memory issues, but now Emil is on CPU
+)
+
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
@@ -115,6 +118,8 @@ def maskable_ppo_obj(config):
             initial_difficulty=config["initial_difficulty"],
             max_difficulty=config["max_difficulty"],
             policy_type=policy_type,
+            gamma=config["gamma"],
+            shaping_coef=config["shaping_coef"],
         ),
         n_envs=config["num_envs"],
         seed=seed,
@@ -129,26 +134,28 @@ def maskable_ppo_obj(config):
         initial_difficulty=config["max_difficulty"],
         max_difficulty=config["max_difficulty"],
         policy_type=policy_type,
+        gamma=config["gamma"],
+        shaping_coef=config["shaping_coef"],
     )
     eval_env = Monitor(eval_env)
 
     vibe_kwargs = {}
     if policy_type == ActorCriticPolicyType.VIBE_GRAPH:
         vibe_kwargs = dict(
-                features_dim=config["vibe_features_dim"],
-                gnn_hidden=config["vibe_gnn_hidden"],
-                gnn_heads=config["vibe_gnn_heads"],
-                gnn_out=config["vibe_gnn_out"],
-                matrix_out=config["vibe_matrix_out"],
-            )
+            features_dim=config["vibe_features_dim"],
+            gnn_hidden=config["vibe_gnn_hidden"],
+            gnn_heads=config["vibe_gnn_heads"],
+            gnn_out=config["vibe_gnn_out"],
+            matrix_out=config["vibe_matrix_out"],
+        )
     elif policy_type == ActorCriticPolicyType.BIPARTITE:
         vibe_kwargs = dict(
-                features_dim=config["bi_features_dim"],
-                gnn_hidden=config["bi_gnn_hidden"],
-                gnn_heads=config["bi_gnn_heads"],
-                gnn_out=config["bi_gnn_out"],
-                matrix_out=config["bi_matrix_out"],
-            )
+            features_dim=config["bi_features_dim"],
+            gnn_hidden=config["bi_gnn_hidden"],
+            gnn_heads=config["bi_gnn_heads"],
+            gnn_out=config["bi_gnn_out"],
+            matrix_out=config["bi_matrix_out"],
+        )
 
     # Restore model from checkpoint if one exists for this trial
     checkpoint = tune.get_checkpoint()
@@ -199,7 +206,8 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "policy_type",
         [
             # p.name for p in [ActorCriticPolicyType.BASIC]
-            p.name for p in [ActorCriticPolicyType.BIPARTITE]
+            p.name
+            for p in [ActorCriticPolicyType.BIPARTITE]
         ],  # [p.name for p in ActorCriticPolicyType],
     )
 
@@ -220,17 +228,17 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
     config = {
         "policy_type": policy_type,
         "learning_rate": trial.suggest_float("learning_rate", 1e-5, 3e-3, log=True),
-        "gamma": trial.suggest_float("gamma", 0.8, 1.0),
+        "gamma": trial.suggest_float("gamma", 0.9, 1.0),
         # "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
         "gae_lambda": 0.95,
         "batch_size": batch_size,
-        "horizon": trial.suggest_int("horizon", 8, 64),
+        "horizon": trial.suggest_int("horizon", 4, 32),
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
-        # "n_epochs": trial.suggest_int("na_epochs", 8, 12),
-        "n_epochs": 10,
+        "n_epochs": trial.suggest_int("n_epochs", 4, 12),
+        "shaping_coef": trial.suggest_float("shaping_coef", 0.0, 0.1),
+        "num_active_swaps": trial.suggest_int("num_active_swaps", 8, 24),
         "num_qubits": NUM_QUBITS,
-        "num_active_swaps": NUM_QUBITS - 1,
         "initial_difficulty": 1,
         "max_difficulty": 256,
         "diff_slope": 0.9,
@@ -266,12 +274,8 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         config["bi_gnn_hidden"] = trial.suggest_categorical(
             "bi_gnn_hidden", [32, 64, 128]
         )
-        config["bi_gnn_heads"] = trial.suggest_categorical(
-            "bi_gnn_heads", [2, 4, 8]
-        )
-        config["bi_gnn_out"] = trial.suggest_categorical(
-            "bi_gnn_out", [32, 64, 128]
-        )
+        config["bi_gnn_heads"] = trial.suggest_categorical("bi_gnn_heads", [2, 4, 8])
+        config["bi_gnn_out"] = trial.suggest_categorical("bi_gnn_out", [32, 64, 128])
         config["bi_matrix_out"] = trial.suggest_categorical(
             "bi_matrix_out", [16, 32, 64, 128]
         )

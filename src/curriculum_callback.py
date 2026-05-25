@@ -39,9 +39,15 @@ class CurriculumCallback(BaseCallback):
             else:
                 self.exponent = 0
 
-            current_diff = min(current_diff + np.floor(1.999**self.exponent), self.max_difficulty)
+            current_diff = min(
+                current_diff + np.floor(1.999**self.exponent), self.max_difficulty
+            )
             self.training_env.env_method("set_difficulty", current_diff)
             if self.verbose > 0:
                 print(f"[Curriculum] Difficulty increased to {current_diff}!")
 
         self.rollout_successes.clear()
+
+        current_diff = self.training_env.env_method("get_difficulty")[0]
+        self.logger.record("curriculum/difficulty", current_diff)
+        self.logger.record("curriculum/success_rate", success_rate)
