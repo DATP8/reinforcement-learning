@@ -35,7 +35,7 @@ BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
 EXPERIMENT_NAME = (
-    "basic_cancel_trial_v7"  # 3 after reducing memory issues, but now Emil is on CPU
+    "basic_cancel_trial_v8"  # 3 after reducing memory issues, but now Emil is on CPU
 )
 
 
@@ -233,7 +233,7 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
         "n_epochs": trial.suggest_int("n_epochs", 4, 12),
-        "shaping_coef": trial.suggest_float("shaping_coef", 0.0, 0.1),
+        "shaping_coef": 0.0,
         "num_qubits": NUM_QUBITS,
         "num_active_swaps": 24,
         "initial_difficulty": 1,
