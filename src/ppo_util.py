@@ -145,6 +145,8 @@ def compute_avg_decomposed_cx(
             action, _ = model.predict(obs, action_masks=mask, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated
+            if info.get("is_looping"):
+                sys.float_info.max
 
         routed_circuit = env.get_routed_circuit()
         ops = routed_circuit.count_ops()

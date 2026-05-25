@@ -213,11 +213,15 @@ class BipartiteExtractor(BaseFeaturesExtractor):
         self.use_bipartite = use_bipartite
         self.use_matrix = use_matrix
 
-        matrix_shape: tuple = observation_space["matrix"].shape  # pyrefly: ignore  # (num_active_swaps, horizon)
+        matrix_shape: tuple = observation_space[
+            "matrix"
+        ].shape  # pyrefly: ignore  # (num_active_swaps, horizon)
         self.num_active_swaps = matrix_shape[0]
         self.horizon = matrix_shape[1]
 
-        bipartite_x_shape: tuple = observation_space["bipartite_x"].shape  # pyrefly: ignore  # (N_total, NODE_F)
+        bipartite_x_shape: tuple = observation_space[
+            "bipartite_x"
+        ].shape  # pyrefly: ignore  # (N_total, NODE_F)
         self.N_total = bipartite_x_shape[0]  # num_active_swaps + horizon
 
         # Per-action input dim to the action MLP

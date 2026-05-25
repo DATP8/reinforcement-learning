@@ -23,19 +23,19 @@ from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import compute_avg_decomposed_cx, make_env
 from src.routing_env import RoutingEnv
 
-CPUS_PER_TRIAL = 16
+CPUS_PER_TRIAL = 8
 NUM_UNIQUE_SAMPLES = 128
 REPEATS_PER_CONFIG = 1
-GRACE_PERIOD = 5
+GRACE_PERIOD = 10
 REDUCTION_FACTOR = 3
 BRACKETS = 1
-NUM_QUBITS = 19  # 6
-TOTAL_TIMESTEPS = 25_000_000  # 50_000_000
+NUM_QUBITS = 16  # 6
+TOTAL_TIMESTEPS = 50_000_000  # 50_000_000
 BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
 EXPERIMENT_NAME = (
-    "bipartite_25TT_hh3_3"  # 3 after reducing memory issues, but now Emil is on CPU
+    "basic_cancel_trial_v7"  # 3 after reducing memory issues, but now Emil is on CPU
 )
 
 
@@ -106,7 +106,7 @@ def maskable_ppo_obj(config):
     seed = random.randint(0, 2**31 - 1)
     policy_type = ActorCriticPolicyType[config["policy_type"]]
     # coupling_map = CouplingMap.from_line(config["num_qubits"])
-    coupling_map = CouplingMap.from_heavy_hex(3)
+    coupling_map = CouplingMap.from_grid(4, 4)
 
     train_env = make_vec_env(
         lambda: make_env(
@@ -207,38 +207,35 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         [
             # p.name for p in [ActorCriticPolicyType.BASIC]
             p.name
-            for p in [ActorCriticPolicyType.BIPARTITE]
+            for p in [ActorCriticPolicyType.BASIC_CANCEL]
         ],  # [p.name for p in ActorCriticPolicyType],
     )
 
-    n_steps = trial.suggest_int("n_steps", 256, 4096)
+    n_steps = trial.suggest_categorical("n_steps", [128, 256, 512, 1024, 2048, 4096])
 
     # batch_size must divide n_steps * num_envs
     num_envs = CPUS_PER_TRIAL
     buffer_size = n_steps * num_envs
-    batch_divisor = trial.suggest_int("batch_divisor", 2, 32)
-    batch_size = max(1, buffer_size // batch_divisor)
+    batch_size = trial.suggest_categorical(
+        "batch_size", [128, 256, 512, 1024, 2048, 4096]
+    )
 
     MAX_BATCH_SIZE = 2048
     batch_size = min(MAX_BATCH_SIZE, batch_size)
-
-    while buffer_size % batch_size:
-        batch_size -= 1
 
     config = {
         "policy_type": policy_type,
         "learning_rate": trial.suggest_float("learning_rate", 1e-5, 3e-3, log=True),
         "gamma": trial.suggest_float("gamma", 0.9, 1.0),
-        # "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
-        "gae_lambda": 0.95,
+        "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
         "batch_size": batch_size,
-        "horizon": trial.suggest_int("horizon", 4, 32),
+        "horizon": trial.suggest_int("horizon", 4, 24),
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
         "n_epochs": trial.suggest_int("n_epochs", 4, 12),
         "shaping_coef": trial.suggest_float("shaping_coef", 0.0, 0.1),
-        "num_active_swaps": trial.suggest_int("num_active_swaps", 8, 24),
         "num_qubits": NUM_QUBITS,
+        "num_active_swaps": 24,
         "initial_difficulty": 1,
         "max_difficulty": 256,
         "diff_slope": 0.9,

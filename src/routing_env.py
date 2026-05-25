@@ -54,89 +54,13 @@ def _numba_compute_improvements(
             elif p1_b == p1_a and p0_b != p0_a:
                 imp = dist_matrix[p1_a, p0_b] - dist_matrix[p0_a, p0_b]
 
-            matrix[s_idx, h] += imp
-
-
-@njit(cache=True)
-def _numba_build_graph_features(
-    interaction_counts: np.ndarray,
-    l2p: np.ndarray,
-    dist_matrix: np.ndarray,
-    num_q: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    x = np.zeros((num_q, 3), dtype=np.float32)
-    temp_edges = np.zeros((2, num_q * num_q), dtype=np.int64)
-    edge_count = 0
-
-    for q in range(num_q):
-        phys = l2p[q]
-        total_interactions = 0.0
-        sum_dist = 0.0
-        interacting_neighbors = 0
-
-        for other_q in range(num_q):
-            count = interaction_counts[q, other_q]
-            if count > 0:
-                total_interactions += count
-                p2 = l2p[other_q]
-                sum_dist += dist_matrix[phys, p2]
-                interacting_neighbors += 1
-
-                temp_edges[0, edge_count] = q
-                temp_edges[1, edge_count] = other_q
-                edge_count += 1
-
-        avg_dist = (
-            (sum_dist / interacting_neighbors) if interacting_neighbors > 0 else 0.0
-        )
-        x[q, 0] = phys
-        x[q, 1] = total_interactions
-        x[q, 2] = avg_dist
-
-    max_edges = min(edge_count, 100)
-    edge_index = np.zeros((2, 100), dtype=np.int64)
-    for i in range(max_edges):
-        edge_index[0, i] = temp_edges[0, i]
-        edge_index[1, i] = temp_edges[1, i]
-
-    return x, edge_index
-
-
-@njit(cache=True)
-def _numba_compute_improvements(
-    matrix: np.ndarray,
-    active_edges: np.ndarray,
-    layer_pairs: np.ndarray,
-    layer_indices: np.ndarray,
-    l2p: np.ndarray,
-    dist_matrix: np.ndarray,
-) -> None:
-    num_swaps = active_edges.shape[0]
-    num_pairs = layer_pairs.shape[0]
-
-    for p_idx in range(num_pairs):
-        h = layer_indices[p_idx]
-        l0 = layer_pairs[p_idx, 0]
-        l1 = layer_pairs[p_idx, 1]
-
-        p0_b = l2p[l0]
-        p1_b = l2p[l1]
-
-        for s_idx in range(num_swaps):
-            p0_a = active_edges[s_idx, 0]
-            p1_a = active_edges[s_idx, 1]
-
-            imp = 0
-            if p0_b == p0_a and p1_b != p1_a:
-                imp = dist_matrix[p0_a, p1_b] - dist_matrix[p1_a, p1_b]
-            elif p0_b == p1_a and p1_b != p0_a:
-                imp = dist_matrix[p1_a, p1_b] - dist_matrix[p0_a, p1_b]
-            elif p1_b == p0_a and p0_b != p1_a:
-                imp = dist_matrix[p0_a, p0_b] - dist_matrix[p1_a, p0_b]
-            elif p1_b == p1_a and p0_b != p0_a:
-                imp = dist_matrix[p1_a, p0_b] - dist_matrix[p0_a, p0_b]
-
-            matrix[s_idx, h] += imp
+            new_val = matrix[s_idx, h] + imp
+            if new_val > 2:
+                matrix[s_idx, h] = 2
+            elif new_val < -2:
+                matrix[s_idx, h] = -2
+            else:
+                matrix[s_idx, h] = new_val
 
 
 @njit(cache=True)

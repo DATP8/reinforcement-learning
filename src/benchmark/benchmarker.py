@@ -16,7 +16,6 @@ from src.circuit_generator import CircuitGenerator
 from src.eval_circuits import EvalCircuits
 from src.policy_types import ActorCriticPolicyType
 from src.ppo_util import make_env
-from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -181,8 +180,6 @@ class Benchmarker:
                 f"\n\nFor the following configuration {title}\n"
                 f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
             )
-        else:
-            print("Topology too big to check equivalence. Skipping...")
 
         return self._collect_metrics(routed, transpile_time)
 
@@ -261,7 +258,7 @@ if __name__ == "__main__":
     from src.routing.swap_inserter.swap_inserter import SwapInserter
     from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 
-    num_qubits = 6
+    num_qubits = 16
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
     state_handler = CircuitGraphStateHandler(num_qubits, topology)
 
@@ -269,8 +266,8 @@ if __name__ == "__main__":
     # model = BiCircuitGNN(n_qubits)
     # model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    coupling_map = CouplingMap.from_line(num_qubits)
-    coupling_map.make_symmetric()
+    coupling_map = CouplingMap.from_grid(4, 4)
+    # coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, num_qubits)
 
@@ -295,7 +292,7 @@ if __name__ == "__main__":
     )
     ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env)
 
-    agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
+    # agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
