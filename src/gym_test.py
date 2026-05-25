@@ -32,7 +32,7 @@ POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True
-LOG_AVG_S_CX = True
+LOG_AVG_S_CX = False # Holy shit this is slow
 
 if __name__ == "__main__":
     # backend = FakeTorino()
