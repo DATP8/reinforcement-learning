@@ -92,7 +92,7 @@ MQT_ALGOS_BLACKLIST = [
     "ghz_dynamic", 
     "ghz",
     #"graphstate", 
-    #"grover", 
+    "grover", ###################################
     #"bv",
     #"qft",
     #"half_adder", 
@@ -389,89 +389,117 @@ if __name__ == "__main__":
         RecedingBuilder
     )
 
-    # --- Configure coupling map ---
-    # coupling_map_title = "line_6"
-    # coupling_map = CouplingMap().from_line(6)
-
-    coupling_map_title = "grid_3x4"
-    coupling_map = CouplingMap().from_grid(3,4)
-
-    # coupling_map_title = "grid_2x3"
-    # coupling_map = CouplingMap().from_grid(2,3)
-
-    # coupling_map_title = "heavy_hex_3"
-    # coupling_map = CouplingMap().from_heavy_hex(3)
-
-    coupling_map.make_symmetric()
-    n_qubits = coupling_map.size()
-
-    # --- Build pass managers ---
-    trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
-    trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
-
-    basic_grid_ppo = PPOBuilder(
-        num_active_swaps=24,
-        horizon=6,
-        initial_difficulty=256,
-        max_difficulty=256,
-        diff_slope=0.9,
-        layout_exponent=1.0,
-        policy_type=ActorCriticPolicyType.BASIC_CANCEL,
-        samples=8,
-        seed=42,
-        model_path="models/mikkel/new_grid_ppo.zip",
-        use_sabre_layout=False,
-    ).build(coupling_map)
-    
-    
-    #receding = RecedingBuilder(horizon=28, step_size=16, model_path="models/emil/difficulty32_iteration17170_line6.pt").build(coupling_map)
-    receding = RecedingBuilder(horizon=14, step_size=16, model_path="models/emil/difficulty32_iteration11210_grid3x4.pt").build(coupling_map)
-    #receding = RecedingBuilder(model_path="models/emil/difficulty32_iteration13940_grid2x3.pt").build(coupling_map)
-    #receding = RecedingBuilder(model_path="models/emil/difficulty32_iteration11750_heavy_hex3.pt").build(coupling_map)
-
-    
-    configs = [
-        ("ai routing (ibm)", trivial_ai_ibm),
-        ("sabre", trivial_sabre),
-        ("grid ppo", basic_grid_ppo),
-        ("receding", receding)
+    # --- Configure coupling maps ---
+    coupling_map_configs = [
+        ("grid_2x3", CouplingMap().from_grid(2, 3)),
+        ("grid_3x4", CouplingMap().from_grid(3, 4)),
+        ("line_6", CouplingMap().from_line(6)),
+        ("heavy_hex_3", CouplingMap().from_heavy_hex(3)),
     ]
+
+    RECEDING_CONFIGS = {
+        "line_6":      {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration17170_line6.pt"},
+        "grid_2x3":    {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration13940_grid2x3.pt"},
+        "grid_3x4":    {"horizon": 14, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11210_grid3x4.pt"},
+        "heavy_hex_3": {"horizon": 14, "step_size": 10, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
+    }
+
+    PPO_MODEL_PATH = "models/mikkel/new_grid_ppo.zip"
+
+    bench_iterations = 10
+    gate_amounts = [100]
 
     results_dir = ROOT_DIR / "results"
     results_dir.mkdir(exist_ok=True)
 
-    # --- MQT benchmark ---
-    # bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=100)
-    # mqt_results = {
-    #     "coupling_map": coupling_map_title,
-    #     "num_qubits": n_qubits,
-    #     "algorithms": bench.run_mqt_benchmarks(configs),  # pyrefly: ignore
-    # }
-    # with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
-    #     json.dump(mqt_results, f, indent=2)
-
-    #--- Random circuit benchmark ---
-    gate_amounts = [i for i in range(90, 130) if i % 10 == 0 ]
-    bench_iterations = 10
-    rand_results: dict = {
-        "coupling_map": coupling_map_title,
-        "num_qubits": n_qubits,
+    combined_rand_results: dict = {
+        "coupling_maps": {},
+        "gate_amounts": gate_amounts,
         "configs": {},
     }
-    for gate_count in gate_amounts:
-        b = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=gate_count)
-        temp = b.run_rand_benchmarks(
-            configs,
-            bench_iterations,
-            title=f"{coupling_map_title} | Qubits: {n_qubits} | Gates: {gate_count}",
-            is_printing=True,
-        )  # pyrefly: ignore
-    #     for config_name, (mean_dic, ci_dic) in temp.items():
-    #         if config_name not in rand_results["configs"]:
-    #             rand_results["configs"][config_name] = {}
-    #         rand_results["configs"][config_name][str(gate_count)] = {
-    #             metric: {"mean": mean_dic[metric], "ci": ci_dic[metric]}
-    #             for metric, _ in METRIC_KEYS
-    #         }
-    # with open(results_dir / f"benchmark_rand_{coupling_map_title}.json", "w") as f:
-    #     json.dump(rand_results, f, indent=2)
+    combined_mqt_results: dict = {
+        "coupling_maps": {},
+        "algorithms": {},
+    }
+
+    for coupling_map_title, coupling_map in coupling_map_configs:
+        coupling_map.make_symmetric()
+        n_qubits = coupling_map.size()
+
+        # --- Build pass managers for this coupling map ---
+        trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
+        trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
+
+        basic_grid_ppo = PPOBuilder(
+            num_active_swaps=24,
+            horizon=6,
+            initial_difficulty=256,
+            max_difficulty=256,
+            diff_slope=0.9,
+            layout_exponent=1.0,
+            policy_type=ActorCriticPolicyType.BASIC_CANCEL,
+            samples=32,
+            seed=42,
+            model_path=PPO_MODEL_PATH,
+            use_sabre_layout=False,
+        ).build(coupling_map)
+
+        rec_cfg = RECEDING_CONFIGS[coupling_map_title]
+        receding = RecedingBuilder(
+            horizon=rec_cfg["horizon"],
+            step_size=rec_cfg["step_size"],
+            model_path=rec_cfg["model_path"],
+        ).build(coupling_map)
+
+        configs = [
+            ("ai routing (ibm)", trivial_ai_ibm),
+            ("sabre", trivial_sabre),
+            ("grid ppo", basic_grid_ppo),
+            ("receding", receding),
+        ]
+
+        combined_rand_results["coupling_maps"][coupling_map_title] = n_qubits
+        combined_mqt_results["coupling_maps"][coupling_map_title] = n_qubits
+
+        # --- MQT benchmark ---
+        bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=100)
+        mqt_algorithms = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+
+        with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
+            json.dump({"coupling_map": coupling_map_title, "num_qubits": n_qubits, "algorithms": mqt_algorithms}, f, indent=2)
+
+        for algo, algo_data in mqt_algorithms.items():
+            if algo not in combined_mqt_results["algorithms"]:
+                combined_mqt_results["algorithms"][algo] = {}
+            combined_mqt_results["algorithms"][algo][coupling_map_title] = algo_data
+
+        # --- Random circuit benchmark ---
+        rand_per_cm: dict = {}
+        for gate_count in gate_amounts:
+            b = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=gate_count)
+            temp = b.run_rand_benchmarks(
+                configs,
+                bench_iterations,
+                title=f"{coupling_map_title} | Qubits: {n_qubits} | Gates: {gate_count}",
+                is_printing=True,
+            )  # pyrefly: ignore
+            for config_name, (mean_dic, ci_dic) in temp.items():
+                if config_name not in rand_per_cm:
+                    rand_per_cm[config_name] = {}
+                rand_per_cm[config_name][str(gate_count)] = {
+                    metric: {"mean": mean_dic[metric], "ci": ci_dic[metric]}
+                    for metric, _ in METRIC_KEYS
+                }
+
+        with open(results_dir / f"benchmark_rand_{coupling_map_title}.json", "w") as f:
+            json.dump({"coupling_map": coupling_map_title, "num_qubits": n_qubits, "configs": rand_per_cm}, f, indent=2)
+
+        for config_name, gate_data in rand_per_cm.items():
+            if config_name not in combined_rand_results["configs"]:
+                combined_rand_results["configs"][config_name] = {}
+            combined_rand_results["configs"][config_name][coupling_map_title] = gate_data
+
+    with open(results_dir / "benchmark_rand_combined.json", "w") as f:
+        json.dump(combined_rand_results, f, indent=2)
+    with open(results_dir / "benchmark_mqt_combined.json", "w") as f:
+        json.dump(combined_mqt_results, f, indent=2)
