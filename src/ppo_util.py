@@ -71,7 +71,9 @@ def route_circuit(
     if samples and (not isinstance(samples, int) or samples < 1):
         raise ValueError("Samples must be a positive integer.")
 
-    if time_limit_s and (not isinstance(time_limit_s, (int, float)) or not time_limit_s > 0.0):
+    if time_limit_s and (
+        not isinstance(time_limit_s, (int, float)) or not time_limit_s > 0.0
+    ):
         raise ValueError("Time limit must be a positive real.")
 
     if isinstance(circuit, DAGCircuit):
@@ -113,7 +115,7 @@ def route_circuit(
             routed_qc = env.get_routed_circuit()
             layout = Layout(env.get_final_mapping())
             routed_qcs.append((routed_qc, layout))
-            
+
         i += 1
 
     if not routed_qcs:
