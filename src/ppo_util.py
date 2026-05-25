@@ -91,11 +91,11 @@ def route_circuit(
         samples = 1
 
     while True:
-        if samples and i > samples:
-            break
-
-        if (samples and i > samples) or (
-            time_limit_s and time.time() - start > time_limit_s
+        if i > 0 and (
+            samples
+            and i > samples
+            or time_limit_s
+            and time.time() - start > time_limit_s
         ):
             break
 
