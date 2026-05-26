@@ -193,8 +193,7 @@ class Benchmarker:
 
         return qc_clean
 
-    def _collect_metrics(self, org_circuit: QuantumCircuit, routed_circuit: QuantumCircuit, transpile_time: float):
-        org_ops = org_circuit.count_ops()
+    def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
         routed_ops = routed_circuit.count_ops()
 
         decomposed_circuit = routed_circuit.decompose(
@@ -205,18 +204,17 @@ class Benchmarker:
 
         swaps = routed_ops.get("swap", 0)
         routed_cx = routed_ops.get("cx", 0)
-        org_cx  = org_ops.get("cx", 0)
         decomposed_cx = decomposed_ops.get("cx", 0)
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
             METRIC_KEYS[1][0]: swaps,
-            METRIC_KEYS[2][0]: routed_cx - org_cx,
-            METRIC_KEYS[3][0]: routed_circuit.depth() - org_circuit.depth(),
-            METRIC_KEYS[4][0]: routed_circuit.size() - org_circuit.size(),
-            METRIC_KEYS[5][0]: decomposed_circuit.depth() - org_circuit.depth(),
-            METRIC_KEYS[6][0]: decomposed_circuit.size() - org_circuit.size(),
-            METRIC_KEYS[7][0]: decomposed_cx - org_cx
+            METRIC_KEYS[2][0]: routed_cx,
+            METRIC_KEYS[3][0]: routed_circuit.depth(),
+            METRIC_KEYS[4][0]: routed_circuit.size(),
+            METRIC_KEYS[5][0]: decomposed_circuit.depth(),
+            METRIC_KEYS[6][0]: decomposed_circuit.size(),
+            METRIC_KEYS[7][0]: decomposed_cx,
         }
         return metrics
 
@@ -358,7 +356,7 @@ class Benchmarker:
                     raise
                 pass
 
-        return self._collect_metrics(qc, routed, transpile_time)
+        return self._collect_metrics(routed, transpile_time)
 
     def bench_circuit(
         self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title
@@ -386,13 +384,13 @@ if __name__ == "__main__":
     from src.benchmark.passmanager_creaters import (
         IbmRlBuilder,
         SabreBuilder,
-        RecedingBuilder
+        RecedingBuilder,
     )
 
     # --- Configure coupling maps ---
     coupling_map_configs = [
-        ("grid_2x3", CouplingMap().from_grid(2, 3)),
-        ("grid_3x4", CouplingMap().from_grid(3, 4)),
+        #("grid_2x3", CouplingMap().from_grid(2, 3)),
+        #("grid_3x4", CouplingMap().from_grid(3, 4)),
         ("line_6", CouplingMap().from_line(6)),
         ("heavy_hex_3", CouplingMap().from_heavy_hex(3)),
     ]
@@ -401,7 +399,14 @@ if __name__ == "__main__":
         "line_6":      {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration17170_line6.pt"},
         "grid_2x3":    {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration13940_grid2x3.pt"},
         "grid_3x4":    {"horizon": 14, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11210_grid3x4.pt"},
-        "heavy_hex_3": {"horizon": 14, "step_size": 10, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
+        "heavy_hex_3": {"horizon": 10, "step_size": 10, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
+    }
+
+    BIPARTITE_CONFIGS = {
+        "line_6":      {"num_active_swaps": 5, "model_path": "models/asbjørn/line_6.zip"},
+        "grid_2x3":    {"num_active_swaps": 6, "model_path": "models/asbjørn/grid_2x3.zip"},
+        "grid_3x4":    {"num_active_swaps": -1, "model_path": "models/asbjørn/grid_3x4.zip"},
+        "heavy_hex_3": {"num_active_swaps": 20, "model_path": "models/asbjørn/heavy_hex_3.zip"},
     }
 
     PPO_MODEL_PATH = "models/mikkel/new_grid_ppo.zip"
@@ -427,7 +432,7 @@ if __name__ == "__main__":
         n_qubits = coupling_map.size()
 
         # --- Build pass managers for this coupling map ---
-        trivial_ai_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
+        ppo_ibm = IbmRlBuilder(op_level=3).build(coupling_map)
         trivial_sabre = SabreBuilder(use_sabre_layout=False).build(coupling_map)
 
         basic_grid_ppo = PPOBuilder(
@@ -439,8 +444,24 @@ if __name__ == "__main__":
             layout_exponent=1.0,
             policy_type=ActorCriticPolicyType.BASIC_CANCEL,
             samples=32,
+            time_limit=30,
             seed=42,
             model_path=PPO_MODEL_PATH,
+            use_sabre_layout=False,
+        ).build(coupling_map)
+
+        bipartite_ppo = PPOBuilder(
+            num_active_swaps=BIPARTITE_CONFIGS[coupling_map_title]["num_active_swaps"],
+            horizon=8,
+            initial_difficulty=256,
+            max_difficulty=256,
+            diff_slope=0.9,
+            layout_exponent=1.0,
+            policy_type=ActorCriticPolicyType.BIPARTITE,
+            samples=32,
+            time_limit=30,
+            seed=42,
+            model_path=BIPARTITE_CONFIGS[coupling_map_title]["model_path"],
             use_sabre_layout=False,
         ).build(coupling_map)
 
@@ -449,12 +470,15 @@ if __name__ == "__main__":
             horizon=rec_cfg["horizon"],
             step_size=rec_cfg["step_size"],
             model_path=rec_cfg["model_path"],
+            weight=0.8,
+            batch_size=16
         ).build(coupling_map)
 
         configs = [
-            ("ai routing (ibm)", trivial_ai_ibm),
+            ("ppo (ibm)", ppo_ibm),
             ("sabre", trivial_sabre),
             ("grid ppo", basic_grid_ppo),
+            ("bipartite", bipartite_ppo),
             ("receding", receding),
         ]
 

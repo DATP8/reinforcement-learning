@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from src.ppo_util import make_env
 from sb3_contrib import MaskablePPO
 from src.routing.cnot_swap_cancel import CNOTSwapCancelation
+from src.routing.cnot_swap_mover import CNOTSwapMover
 from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 from qiskit import generate_preset_pass_manager
 from qiskit.transpiler import PassManager
@@ -66,10 +67,10 @@ class IbmRlBuilder(BuilderWithLayout):
                 optimization_level=self.op_level,
                 layout_mode="KEEP",
             ), 
-            CNOTSwapCancelation()
+            CNOTSwapCancelation(), 
+            CNOTSwapMover(),
         ])
-
-
+        
 class SabreBuilder(BuilderWithLayout):
     def build(self, coupling_map):
         self.set_layout_pass(coupling_map)
@@ -88,7 +89,6 @@ class QiskitTranspiler(Builder):
         )
 
 
-
 class PPOBuilder(BuilderWithLayout):
     def __init__(self, 
                  num_active_swaps: int, 
@@ -99,6 +99,7 @@ class PPOBuilder(BuilderWithLayout):
                  layout_exponent,
                  policy_type,
                  samples,
+                 time_limit,
                  seed,
                  model_path,
                  use_sabre_layout):
@@ -113,6 +114,7 @@ class PPOBuilder(BuilderWithLayout):
         self.seed = seed
         self.model_path = model_path
         self.samples = samples
+        self.time_limit = time_limit
 
     def build(self, coupling_map):
         self.set_layout_pass(coupling_map)
@@ -128,15 +130,16 @@ class PPOBuilder(BuilderWithLayout):
         )
         ppo_model = MaskablePPO.load(self.model_path, env=ppo_env, seed=self.seed, device="cpu")
 
-        return PassManager([self.layout_pass, ApplyLayout(), AgenticRlRoutingPass(ppo_model, coupling_map, self.samples), CNOTSwapCancelation()])
-
+        return PassManager([self.layout_pass, ApplyLayout(), AgenticRlRoutingPass(ppo_model, coupling_map, self.samples, self.time_limit), CNOTSwapCancelation(), CNOTSwapMover()])
 
 class RecedingBuilder(BuilderWithLayout):
-    def __init__(self, model_path, horizon, step_size, use_sabre_layout=False):
+    def __init__(self, model_path, weight, batch_size,horizon, step_size, use_sabre_layout=False):
         super().__init__(use_sabre_layout)
         self.model_path = model_path
         self.horizon = horizon
         self.step_size = step_size
+        self.weight = weight
+        self.batch_size = batch_size
     
 
     def build(self, coupling_map):
@@ -154,9 +157,9 @@ class RecedingBuilder(BuilderWithLayout):
         router = RecedingHorizon(
             horizon_length=self.horizon,
             step_size=self.step_size,
-            router=BWASRouter(model.to(device), state_handler),
+            router=BWASRouter(model.to(device), state_handler, weight=self.weight, batch_size=self.batch_size),
         )
 
         swap_inserter = SwapInserter(coupling_map, num_qubits=n_qubits)
 
-        return PassManager([self.layout_pass, ApplyLayout(), RlRoutingPass(router, swap_inserter), CNOTSwapCancelation()])
+        return PassManager([self.layout_pass, ApplyLayout(), RlRoutingPass(router, swap_inserter), CNOTSwapCancelation(), CNOTSwapMover()])

@@ -1,8 +1,11 @@
+
 import gymnasium
 import numpy as np
 from gymnasium import spaces
 from numba import njit
 from qiskit import QuantumCircuit
+from qiskit.circuit import Instruction
+from qiskit.circuit.library import CXGate, SwapGate
 from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
 from torch import Tensor
@@ -54,7 +57,13 @@ def _numba_compute_improvements(
             elif p1_b == p1_a and p0_b != p0_a:
                 imp = dist_matrix[p1_a, p0_b] - dist_matrix[p0_a, p0_b]
 
-            matrix[s_idx, h] += imp
+            new_val = matrix[s_idx, h] + imp
+            if new_val > 2:
+                matrix[s_idx, h] = 2
+            elif new_val < -2:
+                matrix[s_idx, h] = -2
+            else:
+                matrix[s_idx, h] = new_val
 
 
 @njit(cache=True)
@@ -102,86 +111,8 @@ def _numba_build_graph_features(
     return x, edge_index
 
 
-@njit(cache=True)
-def _numba_compute_improvements(
-    matrix: np.ndarray,
-    active_edges: np.ndarray,
-    layer_pairs: np.ndarray,
-    layer_indices: np.ndarray,
-    l2p: np.ndarray,
-    dist_matrix: np.ndarray,
-) -> None:
-    num_swaps = active_edges.shape[0]
-    num_pairs = layer_pairs.shape[0]
-
-    for p_idx in range(num_pairs):
-        h = layer_indices[p_idx]
-        l0 = layer_pairs[p_idx, 0]
-        l1 = layer_pairs[p_idx, 1]
-
-        p0_b = l2p[l0]
-        p1_b = l2p[l1]
-
-        for s_idx in range(num_swaps):
-            p0_a = active_edges[s_idx, 0]
-            p1_a = active_edges[s_idx, 1]
-
-            imp = 0
-            if p0_b == p0_a and p1_b != p1_a:
-                imp = dist_matrix[p0_a, p1_b] - dist_matrix[p1_a, p1_b]
-            elif p0_b == p1_a and p1_b != p0_a:
-                imp = dist_matrix[p1_a, p1_b] - dist_matrix[p0_a, p1_b]
-            elif p1_b == p0_a and p0_b != p1_a:
-                imp = dist_matrix[p0_a, p0_b] - dist_matrix[p1_a, p0_b]
-            elif p1_b == p1_a and p0_b != p0_a:
-                imp = dist_matrix[p1_a, p0_b] - dist_matrix[p0_a, p0_b]
-
-            matrix[s_idx, h] += imp
-
-
-@njit(cache=True)
-def _numba_build_graph_features(
-    interaction_counts: np.ndarray,
-    l2p: np.ndarray,
-    dist_matrix: np.ndarray,
-    num_q: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    x = np.zeros((num_q, 3), dtype=np.float32)
-    temp_edges = np.zeros((2, num_q * num_q), dtype=np.int64)
-    edge_count = 0
-
-    for q in range(num_q):
-        phys = l2p[q]
-        total_interactions = 0.0
-        sum_dist = 0.0
-        interacting_neighbors = 0
-
-        for other_q in range(num_q):
-            count = interaction_counts[q, other_q]
-            if count > 0:
-                total_interactions += count
-                p2 = l2p[other_q]
-                sum_dist += dist_matrix[phys, p2]
-                interacting_neighbors += 1
-
-                temp_edges[0, edge_count] = q
-                temp_edges[1, edge_count] = other_q
-                edge_count += 1
-
-        avg_dist = (
-            (sum_dist / interacting_neighbors) if interacting_neighbors > 0 else 0.0
-        )
-        x[q, 0] = phys
-        x[q, 1] = total_interactions
-        x[q, 2] = avg_dist
-
-    max_edges = min(edge_count, 100)
-    edge_index = np.zeros((2, 100), dtype=np.int64)
-    for i in range(max_edges):
-        edge_index[0, i] = temp_edges[0, i]
-        edge_index[1, i] = temp_edges[1, i]
-
-    return x, edge_index
+_CX = CXGate()
+_SWAP = SwapGate()
 
 
 class RoutingEnv(gymnasium.Env):
@@ -474,15 +405,19 @@ class RoutingEnv(gymnasium.Env):
         self.l2p[l0] = p1
         self.l2p[l1] = p0
 
-        cancelled_nodes = self._pop_recent_cx(p0, p1)
+        cancelled = self._pop_recent_cx(p0, p1)
         cancellation = False
-        if cancelled_nodes:
-            phys_ctrl, phys_trgt = cancelled_nodes
-            self._action_history.append(("cx", phys_trgt, phys_ctrl))
-            self._action_history.append(("cx", phys_ctrl, phys_trgt))
+        if cancelled:
+            phys_ctrl, phys_trgt, bypass_info = cancelled
+            self._action_history.append((_CX, phys_trgt, phys_ctrl))
+            self._action_history.append((_CX, phys_ctrl, phys_trgt))
+
+            for b_op, b_wire in bypass_info:
+                self._action_history.append((b_op, b_wire, -1))
+
             cancellation = True
         else:
-            self._action_history.append(("swap", p0, p1))
+            self._action_history.append((_SWAP, p0, p1))
 
         gates_executed = self._execute_front_layer()
         if gates_executed > 0:
@@ -537,22 +472,34 @@ class RoutingEnv(gymnasium.Env):
         p1s = self.l2p[q1s]
         return -float(self._distance_matrix[p0s, p1s].mean())
 
-    def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
+    def _pop_recent_cx(
+        self, p0: int, p1: int, dry_run=False
+    ) -> tuple[int, int, list[tuple[Instruction, int]]] | None:
+        bypass_info = []
         for i in range(len(self._action_history) - 1, -1, -1):
             op, q0, q1 = self._action_history[i]
-            if getattr(op, "name", op) == "cx":
-                if (q0 == p0 and q1 == p1) or (q0 == p1 and q1 == p0):
+            is_single_qubit = q1 == -1
+            is_blocked = q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1
+            if op.name == "cx":
+                can_cancel = (q0 == p0 and q1 == p1) or (q0 == p1 and q1 == p0)
+                if can_cancel:
+                    commuted_gates = []
                     if not dry_run:
+                        for idx, b_op, b_wire in bypass_info:
+                            self._action_history.pop(idx)
+                            new_wire = p1 if b_wire == p0 else p0
+                            commuted_gates.insert(0, (b_op, new_wire))
                         self._action_history.pop(i)
-                    return q0, q1
-                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
+
+                    return q0, q1, commuted_gates
+
+                if is_blocked:
                     return None
-            elif op == "swap":
-                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
-                    return None
-            else:
-                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
-                    return None
+            elif is_single_qubit:
+                if q0 == p0 or q0 == p1:
+                    bypass_info.append((i, op, q0))
+            elif is_blocked:
+                return None
         return None
 
     def _get_remaining_circuit(self) -> QuantumCircuit:
@@ -861,11 +808,7 @@ class RoutingEnv(gymnasium.Env):
     def get_routed_circuit(self) -> QuantumCircuit:
         routed_qc = QuantumCircuit(self._num_qubits, self._circuit.num_clbits)
         for op, p0, p1 in self._action_history:
-            if getattr(op, "name", op) == "cx":
-                routed_qc.cx(p0, p1)
-            elif op == "swap":
-                routed_qc.swap(p0, p1)
-            elif p1 == -1:
+            if p1 == -1:
                 routed_qc.append(op, [int(p0)])
             else:
                 routed_qc.append(op, [int(p0), int(p1)])
