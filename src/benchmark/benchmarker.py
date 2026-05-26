@@ -1,5 +1,6 @@
 # from mqt.bench import BenchmarkLevel, get_benchmark
 # from mqt.bench.benchmarks import get_available_benchmark_names
+from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 import random
 import time
 
@@ -276,7 +277,7 @@ if __name__ == "__main__":
     #    chunk_size=chuck_size, model=model, state_handler=state_handler
     # )
 
-    HORIZON = 6
+    HORIZON = 8
     NUM_ACTIVE_SWAPS = 24
     policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC_CANCEL
 
@@ -292,7 +293,7 @@ if __name__ == "__main__":
     )
     ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env)
 
-    # agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
+    agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
 
     # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 

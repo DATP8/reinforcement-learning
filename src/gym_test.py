@@ -13,11 +13,11 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 6
+HORIZON = 8
 MAX_DIFF = 256
 SLOPE = 0.9
 TEST_SAMPLES = 3
-TOTAL_STEPS = 35_000_000
+TOTAL_STEPS = 50_000_000
 EVAL_FREQ = 256_000
 N_EVAL_EPISODES = 256
 THRESHOLD = 0.85

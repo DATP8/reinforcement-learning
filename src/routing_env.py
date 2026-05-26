@@ -1,8 +1,11 @@
+
 import gymnasium
 import numpy as np
 from gymnasium import spaces
 from numba import njit
 from qiskit import QuantumCircuit
+from qiskit.circuit import Instruction
+from qiskit.circuit.library import CXGate, SwapGate
 from qiskit.converters import circuit_to_dag
 from qiskit.transpiler import CouplingMap
 from torch import Tensor
@@ -106,6 +109,10 @@ def _numba_build_graph_features(
         edge_index[1, i] = temp_edges[1, i]
 
     return x, edge_index
+
+
+_CX = CXGate()
+_SWAP = SwapGate()
 
 
 class RoutingEnv(gymnasium.Env):
@@ -398,15 +405,19 @@ class RoutingEnv(gymnasium.Env):
         self.l2p[l0] = p1
         self.l2p[l1] = p0
 
-        cancelled_nodes = self._pop_recent_cx(p0, p1)
+        cancelled = self._pop_recent_cx(p0, p1)
         cancellation = False
-        if cancelled_nodes:
-            phys_ctrl, phys_trgt = cancelled_nodes
-            self._action_history.append(("cx", phys_trgt, phys_ctrl))
-            self._action_history.append(("cx", phys_ctrl, phys_trgt))
+        if cancelled:
+            phys_ctrl, phys_trgt, bypass_info = cancelled
+            self._action_history.append((_CX, phys_trgt, phys_ctrl))
+            self._action_history.append((_CX, phys_ctrl, phys_trgt))
+
+            for b_op, b_wire in bypass_info:
+                self._action_history.append((b_op, b_wire, -1))
+
             cancellation = True
         else:
-            self._action_history.append(("swap", p0, p1))
+            self._action_history.append((_SWAP, p0, p1))
 
         gates_executed = self._execute_front_layer()
         if gates_executed > 0:
@@ -461,22 +472,34 @@ class RoutingEnv(gymnasium.Env):
         p1s = self.l2p[q1s]
         return -float(self._distance_matrix[p0s, p1s].mean())
 
-    def _pop_recent_cx(self, p0: int, p1: int, dry_run=False) -> tuple[int, int] | None:
+    def _pop_recent_cx(
+        self, p0: int, p1: int, dry_run=False
+    ) -> tuple[int, int, list[tuple[Instruction, int]]] | None:
+        bypass_info = []
         for i in range(len(self._action_history) - 1, -1, -1):
             op, q0, q1 = self._action_history[i]
-            if getattr(op, "name", op) == "cx":
-                if (q0 == p0 and q1 == p1) or (q0 == p1 and q1 == p0):
+            is_single_qubit = q1 == -1
+            is_blocked = q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1
+            if op.name == "cx":
+                can_cancel = (q0 == p0 and q1 == p1) or (q0 == p1 and q1 == p0)
+                if can_cancel:
+                    commuted_gates = []
                     if not dry_run:
+                        for idx, b_op, b_wire in bypass_info:
+                            self._action_history.pop(idx)
+                            new_wire = p1 if b_wire == p0 else p0
+                            commuted_gates.insert(0, (b_op, new_wire))
                         self._action_history.pop(i)
-                    return q0, q1
-                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
+
+                    return q0, q1, commuted_gates
+
+                if is_blocked:
                     return None
-            elif op == "swap":
-                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
-                    return None
-            else:
-                if q0 == p0 or q0 == p1 or q1 == p0 or q1 == p1:
-                    return None
+            elif is_single_qubit:
+                if q0 == p0 or q0 == p1:
+                    bypass_info.append((i, op, q0))
+            elif is_blocked:
+                return None
         return None
 
     def _get_remaining_circuit(self) -> QuantumCircuit:
@@ -785,11 +808,7 @@ class RoutingEnv(gymnasium.Env):
     def get_routed_circuit(self) -> QuantumCircuit:
         routed_qc = QuantumCircuit(self._num_qubits, self._circuit.num_clbits)
         for op, p0, p1 in self._action_history:
-            if getattr(op, "name", op) == "cx":
-                routed_qc.cx(p0, p1)
-            elif op == "swap":
-                routed_qc.swap(p0, p1)
-            elif p1 == -1:
+            if p1 == -1:
                 routed_qc.append(op, [int(p0)])
             else:
                 routed_qc.append(op, [int(p0), int(p1)])
