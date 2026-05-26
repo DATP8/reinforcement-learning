@@ -13,7 +13,7 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 8
+HORIZON = 32
 MAX_DIFF = 256
 SLOPE = 0.9
 TEST_SAMPLES = 3
@@ -21,14 +21,14 @@ TOTAL_STEPS = 35_000_000
 EVAL_FREQ = 256_000
 N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
-BATCH_DIVISOR = 8 * 4
+BATCH_DIVISOR = 8 * 2
 N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
 NUM_QUBITS = 16
 NUM_ACTIVE_SWAPS = 17
 INITIAL_DIFFICULTY = 1
-POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
+POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.VIBE_GRAPH
 TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
 SAMPLE_DIFF = True
 FAST_CURRICULUM = True
@@ -40,7 +40,8 @@ if __name__ == "__main__":
     # coupling_map = CouplingMap.from_line(NUM_QUBITS)
     # coupling_map = CouplingMap.from_heavy_hex(3)
     coupling_map = CouplingMap.from_grid(3, 4)
-    n_envs = mp.cpu_count()
+    n_envs = mp.cpu_count() # 4
+    n_envs = 4
     buffer_size = N_STEPS * n_envs
     batch_size = max(1, buffer_size // BATCH_DIVISOR)
     print(f"Using {n_envs} envs")
@@ -70,18 +71,18 @@ if __name__ == "__main__":
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
         policy_kwargs=POLICY_TYPE.get_policy_kwargs(
-            features_dim=256,
+            features_dim=128,
             gnn_hidden=64,
             gnn_heads=4,
-            gnn_out=64,
-            matrix_out=64 # Becomes action_out for bipartite
+            gnn_out=32,
+            matrix_out=256 # Becomes action_out for bipartite
         ),
-        # gamma=0.99,
-        # gae_lambda=0.95,
+        gamma=0.977,
+        gae_lambda=0.95,
         # clip_range=0.2,
         # ent_coef=0.01,
         # vf_coef=0.5,
-        learning_rate=1e-4,
+        learning_rate=0.00017,
         ent_coef=0.01
     )
 
