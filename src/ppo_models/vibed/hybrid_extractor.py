@@ -169,17 +169,20 @@ def _batch_graphs(
     x_flat = x_batch.view(B * N, F)
     batch_vec = torch.arange(B, device=device).repeat_interleave(N)
 
+    # Pre-compute which edges are real (not padding) for all batches
+    # This vectorized approach is more efficient on GPU than per-batch filtering
+    ei_all = edge_index_batch  # (B, 2, E)
+    ea_all = edge_attr_batch  # (B, E, edge_f)
+
+    # Vectorized padding detection: (B, E) bool tensor
+    # An edge is real if either endpoint is non-zero OR it's the first edge
+    is_real_all = (ei_all[:, 0, :] != 0) | (ei_all[:, 1, :] != 0)  # (B, E)
+
     ei_list, ea_list = [], []
     for i in range(B):
-        ei = edge_index_batch[i]  # (2, E)
-        ea = edge_attr_batch[i]  # (E, edge_f)
-
-        # Remove padding: keep edges where at least one endpoint is non-zero,
-        # OR the edge appears as the very first entry (to allow real (0,0) edges
-        # in tiny topologies, though these are rare).
-        is_real = (ei[0] != 0) | (ei[1] != 0)
-        ei = ei[:, is_real]
-        ea = ea[is_real]
+        is_real = is_real_all[i]  # (E,)
+        ei = ei_all[i, :, is_real]  # (2, num_real_edges)
+        ea = ea_all[i, is_real]  # (num_real_edges, edge_f)
 
         # Offset node indices for batching
         ei = ei + i * N
@@ -277,7 +280,15 @@ class HybridExtractor(BaseFeaturesExtractor):
             nn.ELU(),
         )
 
+    @property
+    def device(self) -> torch.device:
+        """Get the device of the model (GPU or CPU)."""
+        return next(self.parameters()).device
+
     def forward(self, obs: dict[str, torch.Tensor]) -> torch.Tensor:
+        # Ensure all observations are on the correct device
+        device = self.device
+
         # ----------------------------------------------------------------
         # 1. Matrix branch
         # ----------------------------------------------------------------
@@ -287,13 +298,13 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 2. Shared node features (both GNNs use the same node matrix)
         # ----------------------------------------------------------------
-        node_x = obs["node_features"].float()  # (B, N, NODE_F)
+        node_x = obs["node_features"].float().to(device)  # (B, N, NODE_F)
 
         # ----------------------------------------------------------------
         # 3. Coupling graph branch
         # ----------------------------------------------------------------
-        coup_ei = obs["coupling_edge_index"].long()  # (B, 2, E_c)
-        coup_ea = obs["coupling_edge_attr"].float()  # (B, E_c, 3)
+        coup_ei = obs["coupling_edge_index"].long().to(device)  # (B, 2, E_c)
+        coup_ea = obs["coupling_edge_attr"].float().to(device)  # (B, E_c, 3)
 
         cx, c_ei, c_ea, c_batch = _batch_graphs(node_x, coup_ei, coup_ea)
         coupling_feat = self.coupling_gnn(cx, c_ei, c_ea, c_batch)  # (B, gnn_out)
@@ -301,17 +312,17 @@ class HybridExtractor(BaseFeaturesExtractor):
         # ----------------------------------------------------------------
         # 4. Interaction graph branch
         # ----------------------------------------------------------------
-        int_ei = obs["interact_edge_index"].long()  # (B, 2, E_i)
-        int_ea = obs["interact_edge_attr"].float()  # (B, E_i, 3)
+        int_ei = obs["interact_edge_index"].long().to(device)  # (B, 2, E_i)
+        int_ea = obs["interact_edge_attr"].float().to(device)  # (B, E_i, 3)
 
         # Interaction graph reuses the same node features
         ix, i_ei, i_ea, i_batch = _batch_graphs(node_x, int_ei, int_ea)
         interact_feat = self.interact_gnn(ix, i_ei, i_ea, i_batch)  # (B, gnn_out)
 
         # ----------------------------------------------------------------
-        # 5. Interaction graph branch
+        # 5. Swap cancellation branch
         # ----------------------------------------------------------------
-        swap_can = obs["swap_cancellation"].float()  # (B, S)
+        swap_can = obs["swap_cancellation"].float().to(device)  # (B, S)
         can_feat = self.cancel_mlp(swap_can)
 
         # ----------------------------------------------------------------

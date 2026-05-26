@@ -23,15 +23,13 @@ class CompleteRlRoutingPass(TransformationPass):
 
         obs, _ = self.env.unwrapped.set_circuit(qc)
 
-        flag = True
-        while flag:
+        terminated = False
+        while not terminated:
             action_masks = self.env.action_masks()
             action, _ = self.agent.predict(
                 obs, deterministic=True, action_masks=action_masks
             )
             obs, reward, terminated, _, _ = self.env.step(action)
-            if terminated:
-                break
         new_qc = self.env.unwrapped.get_routed_circuit()
 
         self.property_set["final_layout"] = Layout(

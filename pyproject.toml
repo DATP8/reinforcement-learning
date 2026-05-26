@@ -27,6 +27,8 @@ dependencies = [
     "qiskit-ibm-transpiler>=0.18.0",
     "networkx>=2.8.5",
     "types-cachetools>=7.0.0.20260503",
+    "numba>=0.65.1",
+    "tensorboard>=2.20.0",
 ]
 
 [tool.pyrefly]

@@ -20,20 +20,21 @@ from stable_baselines3.common.monitor import Monitor
 from eval_circuits import EvalCircuits
 from src.curriculum_callback import CurriculumCallback
 from src.policy_types import ActorCriticPolicyType
-from src.ppo_util import make_env
+from src.ppo_util import compute_avg_decomposed_cx, make_env
 from src.routing_env import RoutingEnv
 
-CPUS_PER_TRIAL = 4
+CPUS_PER_TRIAL = 16
 NUM_UNIQUE_SAMPLES = 128
 REPEATS_PER_CONFIG = 1
-GRACE_PERIOD = 3
-NUM_QUBITS = 6
-TOTAL_TIMESTEPS = 10_000_000
-BASE_EVAL_FREQ = 100_000
+GRACE_PERIOD = 5
+REDUCTION_FACTOR = 3
+BRACKETS = 1
+NUM_QUBITS = 19 # 6
+TOTAL_TIMESTEPS = 25_000_000 # 50_000_000
+BASE_EVAL_FREQ = 256_000
 GPUS = 1.0
 
-EXPERIMENT_NAME = "maskable_ppo_search"
-
+EXPERIMENT_NAME = "bipartite_25TT_hh3_3" # 3 after reducing memory issues, but now Emil is on CPU
 
 class RayTuneCurriculumCallback(BaseCallback):
     def __init__(
@@ -70,7 +71,7 @@ class RayTuneCurriculumCallback(BaseCallback):
             avg_decomposed_cx = self._compute_num_avg_decomposed_cx()
 
             metrics = {
-                "avg_d_cx": avg_decomposed_cx,
+                "avg_s_cx": avg_decomposed_cx,
                 "diff": current_diff,
                 "seed": self._seed,
                 "pc_evals": self._post_curriculum_evals,
@@ -78,13 +79,13 @@ class RayTuneCurriculumCallback(BaseCallback):
 
             if avg_decomposed_cx < self._best_avg_decomposed_cx:
                 self._best_avg_decomposed_cx = avg_decomposed_cx
-                metrics["best_avg_d_cx"] = self._best_avg_decomposed_cx
+                metrics["best_avg_s_cx"] = self._best_avg_decomposed_cx
                 with tempfile.TemporaryDirectory() as ckpt_dir:
                     self.model.save(os.path.join(ckpt_dir, "model"))
                     checkpoint = tune.Checkpoint.from_directory(ckpt_dir)
                     tune.report(metrics, checkpoint=checkpoint)
             else:
-                metrics["best_avg_d_cx"] = self._best_avg_decomposed_cx
+                metrics["best_avg_s_cx"] = self._best_avg_decomposed_cx
                 tune.report(metrics)
 
         return True
@@ -93,32 +94,16 @@ class RayTuneCurriculumCallback(BaseCallback):
         if not isinstance(self.model, MaskablePPO):
             raise ValueError("Must be maskable PPO")
 
-        num_decomposed_cx = 0
-        for circuit in self._eval_circuits:
-            obs, info = self._eval_env.reset(
-                seed=self._seed, options={"circuit": circuit}
-            )
-            done = False
-            while not done:
-                mask = self._eval_env.valid_action_mask()
-                action, _ = self.model.predict(
-                    obs, action_masks=mask, deterministic=True
-                )
-
-                obs, reward, terminated, truncated, info = self._eval_env.step(action)
-                done = terminated
-
-            routed_circuit = self._eval_env.routed_circuit
-            ops = routed_circuit.count_ops()
-            num_decomposed_cx += ops.get("swap", 0) * 3
-            num_decomposed_cx += ops.get("cx", 0)
-        return num_decomposed_cx / len(self._eval_circuits)
+        return compute_avg_decomposed_cx(
+            self.model, self._eval_env, self._eval_circuits, seed=self._seed
+        )
 
 
 def maskable_ppo_obj(config):
     seed = random.randint(0, 2**31 - 1)
     policy_type = ActorCriticPolicyType[config["policy_type"]]
-    coupling_map = CouplingMap.from_line(config["num_qubits"])
+    # coupling_map = CouplingMap.from_line(config["num_qubits"])
+    coupling_map = CouplingMap.from_heavy_hex(3)
 
     train_env = make_vec_env(
         lambda: make_env(
@@ -147,27 +132,30 @@ def maskable_ppo_obj(config):
     )
     eval_env = Monitor(eval_env)
 
-    vibe_kwargs = (
-        dict(
-            features_dim=config["vibe_features_dim"],
-            gnn_hidden=config["vibe_gnn_hidden"],
-            gnn_heads=config["vibe_gnn_heads"],
-            gnn_out=config["vibe_gnn_out"],
-            matrix_out=config["vibe_matrix_out"],
-        )
-        if policy_type == ActorCriticPolicyType.VIBE_GRAPH
-        else {}
-    )
+    vibe_kwargs = {}
+    if policy_type == ActorCriticPolicyType.VIBE_GRAPH:
+        vibe_kwargs = dict(
+                features_dim=config["vibe_features_dim"],
+                gnn_hidden=config["vibe_gnn_hidden"],
+                gnn_heads=config["vibe_gnn_heads"],
+                gnn_out=config["vibe_gnn_out"],
+                matrix_out=config["vibe_matrix_out"],
+            )
+    elif policy_type == ActorCriticPolicyType.BIPARTITE:
+        vibe_kwargs = dict(
+                features_dim=config["bi_features_dim"],
+                gnn_hidden=config["bi_gnn_hidden"],
+                gnn_heads=config["bi_gnn_heads"],
+                gnn_out=config["bi_gnn_out"],
+                matrix_out=config["bi_matrix_out"],
+            )
 
     # Restore model from checkpoint if one exists for this trial
     checkpoint = tune.get_checkpoint()
     if checkpoint:
         with checkpoint.as_directory() as ckpt_dir:
-            model = MaskablePPO.load(
-                os.path.join(ckpt_dir, "model"),
-                env=train_env,
-            )
-        print(f"Resumed model from checkpoint (seed={seed})")
+            model = MaskablePPO.load(os.path.join(ckpt_dir, "model"), env=train_env)
+        print(f"Resumed model from checkpoint (seed={seed}, device={model.device})")
     else:
         model = MaskablePPO(
             policy=policy_type.get_sb3_policy(),
@@ -209,27 +197,38 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
 
     policy_type = trial.suggest_categorical(
         "policy_type",
-        [p.name for p in ActorCriticPolicyType],
+        [
+            # p.name for p in [ActorCriticPolicyType.BASIC]
+            p.name for p in [ActorCriticPolicyType.BIPARTITE]
+        ],  # [p.name for p in ActorCriticPolicyType],
     )
 
-    n_steps = trial.suggest_categorical("n_steps", [256, 512, 1024, 2048, 4096])
+    n_steps = trial.suggest_int("n_steps", 256, 4096)
 
     # batch_size must divide n_steps * num_envs
     num_envs = CPUS_PER_TRIAL
     buffer_size = n_steps * num_envs
-    batch_divisor = trial.suggest_categorical("batch_divisor", [1, 2, 4, 8, 16])
+    batch_divisor = trial.suggest_int("batch_divisor", 2, 32)
     batch_size = max(1, buffer_size // batch_divisor)
+
+    MAX_BATCH_SIZE = 2048
+    batch_size = min(MAX_BATCH_SIZE, batch_size)
+
+    while buffer_size % batch_size:
+        batch_size -= 1
 
     config = {
         "policy_type": policy_type,
         "learning_rate": trial.suggest_float("learning_rate", 1e-5, 3e-3, log=True),
         "gamma": trial.suggest_float("gamma", 0.8, 1.0),
-        "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
+        # "gae_lambda": trial.suggest_float("gae_lambda", 0.9, 1.0),
+        "gae_lambda": 0.95,
         "batch_size": batch_size,
         "horizon": trial.suggest_int("horizon", 8, 64),
         "n_steps": n_steps,
         "ent_coef": trial.suggest_float("ent_coef", 1e-5, 0.05, log=True),
-        "n_epochs": trial.suggest_categorical("na_epochs", [4, 8, 12, 16]),
+        # "n_epochs": trial.suggest_int("na_epochs", 8, 12),
+        "n_epochs": 10,
         "num_qubits": NUM_QUBITS,
         "num_active_swaps": NUM_QUBITS - 1,
         "initial_difficulty": 1,
@@ -238,7 +237,7 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
         "layout_exponent": 1.0,
         "threshold": 0.85,
         "base_eval_freq": BASE_EVAL_FREQ,
-        "n_eval_episodes": 100,
+        "n_eval_episodes": 256,
         "total_timesteps": TOTAL_TIMESTEPS,
         "num_envs": num_envs,
     }
@@ -260,6 +259,23 @@ def optuna_space(trial: optuna.Trial | None) -> dict[str, Any] | None:
             "vibe_matrix_out", [64, 128, 256]
         )
 
+    if policy_type == ActorCriticPolicyType.BIPARTITE.name:
+        config["bi_features_dim"] = trial.suggest_categorical(
+            "bi_features_dim", [64, 128, 256, 512]
+        )
+        config["bi_gnn_hidden"] = trial.suggest_categorical(
+            "bi_gnn_hidden", [32, 64, 128]
+        )
+        config["bi_gnn_heads"] = trial.suggest_categorical(
+            "bi_gnn_heads", [2, 4, 8]
+        )
+        config["bi_gnn_out"] = trial.suggest_categorical(
+            "bi_gnn_out", [32, 64, 128]
+        )
+        config["bi_matrix_out"] = trial.suggest_categorical(
+            "bi_matrix_out", [16, 32, 64, 128]
+        )
+
     return config
 
 
@@ -276,22 +292,24 @@ if __name__ == "__main__":
 
     gpus_per_trial = GPUS / num_concurrent_trials if torch.cuda.is_available() else 0.0
 
-    algo = OptunaSearch(space=optuna_space, metric="best_avg_d_cx", mode="min")
+    algo = OptunaSearch(space=optuna_space, metric="best_avg_s_cx", mode="min")
 
     max_evals = TOTAL_TIMESTEPS // BASE_EVAL_FREQ
 
     scheduler = ASHAScheduler(
         time_attr="pc_evals",
-        metric="avg_d_cx",
+        metric="avg_s_cx",
         mode="min",
         max_t=max_evals,
         grace_period=GRACE_PERIOD,
+        reduction_factor=REDUCTION_FACTOR,
+        brackets=BRACKETS,
     )
 
     reporter = CLIReporter(
         infer_limit=10,
         print_intermediate_tables=True,
-        metric="best_avg_d_cx",
+        metric="best_avg_s_cx",
         mode="min",
         sort_by_metric=True,
     )
@@ -321,7 +339,7 @@ if __name__ == "__main__":
                 progress_reporter=reporter,
                 log_to_file=True,
                 checkpoint_config=tune.CheckpointConfig(
-                    checkpoint_score_attribute="best_avg_d_cx",
+                    checkpoint_score_attribute="best_avg_s_cx",
                     checkpoint_score_order="min",
                     num_to_keep=2,
                 ),
@@ -337,13 +355,13 @@ if __name__ == "__main__":
     agg_df = (
         df.groupby(config_cols)
         .agg(
-            best_avg_d_cx=("best_avg_d_cx", "min"),
+            best_avg_s_cx=("best_avg_s_cx", "min"),
             seeds_used=("seed", lambda x: list(x)),
         )
         .reset_index()
     )
 
-    agg_df = agg_df.sort_values("best_avg_d_cx", ascending=True)
+    agg_df = agg_df.sort_values("best_avg_s_cx", ascending=True)
 
     print(f"\n--- Top Hyperparameters (Averaged over {REPEATS_PER_CONFIG} seeds) ---")
     print(agg_df.to_string(index=False))

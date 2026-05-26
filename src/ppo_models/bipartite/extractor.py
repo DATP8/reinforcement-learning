@@ -39,18 +39,18 @@ model but with an explicit per-action structure.
 
 from __future__ import annotations
 
+import gymnasium as gym
 import torch
 import torch.nn as nn
-from torch_geometric.nn import GATConv
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-import gymnasium as gym
+from torch_geometric.nn import GATConv
 
-from ppo_models.bipartite.graph_obs import NODE_F, EDGE_F, ACTION_NODE_F
-
+from src.ppo_models.bipartite.graph_obs import EDGE_F, NODE_F
 
 # ---------------------------------------------------------------------------
 # Bipartite GNN
 # ---------------------------------------------------------------------------
+
 
 class BipartiteGNN(nn.Module):
     """
@@ -87,32 +87,35 @@ class BipartiteGNN(nn.Module):
 
         in_dim = actual_in
         for i in range(num_layers):
-            is_last = (i == num_layers - 1)
+            is_last = i == num_layers - 1
             out = out_dim if is_last else hidden
             heads_here = 1 if is_last else heads
             concat = False if is_last else True
-            self.convs.append(GATConv(
-                in_dim, out,
-                heads=heads_here,
-                edge_dim=edge_in,
-                concat=concat,
-                dropout=0.0,
-            ))
+            self.convs.append(
+                GATConv(
+                    in_dim,
+                    out,
+                    heads=heads_here,
+                    edge_dim=edge_in,
+                    concat=concat,
+                    dropout=0.0,
+                )
+            )
             self.acts.append(nn.ELU())
             in_dim = out * heads_here if concat else out
 
     def forward(
         self,
-        x: torch.Tensor,            # (B*N_total, node_in)
-        node_type: torch.Tensor,    # (B*N_total,)  int64
-        edge_index: torch.Tensor,   # (2, B*E)
-        edge_attr: torch.Tensor,    # (B*E, edge_in)
-        num_active_swaps: int,      # action nodes per graph
-        B: int,                     # batch size
+        x: torch.Tensor,  # (B*N_total, node_in)
+        node_type: torch.Tensor,  # (B*N_total,)  int64
+        edge_index: torch.Tensor,  # (2, B*E)
+        edge_attr: torch.Tensor,  # (B*E, edge_in)
+        num_active_swaps: int,  # action nodes per graph
+        B: int,  # batch size
     ) -> torch.Tensor:
         # Augment node features with type embedding
-        type_emb = self.type_embed(node_type)   # (B*N_total, type_embed_dim)
-        x = torch.cat([x, type_emb], dim=-1)    # (B*N_total, node_in + type_embed_dim)
+        type_emb = self.type_embed(node_type)  # (B*N_total, type_embed_dim)
+        x = torch.cat([x, type_emb], dim=-1)  # (B*N_total, node_in + type_embed_dim)
 
         for conv, act in zip(self.convs, self.acts):
             x = act(conv(x, edge_index, edge_attr))
@@ -121,14 +124,15 @@ class BipartiteGNN(nn.Module):
         # Action nodes are at positions [i*N_total : i*N_total + num_active_swaps]
         # for each graph i in the batch
         N_total = x.shape[0] // B
-        # action_rows = torch.cat([
-        #     x[i * N_total: i * N_total + num_active_swaps]
-        #     for i in range(B)
-        # ], dim=0)   # (B * num_active_swaps, gnn_out)
-        action_rows = torch.cat([
-            x[i * N_total: i * N_total + num_active_swaps]  # num_active_swaps is the MAX here
-            for i in range(B)
-        ], dim=0)
+
+        # Reshape and extract only the first num_active_swaps nodes per batch
+        x_reshaped = x.view(B, N_total, -1)
+        action_rows = x_reshaped[
+            :, :num_active_swaps, :
+        ]  # (B, num_active_swaps, gnn_out)
+
+        # Flatten back to match original output shape
+        action_rows = action_rows.contiguous().view(B * num_active_swaps, -1)
 
         return action_rows
 
@@ -137,28 +141,33 @@ class BipartiteGNN(nn.Module):
 # Batched bipartite graph helper
 # ---------------------------------------------------------------------------
 
+
 def _batch_bipartite(
-    x_batch: torch.Tensor,          # (B, N_total, NODE_F)
+    x_batch: torch.Tensor,  # (B, N_total, NODE_F)
     node_type_batch: torch.Tensor,  # (B, N_total)
-    edge_index_batch: torch.Tensor, # (B, 2, E)
+    edge_index_batch: torch.Tensor,  # (B, 2, E)
     edge_attr_batch: torch.Tensor,  # (B, E, EDGE_F)
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Flatten batched graph tensors into PyG format."""
     B, N_total, F = x_batch.shape
-    device = x_batch.device
 
-    x_flat = x_batch.view(B * N_total, F)
-    node_type_flat = node_type_batch.view(B * N_total)
+    x_flat = x_batch.contiguous().view(B * N_total, F)
+    node_type_flat = node_type_batch.contiguous().view(B * N_total)
 
-    ei_list, ea_list = [], []
-    for i in range(B):
-        ei = edge_index_batch[i] + i * N_total   # offset node indices
-        ea = edge_attr_batch[i]
-        ei_list.append(ei)
-        ea_list.append(ea)
+    # Vectorized offset computation:
+    # edge_index_batch is shaped (B, 2, E). We add i * N_total to each graph.
+    offsets = (
+        torch.arange(
+            B, device=edge_index_batch.device, dtype=edge_index_batch.dtype
+        ).view(B, 1, 1)
+        * N_total
+    )
 
-    edge_index = torch.cat(ei_list, dim=1)
-    edge_attr = torch.cat(ea_list, dim=0)
+    # Add offsets, transpose to (2, B, E) and then flatten to (2, B * E)
+    edge_index = (edge_index_batch + offsets).transpose(0, 1).contiguous().view(2, -1)
+
+    # Flatten edge_attr to (B * E, EDGE_F)
+    edge_attr = edge_attr_batch.contiguous().view(-1, edge_attr_batch.shape[-1])
 
     return x_flat, node_type_flat, edge_index, edge_attr
 
@@ -166,6 +175,7 @@ def _batch_bipartite(
 # ---------------------------------------------------------------------------
 # BipartiteExtractor
 # ---------------------------------------------------------------------------
+
 
 class BipartiteExtractor(BaseFeaturesExtractor):
     """
@@ -203,12 +213,12 @@ class BipartiteExtractor(BaseFeaturesExtractor):
         self.use_bipartite = use_bipartite
         self.use_matrix = use_matrix
 
-        matrix_shape = observation_space["matrix"].shape   # (num_active_swaps, horizon)
+        matrix_shape: tuple = observation_space["matrix"].shape  # pyrefly: ignore  # (num_active_swaps, horizon)
         self.num_active_swaps = matrix_shape[0]
         self.horizon = matrix_shape[1]
 
-        bipartite_x_shape = observation_space["bipartite_x"].shape  # (N_total, NODE_F)
-        self.N_total = bipartite_x_shape[0]   # num_active_swaps + horizon
+        bipartite_x_shape: tuple = observation_space["bipartite_x"].shape  # pyrefly: ignore  # (N_total, NODE_F)
+        self.N_total = bipartite_x_shape[0]  # num_active_swaps + horizon
 
         # Per-action input dim to the action MLP
         action_embed_in = 0
@@ -246,7 +256,6 @@ class BipartiteExtractor(BaseFeaturesExtractor):
         )
 
     def forward(self, obs: dict[str, torch.Tensor]) -> torch.Tensor:
-        print("Forward through bipartite")
         B = obs["matrix"].shape[0]
 
         parts = []
@@ -255,18 +264,21 @@ class BipartiteExtractor(BaseFeaturesExtractor):
         # Bipartite GNN branch
         # ----------------------------------------------------------------
         if self.use_bipartite:
-            x = obs["bipartite_x"].float()                  # (B, N_total, NODE_F)
-            nt = obs["bipartite_node_type"].long()           # (B, N_total)
-            ei = obs["bipartite_edge_index"].long()          # (B, 2, E)
-            ea = obs["bipartite_edge_attr"].float()          # (B, E, EDGE_F)
+            x = obs["bipartite_x"].float()  # (B, N_total, NODE_F)
+            nt = obs["bipartite_node_type"].long()  # (B, N_total)
+            ei = obs["bipartite_edge_index"].long()  # (B, 2, E)
+            ea = obs["bipartite_edge_attr"].float()  # (B, E, EDGE_F)
 
             x_flat, nt_flat, ei_flat, ea_flat = _batch_bipartite(x, nt, ei, ea)
 
             action_emb = self.bipartite_gnn(
-                x_flat, nt_flat, ei_flat, ea_flat,
+                x_flat,
+                nt_flat,
+                ei_flat,
+                ea_flat,
                 num_active_swaps=self.num_active_swaps,
                 B=B,
-            )   # (B * num_active_swaps, gnn_out)
+            )  # (B * num_active_swaps, gnn_out)
 
             # Reshape to (B, num_active_swaps, gnn_out)
             action_emb = action_emb.view(B, self.num_active_swaps, -1)
@@ -276,7 +288,7 @@ class BipartiteExtractor(BaseFeaturesExtractor):
         # Raw matrix branch (per action row)
         # ----------------------------------------------------------------
         if self.use_matrix:
-            matrix = obs["matrix"].float()                  # (B, num_active_swaps, horizon)
+            matrix = obs["matrix"].float()  # (B, num_active_swaps, horizon)
             parts.append(matrix)
 
         # ----------------------------------------------------------------
@@ -288,8 +300,7 @@ class BipartiteExtractor(BaseFeaturesExtractor):
         # Apply shared MLP to each action independently
         # Flatten batch+action → (B * num_active_swaps, action_embed_in)
         per_action = per_action.view(B * self.num_active_swaps, -1)
-        per_action = self.action_mlp(per_action)            # (B * A, action_out)
-        per_action = per_action.view(B, -1)                 # (B, num_active_swaps * action_out)
+        per_action = self.action_mlp(per_action)  # (B * A, action_out)
+        per_action = per_action.view(B, -1)  # (B, num_active_swaps * action_out)
 
-        print("Forward done")
-        return self.final_mlp(per_action)                   # (B, features_dim)
+        return self.final_mlp(per_action)  # (B, features_dim)

@@ -13,27 +13,33 @@ from src.ppo_util import PostCurriculumEvalCallback, make_env, mask_fn
 ### When reporting results, take mean and standard deviation
 ### of at least 5 runs. Report the seeds for reproducability.
 
-HORIZON = 64
+HORIZON = 8
 MAX_DIFF = 256
 SLOPE = 0.9
 TEST_SAMPLES = 3
-TOTAL_STEPS = 10_000_000
-EVAL_FREQ = 100_000
-N_EVAL_EPISODES = 100
+TOTAL_STEPS = 35_000_000
+EVAL_FREQ = 256_000
+N_EVAL_EPISODES = 256
 THRESHOLD = 0.85
-BATCH_DIVISOR = 7
+BATCH_DIVISOR = 8 * 4
 N_STEPS = 2048
 EPOCHS = 10
 LAYOUT_EXPONENT = 1.0
-NUM_QUBITS = 6
-NUM_ACTIVE_SWAPS = 5
+NUM_QUBITS = 16
+NUM_ACTIVE_SWAPS = 17
 INITIAL_DIFFICULTY = 1
 POLICY_TYPE: ActorCriticPolicyType = ActorCriticPolicyType.BIPARTITE
+TENSORBOARD_LOG_DIR = "./logs/tensorboard/"
+SAMPLE_DIFF = True
+FAST_CURRICULUM = True
+LOG_AVG_S_CX = False # Holy shit this is slow
 
 if __name__ == "__main__":
     # backend = FakeTorino()
     # coupling_map = backend.coupling_map
-    coupling_map = CouplingMap.from_line(NUM_QUBITS)
+    # coupling_map = CouplingMap.from_line(NUM_QUBITS)
+    # coupling_map = CouplingMap.from_heavy_hex(3)
+    coupling_map = CouplingMap.from_grid(3, 4)
     n_envs = mp.cpu_count()
     buffer_size = N_STEPS * n_envs
     batch_size = max(1, buffer_size // BATCH_DIVISOR)
@@ -50,6 +56,7 @@ if __name__ == "__main__":
             diff_slope=SLOPE,
             layout_exponent=LAYOUT_EXPONENT,
             policy_type=POLICY_TYPE,
+            sample_diff=SAMPLE_DIFF,
         ),
         n_envs=n_envs,
     )
@@ -58,15 +65,24 @@ if __name__ == "__main__":
         POLICY_TYPE.get_sb3_policy(),
         train_env,
         verbose=1,
+        tensorboard_log=TENSORBOARD_LOG_DIR,
         batch_size=batch_size,
         n_steps=N_STEPS,
         n_epochs=EPOCHS,
-        policy_kwargs=POLICY_TYPE.get_policy_kwargs(),
+        policy_kwargs=POLICY_TYPE.get_policy_kwargs(
+            features_dim=256,
+            gnn_hidden=64,
+            gnn_heads=4,
+            gnn_out=64,
+            matrix_out=64 # Becomes action_out for bipartite
+        ),
         # gamma=0.99,
         # gae_lambda=0.95,
         # clip_range=0.2,
         # ent_coef=0.01,
         # vf_coef=0.5,
+        learning_rate=1e-4,
+        ent_coef=0.01
     )
 
     eval_env = make_env(
@@ -79,11 +95,12 @@ if __name__ == "__main__":
         diff_slope=SLOPE,
         layout_exponent=LAYOUT_EXPONENT,
         policy_type=POLICY_TYPE,
+        sample_diff=SAMPLE_DIFF,
     )
     eval_env = Monitor(eval_env)
 
     curriculum_callback = CurriculumCallback(
-        threshold=THRESHOLD, use_fast_curriculum=True, verbose=1
+        threshold=THRESHOLD, use_fast_curriculum=FAST_CURRICULUM, verbose=1
     )
 
     eval_freq = max(EVAL_FREQ // n_envs, 1)
@@ -94,6 +111,8 @@ if __name__ == "__main__":
         n_eval_episodes=N_EVAL_EPISODES,
         best_model_save_path="./checkpoints/",
         log_path="./logs/",
+        num_qubits=NUM_QUBITS,
+        log_avg_s_cx=LOG_AVG_S_CX,
     )
 
     model.learn(
