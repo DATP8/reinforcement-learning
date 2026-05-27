@@ -82,7 +82,7 @@ METRIC_KEYS = [
 
 MQT_ALGOS_BLACKLIST = [
     # "qnn",
-    # "qwalk", 
+    # "qwalk", #
     # "ae", 
     # "bmw_quark_cardinality", 
     # "bmw_quark_copula", 
@@ -93,13 +93,13 @@ MQT_ALGOS_BLACKLIST = [
     # "ghz_dynamic", 
     # "ghz",
     # "graphstate", 
-    "grover", ###################################
+    "grover", #
     # "bv",
     # "qft",
-    # "half_adder", 
+    # "half_adder", #
     # "hhl", 
-    # "hrs_cumulative_multiplier", 
-    # "modular_adder", 
+    # "hrs_cumulative_multiplier",
+    # "modular_adder", #
     # "multiplier", 
     # "qaoa", 
     # "qftentangled", 
@@ -110,15 +110,15 @@ MQT_ALGOS_BLACKLIST = [
     # "vbe_ripple_carry_adder", 
     # "vqe_real_amp", 
     # "vqe_su2", 
-    # "vqe_two_local", 
+    # "vqe_two_local", #
     # "wstate",
-    "shor",
-    # "shors_nine_qubit_code",
+    "shor", #
+    "shors_nine_qubit_code", #
     # "seven_qubit_steane_code"
 ]
 
 
-ROUTING_TIMEOUT_SECONDS = 300
+ROUTING_TIMEOUT_SECONDS = 180
 
 EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
 random.seed(EVAL_SEED)
@@ -248,7 +248,7 @@ class Benchmarker:
             print("STDERR:", e.stderr)  # THIS is where the real error is hidden
             raise e
 
-    def run_mqt_benchmarks(self, configs: list[tuple[str, PassManager]]):
+    def run_mqt_benchmarks(self, configs: list[tuple[str, PassManager]], coupling_map_title, n_qubits):
         name_lengths = [len(elem[0]) for elem in configs]
         name_size = max(name_lengths)
 
@@ -275,6 +275,9 @@ class Benchmarker:
                 pass
             except Exception as e:
                 raise e
+
+            with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
+                json.dump({"coupling_map": coupling_map_title, "num_qubits": n_qubits, "algorithms": results}, f, indent=2)
 
         return results
 
@@ -403,17 +406,17 @@ if __name__ == "__main__":
 
     # --- Configure coupling maps ---
     coupling_map_configs = [
-        ("line_6", CouplingMap().from_line(6)),
         ("heavy_hex_3", CouplingMap().from_heavy_hex(3)),
-        ("grid_2x3", CouplingMap().from_grid(2, 3)),
         ("grid_3x4", CouplingMap().from_grid(3, 4)),
+        ("grid_2x3", CouplingMap().from_grid(2, 3)),
+        ("line_6", CouplingMap().from_line(6)),
     ]
 
     RECEDING_CONFIGS = {
-        "line_6":      {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration17170_line6.pt"},
-        "grid_2x3":    {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration13940_grid2x3.pt"},
-        "grid_3x4":    {"horizon": 20, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11210_grid3x4.pt"},
-        "heavy_hex_3": {"horizon": 10, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
+        "line_6":      {"horizon": 28, "step_size": 14, "model_path": "models/emil/difficulty32_iteration17170_line6.pt"},
+        "grid_2x3":    {"horizon": 28, "step_size": 14, "model_path": "models/emil/difficulty32_iteration13940_grid2x3.pt"},
+        "grid_3x4":    {"horizon": 20, "step_size": 10, "model_path": "models/emil/difficulty32_iteration11210_grid3x4.pt"},
+        "heavy_hex_3": {"horizon": 10, "step_size": 5, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
     }
 
     BIPARTITE_CONFIGS = {
@@ -425,6 +428,8 @@ if __name__ == "__main__":
 
     VIBED_CONFIGS = {
         "line_6":      {"num_active_swaps": 5, "model_path": "models/vibed/best_vibed_line_model.zip"},
+        # "grid_2x3":      {"num_active_swaps": 17, "model_path": "models/vibed/best_vibed_grid_model.zip"},
+        "grid_3x4":      {"num_active_swaps": 17, "model_path": "models/vibed/best_vibed_grid_model.zip"},
     }
 
     PPO_MODEL_PATH = "models/mikkel/new_grid_ppo.zip"
@@ -484,7 +489,7 @@ if __name__ == "__main__":
         ).build(coupling_map)
 
         vibed_ppo = None
-        if VIBED_CONFIGS[coupling_map_title]:
+        if coupling_map_title in VIBED_CONFIGS:
             vibed_ppo = PPOBuilder(
                 num_active_swaps=VIBED_CONFIGS[coupling_map_title]["num_active_swaps"],
                 horizon=32,
@@ -525,7 +530,7 @@ if __name__ == "__main__":
 
         # --- MQT benchmark ---
         bench = Benchmarker(qubits=n_qubits, coupling_map=coupling_map, num_gates=100)
-        mqt_algorithms = bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+        mqt_algorithms = bench.run_mqt_benchmarks(configs, coupling_map_title + "_tmp_3", n_qubits)  # pyrefly: ignore
 
         with open(results_dir / f"benchmark_mqt_{coupling_map_title}.json", "w") as f:
             json.dump({"coupling_map": coupling_map_title, "num_qubits": n_qubits, "algorithms": mqt_algorithms}, f, indent=2)
