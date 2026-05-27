@@ -1,5 +1,5 @@
-from concurrent.futures import as_completed
-from concurrent.futures import ProcessPoolExecutor
+from src.routing.bwas_router2 import BWASRouter2
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from src.routing.weighted_a_star_search import WeightedAStarSearch
 from src.circuit_generator import CircuitGenerator
 from qiskit.transpiler.passes import (
@@ -20,7 +20,7 @@ from mqt.bench.benchmarks import get_available_benchmark_names
 
 import time
 import random
-
+from copy import deepcopy
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -29,8 +29,12 @@ METRIC_KEYS = [
     ("Depth", 10),
     ("Size", 10),
     ("Decomposed Depth", 10),
+    ("Decomposed Size", 10),
 ]
 
+def _bench_pass_wrapper(args):
+    self, qc, pm, title = args
+    return self.bench_pass(qc, pm, title)
 
 class Benchmarker:
     def __init__(
@@ -107,9 +111,7 @@ class Benchmarker:
     def _collect_metrics(self, routed_circuit, transpile_time):
         ops = routed_circuit.count_ops()
 
-        decomposed_circuit = self.commutative_cancellation.run(
-            routed_circuit.decompose(gates_to_decompose="swap").to_dag()
-        ).to_circuit()
+        decomposed_circuit = routed_circuit.decompose(gates_to_decompose="swap")
 
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
@@ -121,6 +123,7 @@ class Benchmarker:
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
             METRIC_KEYS[5][0]: decomposed_circuit.depth(),
+            METRIC_KEYS[6][0]: decomposed_circuit.size(),
         }
         return metrics
 
@@ -222,10 +225,6 @@ class Benchmarker:
 
         return self._collect_metrics(routed, transpile_time)
 
-    @staticmethod
-    def _bench_pass_wrapper(args):
-        self, qc, pm, title = args
-        return self.bench_pass(qc, pm, title)
 
     def bench_circuit(
         self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title
@@ -245,7 +244,7 @@ class Benchmarker:
 
         with ProcessPoolExecutor() as executor:
             futures = [
-                executor.submit(self._bench_pass_wrapper, (self, qc, pm, title))
+                executor.submit(_bench_pass_wrapper, (deepcopy(self), deepcopy(qc), deepcopy(pm), title))
                 for qc in qc_list
             ]
 
@@ -279,22 +278,32 @@ if __name__ == "__main__":
     import torch
     import optuna
 
-    n_qubits = 6
-    horizon = 100
-    topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
+
+
+    path_dense = "models/line6/difficulty32_iteration17170_line6.pt"
+    coupling_map = CouplingMap.from_line(6)
+
+    # path_dense = "models/grid2x3/difficulty31_iteration3260.pt"
+    # coupling_map = CouplingMap.from_grid(2, 3)
+    
+    # path_dense = "models/grid3x4/difficulty32_iteration3360.pt"
+    # coupling_map = CouplingMap.from_grid(3, 4)
+    
+    # path_dense = "models/heavy_hex3/difficulty32_iteration11750_heavy_hex3.pt"
+    # coupling_map = CouplingMap.from_heavy_hex(3)
+    
+    n_qubits = coupling_map.size()
+    
+    state_handler_dense = DenseCircuitGraphStateHandler(coupling_map)
 
     # path_dense = "models/dense_graph/difficulty32_iteration98040.pt"
     # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
     # path_dense = "models/dense_graph/difficulty31_iteration8000_0.3.pt"
     # path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
-    path_dense = "models/dense_graph/difficulty32_iteration42030_0.333.pt"
+    # path_dense = "models/dense_graph/difficulty32_iteration42030_0.333.pt"
     
     model_dense = BiCircuitGNNDense(n_qubits)
     model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
-
-    coupling_map = CouplingMap(topology)
-    coupling_map.make_symmetric()
 
     swap_inserter = SwapInserter(coupling_map, n_qubits)
 
@@ -329,7 +338,10 @@ if __name__ == "__main__":
     # ]
     
     horizons = [4, 8, 12, 16, 20, 24, 28, 32]
+    #horizons = [24, 28, 32]
     step_size_factors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0][::-1]
+    
+    config_set = set()
     
     configs = []
     for horizon in horizons:
@@ -338,6 +350,14 @@ if __name__ == "__main__":
             if step_size == 0:
                 continue
             
+            if (horizon, step_size) in config_set:
+                continue
+            
+            config_set.add((horizon, step_size))
+            
+            # if horizon == 24 and step_size_factor >= 0.25:
+            #     continue
+
             configs.append(
                 (
                     f"TrivialLayout_receding_horizon_b16_w0.8_h{horizon}_s{step_size}_sf{step_size_factor}",
@@ -367,21 +387,18 @@ if __name__ == "__main__":
     # #### Standard qiskit pass manager inserted router
     # configs = [
     #     (
-    #         "TrivialLayout_receding_horizon_b256_w0.8_h20_s_4",
+    #         "TrivialLayout_BWAS_b16_w0.8",
     #         PassManager(
     #             [
     #                 trivial_layout,
     #                 ApplyLayout(),
+    #                 CommutativeCancellation(),
     #                 RlRoutingPass(
-    #                     RecedingHorizon(
-    #                         20,
-    #                         4,
-    #                         BWASRouter(
-    #                             model_dense,
-    #                             state_handler_dense,
-    #                             batch_size=256,
-    #                             weight=0.8,
-    #                         ),
+    #                     BWASRouter(
+    #                         model_dense,
+    #                         deepcopy(state_handler_dense),
+    #                         batch_size=16,
+    #                         weight=0.8,
     #                     ),
     #                     swap_inserter,
     #                 ),

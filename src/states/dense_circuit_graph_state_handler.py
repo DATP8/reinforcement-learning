@@ -26,7 +26,7 @@ class DenseCircuitGraphStateHandler(StateHandler[DenseCircuitGraph]):
         self.prune_cache = LFUCache[int, tuple[DenseCircuitGraph, list[int]]](maxsize=10000)
 
     def get_topology(self):
-        return self.swaps
+        return self.coupling_map_edges
 
     def get_num_qubits(self):
         return self.n_qubits
