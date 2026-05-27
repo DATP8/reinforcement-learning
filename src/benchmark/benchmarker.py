@@ -80,40 +80,40 @@ METRIC_KEYS = [
 # ]
 
 MQT_ALGOS_BLACKLIST = [
-    "qnn",
-    #"qwalk", 
-    #"ae", 
-    "bmw_quark_cardinality", 
-    #"bmw_quark_copula", 
-    #"cdkm_ripple_carry_adder", 
-    #"dj", 
-    #"draper_qft_adder", 
-    #"full_adder", 
-    "ghz_dynamic", 
-    "ghz",
-    #"graphstate", 
+    # "qnn",
+    # "qwalk", 
+    # "ae", 
+    # "bmw_quark_cardinality", 
+    # "bmw_quark_copula", 
+    # "cdkm_ripple_carry_adder", 
+    # "dj", 
+    # "draper_qft_adder", 
+    # "full_adder", 
+    # "ghz_dynamic", 
+    # "ghz",
+    # "graphstate", 
     "grover", ###################################
-    #"bv",
-    #"qft",
-    #"half_adder", 
-    #"hhl", 
-    #"hrs_cumulative_multiplier", 
-    #"modular_adder", 
-    #"multiplier", 
-    #"qaoa", 
-    #"qftentangled", 
-    #"qpeexact", 
-    #"qpeinexact", 
-    "randomcircuit", 
-    #"rg_qft_multiplier", 
-    #"vbe_ripple_carry_adder", 
-    "vqe_real_amp", 
-    "vqe_su2", 
-    #"vqe_two_local", 
-    "wstate",
-    #"shor",
-    #"shors_nine_qubit_code",
-    #"seven_qubit_steane_code"
+    # "bv",
+    # "qft",
+    # "half_adder", 
+    # "hhl", 
+    # "hrs_cumulative_multiplier", 
+    # "modular_adder", 
+    # "multiplier", 
+    # "qaoa", 
+    # "qftentangled", 
+    # "qpeexact", 
+    # "qpeinexact", 
+    # "randomcircuit", 
+    # "rg_qft_multiplier", 
+    # "vbe_ripple_carry_adder", 
+    # "vqe_real_amp", 
+    # "vqe_su2", 
+    # "vqe_two_local", 
+    # "wstate",
+    "shor",
+    # "shors_nine_qubit_code",
+    # "seven_qubit_steane_code"
 ]
 
 
@@ -389,29 +389,29 @@ if __name__ == "__main__":
 
     # --- Configure coupling maps ---
     coupling_map_configs = [
-        #("grid_2x3", CouplingMap().from_grid(2, 3)),
-        #("grid_3x4", CouplingMap().from_grid(3, 4)),
-        ("line_6", CouplingMap().from_line(6)),
         ("heavy_hex_3", CouplingMap().from_heavy_hex(3)),
+        ("line_6", CouplingMap().from_line(6)),
+        ("grid_2x3", CouplingMap().from_grid(2, 3)),
+        ("grid_3x4", CouplingMap().from_grid(3, 4)),
     ]
 
     RECEDING_CONFIGS = {
         "line_6":      {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration17170_line6.pt"},
         "grid_2x3":    {"horizon": 28, "step_size": 16, "model_path": "models/emil/difficulty32_iteration13940_grid2x3.pt"},
-        "grid_3x4":    {"horizon": 14, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11210_grid3x4.pt"},
-        "heavy_hex_3": {"horizon": 10, "step_size": 10, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
+        "grid_3x4":    {"horizon": 20, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11210_grid3x4.pt"},
+        "heavy_hex_3": {"horizon": 10, "step_size": 16, "model_path": "models/emil/difficulty32_iteration11750_heavy_hex3.pt"},
     }
 
     BIPARTITE_CONFIGS = {
-        "line_6":      {"num_active_swaps": 5, "model_path": "models/asbjørn/line_6.zip"},
-        "grid_2x3":    {"num_active_swaps": 6, "model_path": "models/asbjørn/grid_2x3.zip"},
-        "grid_3x4":    {"num_active_swaps": -1, "model_path": "models/asbjørn/grid_3x4.zip"},
-        "heavy_hex_3": {"num_active_swaps": 20, "model_path": "models/asbjørn/heavy_hex_3.zip"},
+        "line_6":      {"num_active_swaps": 5, "model_path": "models/asbjørn/bipartite_best_line_model.zip"},
+        "grid_2x3":    {"num_active_swaps": 17, "model_path": "models/asbjørn/bipartite_best_grid_model.zip"},
+        "grid_3x4":    {"num_active_swaps": 17, "model_path": "models/asbjørn/bipartite_best_grid_model.zip"},
+        "heavy_hex_3": {"num_active_swaps": 20, "model_path": "models/asbjørn/bipartite_best_hh3_model.zip"},
     }
 
     PPO_MODEL_PATH = "models/mikkel/new_grid_ppo.zip"
 
-    bench_iterations = 10
+    bench_iterations = 100
     gate_amounts = [100]
 
     results_dir = ROOT_DIR / "results"
@@ -496,7 +496,6 @@ if __name__ == "__main__":
             if algo not in combined_mqt_results["algorithms"]:
                 combined_mqt_results["algorithms"][algo] = {}
             combined_mqt_results["algorithms"][algo][coupling_map_title] = algo_data
-
         # --- Random circuit benchmark ---
         rand_per_cm: dict = {}
         for gate_count in gate_amounts:
@@ -518,12 +517,4 @@ if __name__ == "__main__":
         with open(results_dir / f"benchmark_rand_{coupling_map_title}.json", "w") as f:
             json.dump({"coupling_map": coupling_map_title, "num_qubits": n_qubits, "configs": rand_per_cm}, f, indent=2)
 
-        for config_name, gate_data in rand_per_cm.items():
-            if config_name not in combined_rand_results["configs"]:
-                combined_rand_results["configs"][config_name] = {}
-            combined_rand_results["configs"][config_name][coupling_map_title] = gate_data
 
-    with open(results_dir / "benchmark_rand_combined.json", "w") as f:
-        json.dump(combined_rand_results, f, indent=2)
-    with open(results_dir / "benchmark_mqt_combined.json", "w") as f:
-        json.dump(combined_mqt_results, f, indent=2)

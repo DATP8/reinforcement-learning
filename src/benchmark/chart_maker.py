@@ -83,6 +83,29 @@ def _typst_header():
         '#import "@preview/lilaq:0.4.0" as lq\n',
         "#set page(width: 297mm, height: 210mm, flipped: true, margin: 1cm)\n",
         "#set text(size: 7pt)\n\n",
+        "#let data_to_table(list, cap, place) = {\n"
+        "  let header = list.first()\n"
+        "  let rows = list.slice(1)\n"
+        "  let col_count = header.len()\n\n"
+        "  figure(\n"
+        "    placement: place,\n"
+        "    table(\n"
+        "      stroke: none,\n"
+        "      columns: (auto,) * col_count,\n"
+        "      align: horizon,\n"
+        "      table.hline(),\n"
+        "      table.vline(x: 0),\n"
+        "      table.vline(x: col_count),\n"
+        "      table.header(\n"
+        "        ..header.map(cell => [#cell])\n"
+        "      ),\n"
+        "      table.hline(),\n"
+        "      ..rows.map(row => row.map(cell => [#cell])).flatten(),\n"
+        "      table.hline()\n"
+        "    ),\n"
+        "    caption: cap\n"
+        "  )\n"
+        "}\n\n",
     ]
 
 
@@ -90,7 +113,14 @@ def typst_chart_block(metric, config_data, xlabel, title):
     """Generic chart block.
 
     config_data: {config: [(x_val, {metric: (mean, ci)}), ...]}
+    x_val may be numeric or a string label (categorical).
     """
+    all_xs_ordered = list(dict.fromkeys(
+        x for points in config_data.values() for x, _ in points
+    ))
+    xs_are_strings = all_xs_ordered and isinstance(all_xs_ordered[0], str)
+    x_index = {label: i for i, label in enumerate(all_xs_ordered)} if xs_are_strings else {}
+
     lines = [
         f'#block(\n'
         f'    width: 100%,\n'
@@ -104,10 +134,18 @@ def typst_chart_block(metric, config_data, xlabel, title):
         f'            height: size.height,'
     ]
 
+    if xs_are_strings:
+        labels_str = ", ".join(f'"{label}"' for label in all_xs_ordered)
+        trailing = "," if len(all_xs_ordered) == 1 else ""
+        lines.append(f'            xaxis: (ticks: ({labels_str}{trailing}).enumerate()),')
+
     for config, points in config_data.items():
-        xs = [str(x) for x, _ in points]
-        ys = [str(round(m.get(metric, (0, 0))[0], 4)) for _, m in points]
-        yerrs = [str(round(m.get(metric, (0, 0))[1], 4)) for _, m in points]
+        valid = [(x, m) for x, m in points if metric in m]
+        if not valid:
+            continue
+        xs = [str(x_index[x]) if xs_are_strings else str(x) for x, _ in valid]
+        ys = [str(round(m[metric][0], 4)) for _, m in valid]
+        yerrs = [str(round(m[metric][1], 4)) for _, m in valid]
         trailing = "," if len(xs) == 1 else ""
         lines.append(
             f'            lq.plot(\n'
@@ -135,15 +173,13 @@ def typst_table(metric, config_data, row_label, main_config=None):
     for config, points in config_data.items():
         lookup[config] = {rv: m.get(metric, (None, None))[0] for rv, m in points}
 
-    header_cols = ", ".join(f"[*{c}*]" for c in configs)
-    if main_config is not None:
-        configs_no_main = [c for c in configs if c != main_config]
-        compared_header_cols = ", ".join(f"[*{c} vs {main_config}*]" for c in configs_no_main)
-        header = f"table.header([*{row_label}*], {header_cols}, {compared_header_cols}),"
-        col_widths = ", ".join(["auto"] * (1 + len(configs) + len(configs_no_main)))
-    else:
-        header = f"table.header([*{row_label}*], {header_cols}),"
-        col_widths = ", ".join(["auto"] * (1 + len(configs)))
+    configs_no_main = [c for c in configs if c != main_config] if main_config else []
+    header_items = (
+        [f"[*{row_label}*]"]
+        + [f"[*{c}*]" for c in configs]
+        + [f"[*{c} vs {main_config}*]" for c in configs_no_main]
+    )
+    header_str = "  (" + ", ".join(header_items) + "),"
 
     rows = []
     for rv in row_values:
@@ -170,19 +206,17 @@ def typst_table(metric, config_data, row_label, main_config=None):
             else:
                 compare_cells.append("[NAN]")
 
-        row = "  " + ", ".join(cells) + ", "
-        if main_config is not None:
-            row += ", ".join(compare_cells) + ","
-        rows.append(row)
+        rows.append("  (" + ", ".join(cells + compare_cells) + "),")
 
     rows_str = "\n".join(rows)
     return f"""=== {metric}
 
-#table(
-  columns: ({col_widths}),
-  {header}
+#let list = (
+{header_str}
 {rows_str}
 )
+#let caption = [{metric}]
+#data_to_table(list, caption, none)
 
 """
 
@@ -214,7 +248,7 @@ def _rand_config_data_for_cm(coupling_map_title, configs_data):
 
 
 def _rand_config_data_for_gate(gate_count, configs_data, coupling_maps):
-    """Reshape combined rand data for a single gate count (x = num_qubits)."""
+    """Reshape combined rand data for a single gate count (x = coupling map label)."""
     config_data: dict = {}
     gate_str = str(gate_count)
     for config_name, cm_gate_data in configs_data.items():
@@ -223,10 +257,11 @@ def _rand_config_data_for_gate(gate_count, configs_data, coupling_maps):
             num_qubits = coupling_maps.get(cm_title)
             if num_qubits is None or gate_str not in gate_data:
                 continue
+            label = f"{cm_title} ({num_qubits}q)"
             metric_means = {m: (v["mean"], v["ci"]) for m, v in gate_data[gate_str].items()}
-            points.append((num_qubits, metric_means))
+            points.append((num_qubits, label, metric_means))
         points.sort(key=lambda x: x[0])
-        config_data[config_name] = points
+        config_data[config_name] = [(label, metrics) for _, label, metrics in points]
     return config_data
 
 
@@ -249,7 +284,7 @@ def _mqt_config_data_for_cm(coupling_map_title, algorithms):
 
 
 def _mqt_avg_config_data_across_cm(algorithms, coupling_maps):
-    """Average MQT metrics across all algorithms per coupling map (x = num_qubits)."""
+    """Average MQT metrics across all algorithms per coupling map (x = coupling map label)."""
     accum: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for algo, cm_data in algorithms.items():
         for cm_title, entry in cm_data.items():
@@ -264,10 +299,11 @@ def _mqt_avg_config_data_across_cm(algorithms, coupling_maps):
             num_qubits = coupling_maps.get(cm_title)
             if num_qubits is None:
                 continue
+            label = f"{cm_title} ({num_qubits}q)"
             metric_means = {m: (sum(vals) / len(vals), 0.0) for m, vals in metric_lists.items()}
-            points.append((num_qubits, metric_means))
+            points.append((num_qubits, label, metric_means))
         points.sort(key=lambda x: x[0])
-        config_data[config_name] = points
+        config_data[config_name] = [(label, metrics) for _, label, metrics in points]
     return config_data
 
 
@@ -299,33 +335,49 @@ def main_rand_combined(file_name):
     coupling_maps, gate_amounts, configs_data, metrics = load_rand_combined(file_name)
     main_config = _get_main_config(list(configs_data.keys()))
 
+    multi_gates = len(gate_amounts) > 1
+    multi_cms = len(coupling_maps) > 1
+    # If neither dimension varies, fall back to gate count on x-axis
+    show_cm_constant = multi_gates or not multi_cms
+    show_gate_constant = multi_cms
+
     typst_lines = _typst_header() + ["= Random Circuit Benchmarks\n\n"]
 
     # --- Coupling map constant (x = gate count) ---
-    typst_lines.append("== Coupling Map Constant\n\n")
-    for cm_title, num_qubits in coupling_maps.items():
-        config_data = _rand_config_data_for_cm(cm_title, configs_data)
-        title = f"{cm_title} ({num_qubits} qubits)"
-        typst_lines.append(f"=== {title}\n\n")
-        typst_lines.append(typst_tables_section(config_data, metrics, "Gate Count", main_config))
-        typst_lines.append("\n#pagebreak()\n\n")
-        for metric in metrics:
-            typst_lines.append(typst_chart_block(metric, config_data, "Gate Count", title))
-            typst_lines.append("\n")
-        typst_lines.append("\n#pagebreak()\n\n")
+    if show_cm_constant:
+        if show_gate_constant:
+            typst_lines.append("== Coupling Map Constant\n\n")
+        for cm_title, num_qubits in coupling_maps.items():
+            config_data = _rand_config_data_for_cm(cm_title, configs_data)
+            title = f"{cm_title} ({num_qubits} qubits)"
+            if show_gate_constant:
+                typst_lines.append(f"=== {title}\n\n")
+            else:
+                typst_lines.append(f"== {title}\n\n")
+            typst_lines.append(typst_tables_section(config_data, metrics, "Gate Count", main_config))
+            typst_lines.append("\n#pagebreak()\n\n")
+            for metric in metrics:
+                typst_lines.append(typst_chart_block(metric, config_data, "Gate Count", title))
+                typst_lines.append("\n")
+            typst_lines.append("\n#pagebreak()\n\n")
 
-    # --- Gate count constant (x = num qubits) ---
-    typst_lines.append("== Gate Count Constant\n\n")
-    for gate_count in gate_amounts:
-        config_data = _rand_config_data_for_gate(gate_count, configs_data, coupling_maps)
-        title = f"Gates: {gate_count}"
-        typst_lines.append(f"=== {title}\n\n")
-        typst_lines.append(typst_tables_section(config_data, metrics, "Num Qubits", main_config))
-        typst_lines.append("\n#pagebreak()\n\n")
-        for metric in metrics:
-            typst_lines.append(typst_chart_block(metric, config_data, "Num Qubits", title))
-            typst_lines.append("\n")
-        typst_lines.append("\n#pagebreak()\n\n")
+    # --- Gate count constant (x = coupling map) ---
+    if show_gate_constant:
+        if show_cm_constant:
+            typst_lines.append("== Gate Count Constant\n\n")
+        for gate_count in gate_amounts:
+            config_data = _rand_config_data_for_gate(gate_count, configs_data, coupling_maps)
+            title = f"Gates: {gate_count}"
+            if show_cm_constant:
+                typst_lines.append(f"=== {title}\n\n")
+            else:
+                typst_lines.append(f"== {title}\n\n")
+            typst_lines.append(typst_tables_section(config_data, metrics, "Coupling Map", main_config))
+            typst_lines.append("\n#pagebreak()\n\n")
+            for metric in metrics:
+                typst_lines.append(typst_chart_block(metric, config_data, "Coupling Map", title))
+                typst_lines.append("\n")
+            typst_lines.append("\n#pagebreak()\n\n")
 
     out_file = file_name + ".typ"
     with open(RESULT_PATH / out_file, "w") as f:
@@ -341,28 +393,19 @@ def main_mqt_combined(file_name):
             all_configs.update(cm_data.get("configs", {}).keys())
     main_config = _get_main_config(all_configs)
 
+    multi_cms = len(coupling_maps) > 1
     typst_lines = _typst_header() + ["= MQT Benchmarks\n\n"]
 
-    # --- Coupling map constant (x = circuit qubits, one point per algorithm) ---
-    typst_lines.append("== Coupling Map Constant\n\n")
     for cm_title, num_qubits in coupling_maps.items():
         config_data = _mqt_config_data_for_cm(cm_title, algorithms)
         title = f"{cm_title} ({num_qubits} qubits)"
-        typst_lines.append(f"=== {title}\n\n")
+        typst_lines.append(f"{'==' if multi_cms else '=='} {title}\n\n")
+        typst_lines.append(typst_tables_section(config_data, metrics, "Circuit Qubits", main_config))
+        typst_lines.append("\n#pagebreak()\n\n")
         for metric in metrics:
             typst_lines.append(typst_chart_block(metric, config_data, "Circuit Qubits", title))
             typst_lines.append("\n")
         typst_lines.append("\n#pagebreak()\n\n")
-
-    # --- Coupling map varies, averaged across algorithms (x = num qubits) ---
-    typst_lines.append("== Coupling Map Varies (Averaged Across Algorithms)\n\n")
-    config_data = _mqt_avg_config_data_across_cm(algorithms, coupling_maps)
-    if config_data:
-        typst_lines.append(typst_tables_section(config_data, metrics, "Num Qubits", main_config))
-        typst_lines.append("\n#pagebreak()\n\n")
-        for metric in metrics:
-            typst_lines.append(typst_chart_block(metric, config_data, "Num Qubits", "All Algorithms (Averaged)"))
-            typst_lines.append("\n")
 
     out_file = file_name + ".typ"
     with open(RESULT_PATH / out_file, "w") as f:
