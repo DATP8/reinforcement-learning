@@ -3,6 +3,7 @@ from src.policy_types import ActorCriticPolicyType
 from src.benchmark.passmanager_creaters import PPOBuilder
 # from mqt.bench import BenchmarkLevel, get_benchmark
 # from mqt.bench.benchmarks import get_available_benchmark_names
+import concurrent.futures
 import random
 import time
 
@@ -117,6 +118,8 @@ MQT_ALGOS_BLACKLIST = [
 ]
 
 
+ROUTING_TIMEOUT_SECONDS = 300
+
 EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
 random.seed(EVAL_SEED)
 np.random.seed(EVAL_SEED)
@@ -165,13 +168,15 @@ class Benchmarker:
         row = f"{name:<{title_size}}"
         for label, width in METRIC_KEYS:
             value = metrics[label]
-            value_str = f"{value:>{width}.4f}"
             ci_val = ci[label] if ci is not None else None
-            if ci_val is not None:
-                ci_str = f" ±{ci_val:<8.4f}"
-                value_str += ci_str
+            if value == "timeout":
+                value_str = f"{'timeout':>{width}}"
+                if ci_val is not None:
+                    value_str += f" {'':10}"
             else:
-                value_str
+                value_str = f"{value:>{width}.4f}"
+                if ci_val is not None:
+                    value_str += f" ±{ci_val:<8.4f}"
             row += value_str
         print(row)
 
@@ -295,20 +300,24 @@ class Benchmarker:
             self._print_header(title=title, confidence=confidence, title_size=name_size)
         results = {}
         for config in configs:
-            mean_dic = {}
-            ci_dic = {}
+            mean_dic: dict[str, float | str] = {}
+            ci_dic: dict[str, float | str] = {}
             title, _ = config
             runs = self.bench_config(qc_list, config)
             for metric, _ in METRIC_KEYS:
-                metric_values = [run[metric] for run in runs]
-                arr = np.array(metric_values, dtype=float)
-                n = len(arr)
-                se = stats.sem(arr) if n > 1 else 0.0
-                ci_val = (
-                    se * stats.t.ppf((1 + confidence) / 2, df=n - 1) if n > 1 else 0.0
-                )
-                mean_dic[metric] = arr.mean()
-                ci_dic[metric] = ci_val
+                valid_values = [run[metric] for run in runs if run[metric] != "timeout"]
+                if not valid_values:
+                    mean_dic[metric] = "timeout"
+                    ci_dic[metric] = "timeout"
+                else:
+                    arr = np.array(valid_values, dtype=float)
+                    n = len(arr)
+                    se = stats.sem(arr) if n > 1 else 0.0
+                    ci_val = (
+                        se * stats.t.ppf((1 + confidence) / 2, df=n - 1) if n > 1 else 0.0
+                    )
+                    mean_dic[metric] = float(arr.mean())
+                    ci_dic[metric] = float(ci_val)
 
             results[title] = (mean_dic, ci_dic)
 
@@ -325,7 +334,12 @@ class Benchmarker:
             qc = qc.remove_final_measurements(inplace=False)
 
         start = time.perf_counter()
-        routed = pm.run(qc)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(pm.run, qc)
+            try:
+                routed = future.result(timeout=ROUTING_TIMEOUT_SECONDS)
+            except concurrent.futures.TimeoutError:
+                return {metric: "timeout" for metric, _ in METRIC_KEYS}
         end = time.perf_counter()
         
         
