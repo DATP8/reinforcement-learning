@@ -403,8 +403,8 @@ if __name__ == "__main__":
 
     # --- Configure coupling maps ---
     coupling_map_configs = [
-        ("heavy_hex_3", CouplingMap().from_heavy_hex(3)),
         ("line_6", CouplingMap().from_line(6)),
+        ("heavy_hex_3", CouplingMap().from_heavy_hex(3)),
         ("grid_2x3", CouplingMap().from_grid(2, 3)),
         ("grid_3x4", CouplingMap().from_grid(3, 4)),
     ]
@@ -421,6 +421,10 @@ if __name__ == "__main__":
         "grid_2x3":    {"num_active_swaps": 17, "model_path": "models/asbjørn/bipartite_best_grid_model.zip"},
         "grid_3x4":    {"num_active_swaps": 17, "model_path": "models/asbjørn/bipartite_best_grid_model.zip"},
         "heavy_hex_3": {"num_active_swaps": 20, "model_path": "models/asbjørn/bipartite_best_hh3_model.zip"},
+    }
+
+    VIBED_CONFIGS = {
+        "line_6":      {"num_active_swaps": 5, "model_path": "models/vibed/best_vibed_line_model.zip"},
     }
 
     PPO_MODEL_PATH = "models/mikkel/new_grid_ppo.zip"
@@ -479,6 +483,23 @@ if __name__ == "__main__":
             use_sabre_layout=False,
         ).build(coupling_map)
 
+        vibed_ppo = None
+        if VIBED_CONFIGS[coupling_map_title]:
+            vibed_ppo = PPOBuilder(
+                num_active_swaps=VIBED_CONFIGS[coupling_map_title]["num_active_swaps"],
+                horizon=32,
+                initial_difficulty=256,
+                max_difficulty=256,
+                diff_slope=0.9,
+                layout_exponent=1.0,
+                policy_type=ActorCriticPolicyType.VIBE_GRAPH,
+                samples=32,
+                time_limit=30,
+                seed=42,
+                model_path=VIBED_CONFIGS[coupling_map_title]["model_path"],
+                use_sabre_layout=False,
+            ).build(coupling_map)
+
         rec_cfg = RECEDING_CONFIGS[coupling_map_title]
         receding = RecedingBuilder(
             horizon=rec_cfg["horizon"],
@@ -495,6 +516,9 @@ if __name__ == "__main__":
             ("bipartite", bipartite_ppo),
             ("receding", receding),
         ]
+
+        if vibed_ppo:
+            configs.append(("vibed", vibed_ppo))
 
         combined_rand_results["coupling_maps"][coupling_map_title] = n_qubits
         combined_mqt_results["coupling_maps"][coupling_map_title] = n_qubits
@@ -519,6 +543,7 @@ if __name__ == "__main__":
                 bench_iterations,
                 title=f"{coupling_map_title} | Qubits: {n_qubits} | Gates: {gate_count}",
                 is_printing=True,
+                seed=42
             )  # pyrefly: ignore
             for config_name, (mean_dic, ci_dic) in temp.items():
                 if config_name not in rand_per_cm:
