@@ -1,3 +1,5 @@
+import math
+
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import subgraph
 
@@ -215,6 +217,34 @@ class CircuitGraphStateHandler(StateHandler[CircuitGraph]):
 
     def state_from(self, circuit: QuantumCircuit) -> CircuitGraph:
         return CircuitGraph.from_circuit(circuit)
+
+    def get_random_states_in_range_keep(
+        self,
+        batch_size: int,
+        min_difficulty: int,
+        max_difficulty: int,
+        previous_set: Batchable[CircuitGraph] | None = None,
+        kept_circuits_percent: int = 0,
+    ) -> list[CircuitGraph]:
+        if previous_set is not None and kept_circuits_percent != 0:
+            kept_circuits_amount = math.floor(
+                batch_size * (kept_circuits_percent / 100)
+            )
+            kept_indeces = random.sample(range(0, batch_size), kept_circuits_amount)
+            kept_graphs = []
+            for i, graph in enumerate(previous_set):
+                if i in kept_indeces:
+                    kept_graphs.append(graph)
+            random_graphs = [
+                self.get_random_state(random.randint(min_difficulty, max_difficulty))
+                for _ in range(batch_size - kept_circuits_amount)
+            ]
+            return kept_graphs + random_graphs
+        else:
+            return [
+                self.get_random_state(random.randint(min_difficulty, max_difficulty))
+                for _ in range(batch_size)
+            ]
 
 
 if __name__ == "__main__":
