@@ -1,9 +1,8 @@
-from qiskit import QuantumCircuit
 import random
-from typing import overload
-from typing import SupportsIndex
 from abc import ABC, abstractmethod
-from typing import Iterable, Protocol
+from typing import Iterable, Protocol, SupportsIndex, overload
+
+from qiskit import QuantumCircuit
 
 
 class Batchable[S](Protocol, Iterable[S]):

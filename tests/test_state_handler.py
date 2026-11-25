@@ -1,15 +1,15 @@
-from src.states.dense_circuit_graph import DenseCircuitGraph
-from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
 import unittest
-import torch
 
+import torch
 from qiskit import QuantumCircuit
 
-from src.states.tensor_state_handler import TensorStateHandler
-from src.states.qtensor import Qtensor
-from src.states.qtensor_state_handler import QtensorStateHandler
 from src.states.circuit_graph import CircuitGraph
 from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+from src.states.dense_circuit_graph import DenseCircuitGraph
+from src.states.dense_circuit_graph_state_handler import DenseCircuitGraphStateHandler
+from src.states.qtensor import Qtensor
+from src.states.qtensor_state_handler import QtensorStateHandler
+from src.states.tensor_state_handler import TensorStateHandler
 
 n_qubits = 6
 horizon = 10
@@ -70,7 +70,7 @@ class TestTensorStateHandler(unittest.TestCase):
             pruned_circuit = QuantumCircuit(n_qubits)
             for q1, q2 in output_circuits_pruned[i]:
                 pruned_circuit.cx(q1, q2)
-                # pyrefly: ignore[unbound-name]
+
             print(self.game.state_from(pruned_circuit), "\n", pruned_state)
 
             self.assertTrue(
@@ -80,7 +80,7 @@ class TestTensorStateHandler(unittest.TestCase):
                 pruned_circuit_2 = QuantumCircuit(n_qubits)
                 for q1, q2 in output_circuits_pruned[i + 1]:
                     pruned_circuit_2.cx(q1, q2)
-                    # pyrefly: ignore[unbound-name]
+
                 self.assertTrue(
                     not torch.equal(
                         self.game.state_from(pruned_circuit_2), pruned_state

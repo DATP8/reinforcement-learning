@@ -28,7 +28,7 @@ jobs:
       - uses: astral-sh/ruff-action@v3.6.1
         name: Check Linting
         with:
-         args: 'check --fix'
+         args: 'check --fix --extend-select I'
 
   unit-tests:
     strategy:

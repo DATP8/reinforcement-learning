@@ -1,6 +1,6 @@
-import torch
-
 from typing import Protocol
+
+import torch
 
 
 class To(Protocol):

@@ -1,9 +1,10 @@
-from qiskit import QuantumCircuit
-from src.states.qtensor import Qtensor
-
-import unittest
 import random
+import unittest
+
 import torch
+from qiskit import QuantumCircuit
+
+from src.states.qtensor import Qtensor
 
 
 class TestQtensor(unittest.TestCase):
@@ -30,9 +31,7 @@ class TestQtensor(unittest.TestCase):
         for function, args, kwargs in zip(
             self.functions_single, self.args_single, self.kwargs_single
         ):
-            # pyrefly: ignore[bad-argument-type, no-matching-overload]
             tensor_result = function(tensor, *args, **kwargs)
-            # pyrefly: ignore[bad-argument-type, no-matching-overload]
             qtensor_result = function(qtensor, *args, **kwargs)
             self.assertTrue(torch.equal(tensor_result, qtensor_result))
 
@@ -40,9 +39,7 @@ class TestQtensor(unittest.TestCase):
         for function, args, kwargs in zip(
             self.functions_binary, self.args_binary, self.kwargs_binary
         ):
-            # pyrefly: ignore[bad-argument-type, no-matching-overload]
             tensor_result = function(tensor, tensor, *args, **kwargs)
-            # pyrefly: ignore[bad-argument-type, no-matching-overload]
             qtensor_result = function(qtensor, tensor, *args, **kwargs)
             if isinstance(tensor_result, torch.Tensor):
                 # pyrefly: ignore[bad-argument-type]

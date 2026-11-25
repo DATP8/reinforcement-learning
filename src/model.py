@@ -1,12 +1,14 @@
-from torch_geometric.loader import DataLoader
-from src.states.circuit_graph import CircuitGraph
-from qiskit import QuantumCircuit
 from abc import abstractmethod
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-from torch_geometric.nn import GINEConv, global_add_pool, BatchNorm
+from qiskit import QuantumCircuit
 from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
+from torch_geometric.nn import BatchNorm, GINEConv, global_add_pool
+
+from src.states.circuit_graph import CircuitGraph
 
 # class AttentionModel(nn.Module):
 #     def __init__(self, n_qubits, d_model, nhead, num_layers):
@@ -182,8 +184,9 @@ class BiCircuitGNN(nn.Module):
 
 
 class BiCircuitGNNDense(nn.Module):
-    def __init__(self, n_qubits, hidden_dim=128):
+    def __init__(self, n_qubits, hidden_dim=128, ppo_mode=False):
         super().__init__()
+        self._ppo_mode = ppo_mode
 
         self.node_encoder = nn.Linear(n_qubits * 2, hidden_dim)
         self.edge_encoder = nn.Linear(n_qubits + 1, hidden_dim)
@@ -207,8 +210,16 @@ class BiCircuitGNNDense(nn.Module):
         self.b_bn1 = BatchNorm(hidden_dim)
         self.b_bn2 = BatchNorm(hidden_dim)
 
-        self.head = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
+        self.head = (
+            nn.Sequential(
+                nn.Linear(hidden_dim * 2, hidden_dim),
+            )
+            if ppo_mode
+            else nn.Sequential(
+                nn.Linear(hidden_dim * 2, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, 1),
+            )
         )
 
     def forward(self, data: Data):
@@ -233,7 +244,6 @@ class BiCircuitGNNDense(nn.Module):
         x = global_add_pool(x, batch)
 
         out = self.head(x)
-
         return out.squeeze(-1)
 
 

@@ -1,8 +1,9 @@
 import hashlib
-from qiskit.circuit.quantumcircuit import QuantumCircuit
-from torch_geometric.data import Data
+
 import torch
 import torch.nn.functional as F
+from qiskit.circuit.quantumcircuit import QuantumCircuit
+from torch_geometric.data import Data
 
 
 class DenseCircuitGraph(Data):

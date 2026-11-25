@@ -1,15 +1,15 @@
-from src.routing.router import Router
-from qiskit import QuantumCircuit
-
-from src.states.state_handler import StateHandler  # pyrefly: ignore
-from src.routing.swap_inserter.swap_inserter import SwapInserter  # pyrefly: ignore
-from src.model import BiCircuitGNN  # pyrefly: ignore
-
-import qiskit
-import torch
 import heapq
 import random
 import time
+
+import qiskit
+import torch
+from qiskit import QuantumCircuit
+
+from src.model import BiCircuitGNN
+from src.routing.router import Router
+from src.routing.swap_inserter.swap_inserter import SwapInserter
+from src.states.state_handler import StateHandler
 
 
 class BWASNode:
@@ -39,9 +39,7 @@ class BWASRouter[S, To](Router):
         device = next(self.model.parameters()).device
         with torch.no_grad():
             h = self.model(
-                self.state_handler.batch_states([root_state]).to(  # pyrefly: ignore
-                    device
-                )
+                self.state_handler.batch_states([root_state]).to(device)
             ).item()
 
         counter = 0
@@ -78,7 +76,7 @@ class BWASRouter[S, To](Router):
 
             states = self.state_handler.batch_states([node.state for node in new_nodes])
             with torch.no_grad():
-                h_values = self.model(states.to(device))  # pyrefly: ignore
+                h_values = self.model(states.to(device))
 
             for node, h in zip(new_nodes, h_values):
                 f = self.weight * node.g + h.item()
@@ -108,11 +106,14 @@ class BWASRouter[S, To](Router):
 
 if __name__ == "__main__":
     random.seed(42)
-    from qiskit.transpiler.coupling import CouplingMap as CM
-    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-    from qiskit.qpy import load
     import random
     import time
+
+    from qiskit.qpy import load
+    from qiskit.transpiler.coupling import CouplingMap as CM
+
+    from src.model import BiCircuitGNN
+    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
 
     def generate_random_circuit(n_qubits: int, n_gates: int):
         qc = QuantumCircuit(n_qubits)

@@ -1,22 +1,22 @@
-from qiskit.transpiler.passes import (
-    SabreLayout,
-    ApplyLayout,
-)
-from qiskit import generate_preset_pass_manager
+# from mqt.bench import BenchmarkLevel, get_benchmark
+# from mqt.bench.benchmarks import get_available_benchmark_names
+import random
+import time
+
+import numpy as np
+from qiskit import QuantumCircuit, generate_preset_pass_manager
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, PassManager
-from qiskit.transpiler.passes import CommutativeCancellation
-from qiskit import QuantumCircuit
+from qiskit_ibm_transpiler.ai.routing import AIRouting
+from sb3_contrib import MaskablePPO
 from scipy import stats
 from tqdm import tqdm
-import numpy as np
 
-from mqt.bench import BenchmarkLevel, get_benchmark
-from mqt.bench.benchmarks import get_available_benchmark_names
-
-import time
-import random
-
+from src.circuit_generator import CircuitGenerator
+from src.eval_circuits import EvalCircuits
+from src.policy_types import ActorCriticPolicyType
+from src.ppo_util import make_env
+from src.routing.agentic_rl_routing_pass import AgenticRlRoutingPass
 
 METRIC_KEYS = [
     ("Transpile", 10),
@@ -24,25 +24,30 @@ METRIC_KEYS = [
     ("CX", 10),
     ("Depth", 10),
     ("Size", 10),
-    ("Decomposed Depth", 10),
+    ("Decomposed Gates", 10),
 ]
+
+EVAL_SEED = 2026  # np.random.randint(0, 2**31 - 1)
+random.seed(EVAL_SEED)
+np.random.seed(EVAL_SEED)
+
+EVAL_TRIALS = 12
 
 
 class Benchmarker:
     def __init__(
         self,
         qubits,
-        max_gates,
+        num_gates,
         coupling_map,
         decompose_before_routing=True,
         decompose_reps=2,
     ):
         self.qubits = qubits
-        self.max_gates = max_gates
+        self.max_gates = num_gates
         self.coupling_map = coupling_map
         self.decompose_before_routing = decompose_before_routing
         self.decompose_reps = decompose_reps
-        self.commutative_cancellation = CommutativeCancellation()
 
     def _print_header(self, title: str, confidence: float | None = None) -> None:
         header: str = f"{'Config':<30}"
@@ -61,7 +66,7 @@ class Benchmarker:
         print(header)
         print(underline)
 
-    def _print_row(self, name, metrics, ci=None):
+    def _print_row(self, name: str, metrics, ci=None):
         row = f"{name:<30}"
         for label, width in METRIC_KEYS:
             value = metrics[label]
@@ -80,15 +85,12 @@ class Benchmarker:
             return qc
         return qc.decompose(reps=5)
 
-    def _collect_metrics(self, routed_circuit, transpile_time):
+    def _collect_metrics(self, routed_circuit: QuantumCircuit, transpile_time: float):
         ops = routed_circuit.count_ops()
-
-        decomposed_circuit = self.commutative_cancellation.run(
-            routed_circuit.decompose(gates_to_decompose="swap").to_dag()
-        ).to_circuit()
 
         swaps = ops.get("swap", 0)
         cx = ops.get("cx", 0)
+        decomposed_depth = swaps * 3 + cx
 
         metrics = {
             METRIC_KEYS[0][0]: transpile_time,
@@ -96,73 +98,126 @@ class Benchmarker:
             METRIC_KEYS[2][0]: cx,
             METRIC_KEYS[3][0]: routed_circuit.depth(),
             METRIC_KEYS[4][0]: routed_circuit.size(),
-            METRIC_KEYS[5][0]: decomposed_circuit.depth(),
+            METRIC_KEYS[5][0]: decomposed_depth,
         }
         return metrics
 
-    def generate_random_2qubit_circuit(
-        self, num_qubits: int, num_gates: int
-    ) -> QuantumCircuit:
-        if num_qubits < 2:
-            raise ValueError("Number of qubits must be at least 2 for 2-qubit gates.")
-
-        qc = QuantumCircuit(num_qubits)
-
-        for _ in range(num_gates):
-            control = random.randint(0, num_qubits - 1)
-            target = random.randint(0, num_qubits - 1)
-            while target == control:
-                target = random.randint(0, num_qubits - 1)
-            qc.cx(control, target)
-
-        return qc
-
-    def run_mqt_benchmarks(
-        self,
-        configs: list[tuple[str, PassManager]],
-    ):
-        algorithm_name_list = get_available_benchmark_names()
-        for algorithm_name in algorithm_name_list:
-            success = False
-            for q in range(1, self.qubits).__reversed__():
-                if success:
-                    break
-                try:
-                    qc = get_benchmark(
-                        algorithm_name, BenchmarkLevel.INDEP, self.qubits
-                    )
-                    qc = self._prepare_for_routing(qc)
-                    if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
-                        continue
-
-                    runs = self.bench_circuit(qc, configs, algorithm_name)
-                    self._print_header(f"Algorithm: {algorithm_name}")
-                    for config_name, metrics in runs.items():
-                        self._print_row(config_name, metrics)
-                    success = True
-
-                except AssertionError:
-                    raise
-                except Exception:
-                    pass
-
+    # def run_mqt_benchmarks(
+    #    self,
+    #    configs: list[tuple[str, PassManager]],
+    # ):
+    #    algorithm_name_list = get_available_benchmark_names()
+    #    for algorithm_name in algorithm_name_list:
+    #        success = False
+    #        for q in range(1, self.qubits).__reversed__():
+    #            if success:
+    #                break
+    #            try:
+    #                qc = get_benchmark(
+    #                    algorithm_name, BenchmarkLevel.INDEP, self.qubits
+    #                )
+    #                qc = self._prepare_for_routing(qc)
+    #                if qc.num_qubits > self.qubits or qc.size() > self.max_gates:
+    #                    continue
+    #
+    #                runs = self.bench_circuit(qc, configs, algorithm_name)
+    #                self._print_header(f"Algorithm: {algorithm_name}")
+    #                for config_name, metrics in runs.items():
+    #                    self._print_row(config_name, metrics)
+    #                success = True
+    #
+    #            except AssertionError:
+    #                raise
+    #            except Exception:
+    #                pass
+    #
     def run_rand_benchmarks(
         self,
         configs: list[tuple[str, PassManager]],
         iterations: int,
         confidence: float = 0.95,
     ):
-        qc_list = []
+        qc_list = CircuitGenerator.generate_n_random_cx_circuits(
+            n=iterations,
+            num_qubits=self.qubits,
+            num_gates=self.max_gates,
+            seed=EVAL_SEED,
+        )
+        self._run_benchmark(configs, confidence, qc_list, "random")
 
-        for _ in tqdm(
-            range(iterations), desc="List of random circuits", position=0, leave=False
-        ):
-            qc_list.append(
-                self.generate_random_2qubit_circuit(self.qubits, self.max_gates)
-            )
+    def bench_pass(self, qc: QuantumCircuit, pm: PassManager, title: str):
+        has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
+        if has_classical_ops:
+            qc: QuantumCircuit = qc.remove_final_measurements(inplace=False)  # pyrefly: ignore
 
+        start = time.perf_counter()
+        routed: QuantumCircuit = pm.run(qc)
+        end = time.perf_counter()
+
+        transpile_time = end - start
+
+        # from AIRouting: self.property_set["layout"] = initial_layout_qiskit
+        # print(pm.property_set["layout"])
+
+        org_op = Operator.from_circuit(qc)
+        routed_op = Operator.from_circuit(routed)
+
+        is_equiv = routed_op.equiv(org_op)
+
+        if not is_equiv:
+            routed_op = Operator.from_circuit(routed, layout=pm.property_set["layout"])
+
+        assert routed_op.equiv(org_op), (
+            f"\n\nFor the following configuration {title}\n"
+            f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
+        )
+
+        return self._collect_metrics(routed, transpile_time)
+
+    def bench_circuit(
+        self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title: str
+    ):
+        runs = {}
+
+        for config in tqdm(configs, desc=title, position=0, leave=False):
+            config_title, pm = config
+            runs[config_title] = self.bench_pass(qc, pm, config_title)
+
+        return runs
+
+    def bench_config(
+        self, qc_list: list[QuantumCircuit], config: tuple[str, PassManager]
+    ):
+        runs = []
+
+        title, pm = config
+
+        for qc in tqdm(qc_list, desc=title, position=0, leave=False):
+            runs.append(self.bench_pass(qc, pm, title))
+
+        return runs
+
+    def run_eval_benchmarks(
+        self,
+        configs: list[tuple[str, PassManager]],
+        iterations: int,
+        num_qubits: int,
+        confidence: float = 0.95,
+    ) -> None:
+        qc_list = EvalCircuits.get_eval_circuits(
+            n_eval_episodes=iterations, num_qubits=num_qubits
+        )
+        self._run_benchmark(configs, confidence, qc_list, "eval")
+
+    def _run_benchmark(
+        self,
+        configs: list[tuple[str, PassManager]],
+        confidence: float,
+        qc_list: list[QuantumCircuit],
+        header_title: str,
+    ):
         self._print_header(
-            title=f"{len(qc_list)} random circuits", confidence=confidence
+            title=f"{len(qc_list)} {header_title} circuits", confidence=confidence
         )
         for config in configs:
             mean_dic = {}
@@ -181,197 +236,186 @@ class Benchmarker:
                 ci_dic[metric] = ci_val
             self._print_row(title, metrics=mean_dic, ci=ci_dic)
 
-    def bench_pass(self, qc, pm, title):
-
-        has_classical_ops = any(len(inst.clbits) > 0 for inst in qc.data)
-        if has_classical_ops:
-            qc = qc.remove_final_measurements(inplace=False)
-
-        start = time.perf_counter()
-        routed = pm.run(qc)
-        end = time.perf_counter()
-
-        transpile_time = end - start
-
-        org_op = Operator.from_circuit(qc)
-        routed_op = Operator.from_circuit(routed)
-        assert routed_op.equiv(org_op), (
-            f"\n\nFor the following configuration {title}\n"
-            f"quantum circuits was not equal: \noriginal:\n{qc} routed: \n{routed}\n"
-        )
-
-        return self._collect_metrics(routed, transpile_time)
-
-    def bench_circuit(
-        self, qc: QuantumCircuit, configs: list[tuple[str, PassManager]], title
-    ):
-        runs = {}
-
-        for config in tqdm(configs, desc=title, position=0, leave=False):
-            config_title, pm = config
-            runs[config_title] = self.bench_pass(qc, pm, config_title)
-
-        return runs
-
-    def bench_config(self, qc_list, config):
-        runs = []
-
-        title, pm = config
-
-        for qc in tqdm(qc_list, desc=title, position=0, leave=False):
-            runs.append(self.bench_pass(qc, pm, title))
-
-        return runs
-
 
 if __name__ == "__main__":
-    from src.routing.swap_inserter.swap_inserter import SwapInserter
-    from qiskit.transpiler.passes import ApplyLayout
-    from qiskit.transpiler.passes import SabreLayout
-    from qiskit.transpiler.passes import TrivialLayout
-    from src.routing.bwas_chunck_router import ChunkRouter
-    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
-    from qiskit.transpiler import CouplingMap
-    from src.model import BiCircuitGNN
-    from src.routing.rl_routing_pass import RlRoutingPass
-    from qiskit.transpiler.passes import SabreSwap
-    from src.routing.bwas_router import BWASRouter
-    from src.routing.cnot_swap_cancel import CNOTSwapCancelation
-    from src.states.dense_circuit_graph_state_handler import (
-        DenseCircuitGraphStateHandler,
+    # from src.routing.rl_routing_pass import RlRoutingPass
+    from qiskit.transpiler.passes import (
+        ApplyLayout,
+        SabreLayout,
+        SabreSwap,
+        TrivialLayout,
     )
-    from src.model import BiCircuitGNNDense
-    from src.routing.receding_horizon import RecedingHorizon
-    import torch
 
-    n_qubits = 6
-    horizon = 100
+    from src.routing.swap_inserter.swap_inserter import SwapInserter
+    from src.states.circuit_graph_state_handler import CircuitGraphStateHandler
+
+    num_qubits = 6
     topology = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
-    state_handler = CircuitGraphStateHandler(n_qubits, topology)
-    state_handler_dense = DenseCircuitGraphStateHandler(n_qubits, topology)
+    state_handler = CircuitGraphStateHandler(num_qubits, topology)
 
-    path = "models/graph/difficulty62_updates7_iteration25150.pt"
-    model = BiCircuitGNN(n_qubits)
-    model.load_state_dict(torch.load(path, map_location="cpu"))
+    # path = "models/graph/difficulty62_updates7_iteration25150.pt"
+    # model = BiCircuitGNN(n_qubits)
+    # model.load_state_dict(torch.load(path, map_location="cpu"))
 
-    path_dense = "models/dense_graph/difficulty18_iteration82480.pt"
-    # path_dense = "models/dense_graph/difficulty32_iteration15040.pt"
-    model_dense = BiCircuitGNNDense(n_qubits)
-    model_dense.load_state_dict(torch.load(path_dense, map_location="cpu"))
-
-    coupling_map = CouplingMap(topology)
+    coupling_map = CouplingMap.from_line(num_qubits)
     coupling_map.make_symmetric()
 
-    swap_inserter = SwapInserter(coupling_map, n_qubits)
+    swap_inserter = SwapInserter(coupling_map, num_qubits)
 
-    chuck_size = 18
-    chunk_router = ChunkRouter(
-        chunk_size=chuck_size, model=model, state_handler=state_handler
-    )
-    chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
+    # chuck_size = 16
+    # chunk_router = ChunkRouter(
+    #    chunk_size=chuck_size, model=model, state_handler=state_handler
+    # )
 
-    chuck_router_dense = ChunkRouter(
-        chunk_size=chuck_size, model=model_dense, state_handler=state_handler_dense
-    )
-    chunck_swap_pass_dense = RlRoutingPass(chuck_router_dense, swap_inserter)
+    horizon = 64
+    policy_type: ActorCriticPolicyType = ActorCriticPolicyType.BASIC
 
-    bwas_router = BWASRouter(model_dense, state_handler_dense)
-    receding_horizon_router = RecedingHorizon(
-        horizon_length=chuck_size, step_size=chuck_size // 2, router=bwas_router
+    ppo_env = make_env(
+        coupling_map,
+        num_active_swaps=5,
+        horizon=horizon,
+        initial_difficulty=1,
+        max_difficulty=256,
+        diff_slope=0.85,
+        layout_exponent=1.0,
+        policy_type=policy_type,
     )
-    receding_horizon_pass = RlRoutingPass(receding_horizon_router, swap_inserter)
+    ppo_model = MaskablePPO.load("checkpoints/best_model.zip", ppo_env, seed=EVAL_SEED)
+
+    agentic_router = AgenticRlRoutingPass(ppo_model, coupling_map)
+
+    # chunck_swap_pass = RlRoutingPass(chunk_router, swap_inserter)
 
     trivial_layout = TrivialLayout(coupling_map)
-    sabre_layout = SabreLayout(coupling_map=coupling_map, skip_routing=True)
+    sabre_layout = SabreLayout(
+        coupling_map=coupling_map,
+        skip_routing=True,
+        swap_trials=EVAL_TRIALS,
+        layout_trials=EVAL_TRIALS,
+        seed=EVAL_SEED,
+    )
 
-    pm = PassManager([trivial_layout, SabreSwap(coupling_map=coupling_map)])
+    ai_router = AIRouting(
+        coupling_map=coupling_map,
+        layout_mode="keep",
+        optimization_level=3,
+        optimization_preferences="n_gates",
+    )
+
+    original_run = AIRouting.run
+
+    def patched_run(self, dag):
+        """
+        For some reason AIRouting overwrites layout property even with keep
+        """
+        saved_layout = self.property_set.get("layout", None)
+        result_dag = original_run(self, dag)
+        if self.layout_mode == "KEEP" and saved_layout is not None:
+            self.property_set["layout"] = saved_layout
+
+        return result_dag
+
+    AIRouting.run = patched_run
+
     #### Standard qiskit pass manager inserted router
     configs = [
         (
-            "TrivialLayout_SabreSwap",
+            "TrivialLayout_SabreSwap_basic",
             PassManager(
-                [trivial_layout, ApplyLayout(), SabreSwap(coupling_map=coupling_map)]
+                SabreSwap(
+                    coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS
+                ),
             ),
         ),
         (
-            "TrivialLayout_SabreSwap_cancel",
+            "TrivialLayout_SabreSwap_lookahead",
             PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                    CNOTSwapCancelation(),
-                ]
+                SabreSwap(
+                    coupling_map=coupling_map,
+                    seed=EVAL_SEED,
+                    trials=EVAL_TRIALS,
+                    heuristic="lookahead",
+                ),
             ),
         ),
         (
-            f"TrivialLayout_RecedingHorizon_Dense_cancel{chuck_size}",
+            "TrivialLayout_SabreSwap_decay",
             PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    receding_horizon_pass,
-                    CNOTSwapCancelation(),
-                ]
+                SabreSwap(
+                    coupling_map=coupling_map,
+                    seed=EVAL_SEED,
+                    trials=EVAL_TRIALS,
+                    heuristic="decay",
+                ),
             ),
         ),
         (
-            f"TrivialLayout_Chunking_Dense_cancel{chuck_size}",
-            PassManager(
-                [
-                    trivial_layout,
-                    ApplyLayout(),
-                    chunck_swap_pass_dense,
-                    CNOTSwapCancelation(),
-                ]
-            ),
+            f"TrivialLayout_MaskablePPO_{horizon}_{policy_type.name}",
+            PassManager(agentic_router),
         ),
         (
-            "SabreLayout_SabreSwap",
-            PassManager(
-                [
-                    sabre_layout,
-                    ApplyLayout(),
-                    SabreSwap(coupling_map=coupling_map),
-                ]
-            ),
+            "TrivialLayout_AI_ibm",
+            PassManager([trivial_layout, ApplyLayout(), ai_router]),
         ),
-        # (
-        #     f"SabreLayout_Chunking_{chuck_size}",
-        #     PassManager(
-        #         [
-        #             sabre_layout,
-        #             ApplyLayout(),
-        #             chunck_swap_pass,
-        #         ]
-        #     ),
-        # ),
         (
-            f"SabreLayout_Dense_Chunking_{chuck_size}",
+            "SabreLayout_SabreSwap_basic",
             PassManager(
                 [
                     sabre_layout,
                     ApplyLayout(),
-                    chunck_swap_pass_dense,
+                    SabreSwap(
+                        coupling_map=coupling_map, seed=EVAL_SEED, trials=EVAL_TRIALS
+                    ),
                 ]
             ),
         ),
         (
-            "Op1 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=1, coupling_map=coupling_map
+            "SabreLayout_SabreSwap_lookahead",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(
+                        coupling_map=coupling_map,
+                        seed=EVAL_SEED,
+                        trials=EVAL_TRIALS,
+                        heuristic="lookahead",
+                    ),
+                ]
             ),
         ),
         (
-            "Op2 qiskit",
-            generate_preset_pass_manager(
-                optimization_level=2, coupling_map=coupling_map
+            "SabreLayout_SabreSwap_decay",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    SabreSwap(
+                        coupling_map=coupling_map,
+                        seed=EVAL_SEED,
+                        trials=EVAL_TRIALS,
+                        heuristic="decay",
+                    ),
+                ]
             ),
         ),
         (
-            "Op3 qiskit",
+            f"SabreLayout_MaskablePPO_{horizon}_{policy_type.name}",
+            PassManager(
+                [
+                    sabre_layout,
+                    ApplyLayout(),
+                    agentic_router,
+                ]
+            ),
+        ),
+        ("SabreLayout_AI_ibm", PassManager([sabre_layout, ApplyLayout(), ai_router])),
+        (
+            "Op0_qiskit",
             generate_preset_pass_manager(
-                optimization_level=3, coupling_map=coupling_map
+                optimization_level=0,
+                coupling_map=coupling_map,
+                seed_transpiler=EVAL_SEED,
             ),
         ),
     ]
@@ -379,9 +423,13 @@ if __name__ == "__main__":
     #### Pass manager with only routing stage
     # configs = [(title, PassManager([router])) for title, router in routers]
 
-    bench_iterations = 10
+    print("EVAL_SEED:", EVAL_SEED)
+    print("EVAL_TRIALS:", EVAL_TRIALS)
+
+    bench_iterations = 100
     bench_circut_gate_count = 100
-    bench = Benchmarker(n_qubits, bench_circut_gate_count, coupling_map)
-    bench.run_mqt_benchmarks(configs)  # pyrefly: ignore
+    bench = Benchmarker(num_qubits, bench_circut_gate_count, coupling_map)
+    # bench.run_mqt_benchmarks(configs)
     print("\n")
-    bench.run_rand_benchmarks(configs, bench_iterations)  # pyrefly: ignore
+    # bench.run_rand_benchmarks(configs, bench_iterations)
+    bench.run_eval_benchmarks(configs, bench_iterations, num_qubits)

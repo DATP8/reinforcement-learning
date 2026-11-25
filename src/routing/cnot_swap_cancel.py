@@ -1,7 +1,7 @@
-from qiskit.transpiler import TransformationPass
-from qiskit.circuit.library import CXGate
 from qiskit.circuit import QuantumRegister
+from qiskit.circuit.library import CXGate
 from qiskit.dagcircuit import DAGCircuit
+from qiskit.transpiler import TransformationPass
 
 
 class CNOTSwapCancelation(TransformationPass):
